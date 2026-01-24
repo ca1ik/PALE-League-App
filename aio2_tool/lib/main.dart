@@ -56,7 +56,7 @@ void main() async {
 
     // Veri yapısı değiştiği için kutu ismini v2 yaptık.
     // Böylece eski hatalı verilerle çakışmadan temiz bir başlangıç yapar.
-    var playerBox = await Hive.openBox<Player>('palehax_players_v2');
+    var playerBox = await Hive.openBox<Player>('palehax_players_v3');
 
     // 4. Varsayılan Veri Kontrolü
     if (playerBox.isEmpty) {

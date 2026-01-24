@@ -20,8 +20,8 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
   @override
   void initState() {
     super.initState();
-    // Kutu ismini değiştirdik ki eski verilerle çakışmasın
-    playerBox = Hive.box<Player>('palehax_players_v2');
+    // V3 KUTUSU (Yeni veri yapısı için)
+    playerBox = Hive.box<Player>('palehax_players_v3');
     if (playerBox.isNotEmpty) {
       selectedPlayer = playerBox.getAt(0);
     }
@@ -58,7 +58,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
 
           return Row(
             children: [
-              // --- SOL: OYUNCU LİSTESİ ---
+              // --- SOL: LİSTE ---
               Container(
                 width: 300,
                 margin: const EdgeInsets.only(right: 20),
@@ -119,7 +119,8 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 14),
                                             overflow: TextOverflow.ellipsis),
-                                        Text(p.position,
+                                        // Takım ismini listede de gösterelim
+                                        Text("${p.position} | ${p.team}",
                                             style: GoogleFonts.poppins(
                                                 color: Colors.white54,
                                                 fontSize: 12)),
@@ -156,7 +157,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                         // 1. OYUNCU KARTI
                         GlassBox(
                           width: double.infinity,
-                          height: 260, // Yükseklik arttı
+                          height: 260,
                           child: Stack(
                             children: [
                               Positioned.fill(
@@ -242,6 +243,30 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                                           FontWeight.bold,
                                                       fontSize: 24)),
                                             ),
+                                            const SizedBox(width: 15),
+                                            // TAKIM ETİKETİ (YENİ)
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 6),
+                                              decoration: BoxDecoration(
+                                                  color: Colors.blueAccent
+                                                      .withOpacity(0.2),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                      color:
+                                                          Colors.blueAccent)),
+                                              child: Text(
+                                                  selectedPlayer!.team
+                                                      .toUpperCase(),
+                                                  style: GoogleFonts.poppins(
+                                                      color: Colors.blueAccent,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 16)),
+                                            ),
                                           ],
                                         ),
                                         Text(selectedPlayer!.name.toUpperCase(),
@@ -289,7 +314,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
 
                         const SizedBox(height: 30),
 
-                        // 2. PLAYSTYLES (BÜYÜK VE İSİMLİ)
+                        // 2. PLAYSTYLES
                         Text(lang.translate('ui_playstyles'),
                             style: GoogleFonts.orbitron(
                                 color: Colors.white70,
@@ -299,7 +324,8 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                         const SizedBox(height: 15),
 
                         Wrap(
-                          spacing: 20, runSpacing: 20, // Boşluklar arttı
+                          spacing: 20,
+                          runSpacing: 20,
                           children: selectedPlayer!.playstyles.map((ps) {
                             return Column(
                               mainAxisSize: MainAxisSize.min,
@@ -309,7 +335,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                       (ps.isGold ? " (PlayStyle+)" : ""),
                                   child: Container(
                                     width: 75,
-                                    height: 75, // BÜYÜTÜLDÜ (50 -> 75)
+                                    height: 75,
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFF15151A),
@@ -339,10 +365,8 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                // PLAYSTYLE İSMİ (DİLE GÖRE)
                                 Text(
-                                  lang.translate(
-                                      'ps_${ps.name}'), // Çeviri çağırılıyor
+                                  lang.translate('ps_${ps.name}'),
                                   style: GoogleFonts.poppins(
                                       color: ps.isGold
                                           ? const Color(0xFFFFD700)
@@ -359,7 +383,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
 
                         const SizedBox(height: 30),
 
-                        // 3. MAÇ ANALİZİ (YENİ BÖLÜM)
+                        // 3. MAÇ ANALİZİ
                         Text(lang.translate('ui_match_analysis'),
                             style: GoogleFonts.orbitron(
                                 color: Colors.white70,
@@ -411,7 +435,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                             }).toList(),
                           ),
                         ),
-                        const SizedBox(height: 50), // Alt boşluk
+                        const SizedBox(height: 50),
                       ],
                     ),
                   ),
@@ -456,8 +480,9 @@ class CreatePlayerDialog extends StatefulWidget {
 class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
   final _nameController = TextEditingController();
   final _ratingController = TextEditingController();
-  final _valueController = TextEditingController(); // Yeni alan
+  final _valueController = TextEditingController();
   String _selectedPosition = "ST";
+  String _selectedTeam = "Takımsız"; // YENİ: Takım Seçimi
   final Map<String, bool> _selectedPlayStyles = {};
 
   @override
@@ -484,6 +509,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // İsim ve Reyting
                     Row(
                       children: [
                         Expanded(
@@ -497,8 +523,38 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                       ],
                     ),
                     const SizedBox(height: 10),
+
+                    // Piyasa Değeri
                     _field(_valueController, "Piyasa Değeri (Örn: 10M €)"),
                     const SizedBox(height: 15),
+
+                    // YENİ: Takım Seçimi
+                    Text("Takım",
+                        style: GoogleFonts.poppins(color: Colors.grey)),
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                          color: Colors.white10,
+                          borderRadius: BorderRadius.circular(10)),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedTeam,
+                          isExpanded: true,
+                          dropdownColor: const Color(0xFF1E1E24),
+                          style: const TextStyle(color: Colors.white),
+                          items: availableTeams
+                              .map((team) => DropdownMenuItem(
+                                  value: team, child: Text(team)))
+                              .toList(),
+                          onChanged: (val) =>
+                              setState(() => _selectedTeam = val!),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 15),
+                    // Mevki Seçimi
                     Text("Mevki",
                         style: GoogleFonts.poppins(color: Colors.grey)),
                     Wrap(
@@ -519,6 +575,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                           .toList(),
                     ),
                     const Divider(color: Colors.white24, height: 30),
+                    // PlayStyles
                     Text("PlayStyles (Tek Tık: Gümüş, Uzun Bas: Altın)",
                         style: GoogleFonts.poppins(color: Colors.cyanAccent)),
                     const SizedBox(height: 10),
@@ -606,11 +663,12 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
       position: _selectedPosition,
       marketValue:
           _valueController.text.isEmpty ? "N/A" : _valueController.text,
+      team: _selectedTeam, // Takım Kaydı
       playstyles: _selectedPlayStyles.entries
           .map((e) => PlayStyle(e.key, isGold: e.value))
           .toList(),
     );
-    Hive.box<Player>('palehax_players_v2').add(newPlayer);
+    Hive.box<Player>('palehax_players_v3').add(newPlayer);
     Navigator.pop(context);
   }
 }

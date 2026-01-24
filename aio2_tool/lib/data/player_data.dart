@@ -12,8 +12,9 @@ class PlayerAdapter extends TypeAdapter<Player> {
       rating: reader.read(),
       position: reader.read(),
       playstyles: (reader.read() as List).cast<PlayStyle>(),
-      marketValue: reader.read(), // Yeni alan
-      matches: (reader.read() as List).cast<MatchStat>(), // Yeni alan
+      marketValue: reader.read(),
+      matches: (reader.read() as List).cast<MatchStat>(),
+      team: reader.read(), // YENİ: Takım okuma
     );
   }
 
@@ -25,6 +26,7 @@ class PlayerAdapter extends TypeAdapter<Player> {
     writer.write(obj.playstyles);
     writer.write(obj.marketValue);
     writer.write(obj.matches);
+    writer.write(obj.team); // YENİ: Takım yazma
   }
 }
 
@@ -43,7 +45,7 @@ class PlayStyleAdapter extends TypeAdapter<PlayStyle> {
 
 class MatchStatAdapter extends TypeAdapter<MatchStat> {
   @override
-  final int typeId = 3; // Yeni ID
+  final int typeId = 3;
   @override
   MatchStat read(BinaryReader reader) =>
       MatchStat(reader.read(), reader.read(), reader.read(), reader.read());
@@ -70,7 +72,6 @@ class MatchStat {
   final String score;
   final int goals;
   final int assists;
-
   MatchStat(this.opponent, this.score, this.goals, this.assists);
 }
 
@@ -79,8 +80,9 @@ class Player {
   final int rating;
   final String position;
   final List<PlayStyle> playstyles;
-  final String marketValue; // Örn: "10M €"
+  final String marketValue;
   final List<MatchStat> matches;
+  final String team; // YENİ ALAN
 
   Player({
     required this.name,
@@ -89,6 +91,7 @@ class Player {
     required this.playstyles,
     this.marketValue = "N/A",
     this.matches = const [],
+    this.team = "Takımsız", // Varsayılan
   });
 
   int get kitNumber {
@@ -113,6 +116,26 @@ class Player {
   }
 }
 
+// --- TAKIM LİSTESİ (Resimden alındı) ---
+final List<String> availableTeams = [
+  "Takımsız",
+  "Livorno",
+  "Toulouse",
+  "Invicta",
+  "Maximilian",
+  "Werder Weremem",
+  "Bursa Spor",
+  "CA RIVER PLATE",
+  "Fenerbahçe",
+  "Shamrock Rovers",
+  "Chelsea",
+  "It Spor",
+  "Tiyatro FC",
+  "La Mama de Nico",
+  "Juventus",
+  "Theis FC"
+];
+
 // --- VARSAYILAN OYUNCULAR ---
 final List<Player> defaultPlayers = [
   Player(
@@ -120,24 +143,20 @@ final List<Player> defaultPlayers = [
     rating: 94,
     position: "LW",
     marketValue: "120M €",
+    team: "Takımsız", // İSTEK
     matches: [
       MatchStat("Barcelona", "3-1", 1, 2),
       MatchStat("Real Madrid", "2-2", 0, 2),
       MatchStat("Juventus", "2-0", 2, 0),
       MatchStat("Milan", "4-3", 1, 2),
-      MatchStat("Inter", "2-1", 1, 1),
+      MatchStat("Inter", "2-1", 1, 1)
     ],
     playstyles: [
       PlayStyle("Trickster", isGold: true),
-      PlayStyle("Technical"),
-      PlayStyle("Rapid"),
-      PlayStyle("QuickStep"),
-      PlayStyle("FirstTouch"),
-      PlayStyle("FinesseShot"),
-      PlayStyle("PowerShot"),
-      PlayStyle("Acrobatic"),
-      PlayStyle("GameChanger"),
-      PlayStyle("PingedPass"),
+      PlayStyle("Technical"), PlayStyle("Rapid"), PlayStyle("QuickStep"),
+      PlayStyle("FirstTouch"), PlayStyle("FinesseShot"),
+      PlayStyle("PowerShot"), // DÜZELTİLDİ
+      PlayStyle("Acrobatic"), PlayStyle("GameChanger"), PlayStyle("PingedPass"),
     ],
   ),
   Player(
@@ -145,6 +164,7 @@ final List<Player> defaultPlayers = [
     rating: 83,
     position: "GK",
     marketValue: "45M €",
+    team: "Toulouse", // İSTEK
     matches: [MatchStat("Lyon", "1-0", 0, 0), MatchStat("PSG", "0-3", 0, 0)],
     playstyles: [
       PlayStyle("FarReach", isGold: true),
@@ -158,6 +178,7 @@ final List<Player> defaultPlayers = [
     rating: 94,
     position: "ST",
     marketValue: "110M €",
+    team: "Toulouse", // İSTEK
     matches: [
       MatchStat("Bayern", "1-1", 1, 0),
       MatchStat("Dortmund", "3-0", 2, 1)
@@ -179,6 +200,7 @@ final List<Player> defaultPlayers = [
     rating: 89,
     position: "CB",
     marketValue: "85M €",
+    team: "Fenerbahçe", // İSTEK
     playstyles: [
       PlayStyle("Jockey", isGold: true),
       PlayStyle("PingedPass"),
@@ -193,6 +215,7 @@ final List<Player> defaultPlayers = [
     rating: 95,
     position: "RW",
     marketValue: "150M €",
+    team: "Maximilian", // İSTEK
     playstyles: [
       PlayStyle("Rapid", isGold: true),
       PlayStyle("Technical"),
@@ -209,35 +232,15 @@ final List<Player> defaultPlayers = [
   ),
 ];
 
-// Playstyle isimleri
+// Playstyle isimleri (DÜZELTİLDİ: PowerShot)
 final List<String> availablePlayStyles = [
-  "Acrobatic",
-  "AerialFortress",
-  "Anticipate",
-  "Block",
-  "Bruiser",
-  "CrossClaimer",
-  "FarReach",
-  "FinesseShot",
-  "FirstTouch",
-  "Footwork",
-  "GameChanger",
-  "IncisivePass",
-  "Intercept",
-  "Inventive",
-  "Jockey",
-  "LongBallPass",
-  "PingedPass",
-  "PowerShot",
-  "PressProven",
-  "QuickStep",
-  "Rapid",
-  "RushOut",
-  "SlideTackle",
-  "Technical",
-  "TikiTaka",
-  "Trickster",
-  "WhippedPass"
+  "Acrobatic", "AerialFortress", "Anticipate", "Block", "Bruiser",
+  "CrossClaimer", "FarReach", "FinesseShot", "FirstTouch", "Footwork",
+  "GameChanger", "IncisivePass", "Intercept", "Inventive", "Jockey",
+  "LongBallPass", "PingedPass", "PowerShot", "PressProven",
+  "QuickStep", // PowerShot düzeltildi
+  "Rapid", "RushOut", "SlideTackle", "Technical", "TikiTaka",
+  "Trickster", "WhippedPass"
 ];
 
 final List<String> availablePositions = [
