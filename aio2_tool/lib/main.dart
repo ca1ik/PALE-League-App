@@ -33,6 +33,7 @@ import 'modules/ai_photo_module.dart';
 import 'modules/extras_module.dart';
 import 'modules/keyboard_module.dart';
 import 'modules/turkey_map_module.dart';
+import 'modules/palehax_players_view.dart'; // ÖZEL OYUNCU EKRANI
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,8 +45,8 @@ void main() async {
     debugPrint("Hafıza Hatası: $e");
   }
 
+  // Şeffaflık ve Pencere Ayarları
   await windowManager.ensureInitialized();
-
   WindowOptions windowOptions = const WindowOptions(
     size: Size(1280, 850),
     center: true,
@@ -160,17 +161,13 @@ class MainWindow extends StatefulWidget {
 }
 
 class _MainWindowState extends State<MainWindow> {
-  // --- NAVİGASYON GEÇMİŞİ SİSTEMİ ---
-  List<int> _history = [0]; // Başlangıçta sadece anasayfa (0) var
-  int _historyIndex = 0; // Şu an geçmişin hangi sırasındayız
+  // --- NAVİGASYON GEÇMİŞİ ---
+  List<int> _history = [0];
+  int _historyIndex = 0;
 
-  // Sayfa Değiştirme Fonksiyonu (Geçmişe ekler)
   void _navigateTo(int index) {
-    if (_history[_historyIndex] == index)
-      return; // Aynı sayfadaysak işlem yapma
-
+    if (_history[_historyIndex] == index) return;
     setState(() {
-      // Eğer geçmişin ortasındayken yeni bir yere gidersek, ilerideki geçmişi sil (Tarayıcı mantığı)
       if (_historyIndex < _history.length - 1) {
         _history = _history.sublist(0, _historyIndex + 1);
       }
@@ -179,22 +176,12 @@ class _MainWindowState extends State<MainWindow> {
     });
   }
 
-  // Geri Git
   void _goBack() {
-    if (_historyIndex > 0) {
-      setState(() {
-        _historyIndex--;
-      });
-    }
+    if (_historyIndex > 0) setState(() => _historyIndex--);
   }
 
-  // İleri Git
   void _goForward() {
-    if (_historyIndex < _history.length - 1) {
-      setState(() {
-        _historyIndex++;
-      });
-    }
+    if (_historyIndex < _history.length - 1) setState(() => _historyIndex++);
   }
 
   @override
@@ -204,11 +191,11 @@ class _MainWindowState extends State<MainWindow> {
     final uiProv = Provider.of<UIProvider>(context);
     final isDark = themeProv.isDark;
 
-    // Aktif sayfa indexi geçmişten çekilir
     int activeIdx = _history[_historyIndex];
 
-    // --- MODÜL LİSTESİ ---
+    // --- SAYFA LİSTESİ ---
     final List<Widget> pages = [
+      // 0-13: UPGRADE (Eski Modüller)
       const ResolutionModule(), // 0
       const CleaningModule(), // 1
       const DnsModule(), // 2
@@ -223,7 +210,53 @@ class _MainWindowState extends State<MainWindow> {
       const ChartsModule(), // 11
       const TurkeyMapModule(), // 12
       const SettingsScreen(), // 13
-      const WebviewModule(url: "https://palehaxball.com/"), // 14
+
+      // 14-22: PALEHAX (Yeni Modüller)
+      const WebviewModule(url: "https://palehaxball.com/"), // 14: Anasayfa
+      const PaleHaxPlayersView(), // 15: OYUNCULAR (Özel Tasarım)
+      const WebviewModule(url: "https://palehaxball.com/teams"), // 16: Takımlar
+      const Center(
+          child: Text("Maçlar Yakında",
+              style: TextStyle(color: Colors.white, fontSize: 20))), // 17
+      const Center(
+          child: Text("Puan Durumu",
+              style: TextStyle(color: Colors.white, fontSize: 20))), // 18
+      const Center(
+          child: Text("İstatistikler",
+              style: TextStyle(color: Colors.white, fontSize: 20))), // 19
+
+      // 20: Transferler (Sekmeli)
+      DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            TabBar(
+                labelColor: Colors.cyanAccent,
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: Colors.cyanAccent,
+                tabs: const [
+                  Tab(text: "Transferler"),
+                  Tab(text: "Transfer Listesi")
+                ]),
+            const Expanded(
+                child: TabBarView(children: [
+              Center(
+                  child: Text("Son Transfer Haberleri Burada Olacak",
+                      style: TextStyle(color: Colors.white))),
+              Center(
+                  child: Text("Transfer Listesi Burada Olacak",
+                      style: TextStyle(color: Colors.white))),
+            ]))
+          ],
+        ),
+      ),
+
+      const Center(
+          child: Text("Challenge Modu",
+              style: TextStyle(color: Colors.white, fontSize: 20))), // 21
+      const Center(
+          child: Text("Hall of Fame 🏆",
+              style: TextStyle(color: Colors.amber, fontSize: 30))), // 22
     ];
 
     Widget activeModule = pages[activeIdx < pages.length ? activeIdx : 0];
@@ -236,16 +269,17 @@ class _MainWindowState extends State<MainWindow> {
             const Positioned.fill(child: ParticleBackground()),
           if (!uiProv.isSpatialMode && !isDark)
             Positioned.fill(child: Container(color: Colors.grey[200])),
+
+          // --- NORMAL MOD ---
           if (!uiProv.isSpatialMode)
             Column(
               children: [
-                // --- ÜST ÇUBUK (NAVİGASYONLU) ---
+                // Title Bar
                 Container(
-                  height: 40, // Biraz yükselttik
+                  height: 40,
                   color: isDark ? Colors.black26 : Colors.white,
                   child: Row(
                     children: [
-                      // Sürükleme Alanı Başlangıcı
                       Expanded(
                         child: GestureDetector(
                           onPanStart: (_) => windowManager.startDragging(),
@@ -254,7 +288,7 @@ class _MainWindowState extends State<MainWindow> {
                             padding: const EdgeInsets.symmetric(horizontal: 10),
                             child: Row(
                               children: [
-                                // --- GERİ BUTONU ---
+                                // Navigasyon Butonları
                                 IconButton(
                                   icon: Icon(Icons.arrow_back_ios_new_rounded,
                                       size: 16,
@@ -264,9 +298,7 @@ class _MainWindowState extends State<MainWindow> {
                                               : Colors.black)
                                           : Colors.grey.withOpacity(0.3)),
                                   onPressed: _historyIndex > 0 ? _goBack : null,
-                                  tooltip: "Geri",
                                 ),
-                                // --- İLERİ BUTONU ---
                                 IconButton(
                                   icon: Icon(Icons.arrow_forward_ios_rounded,
                                       size: 16,
@@ -278,40 +310,33 @@ class _MainWindowState extends State<MainWindow> {
                                   onPressed: _historyIndex < _history.length - 1
                                       ? _goForward
                                       : null,
-                                  tooltip: "İleri",
                                 ),
-
                                 const SizedBox(width: 15),
-
-                                // Başlık
-                                Text(
-                                  langProv.translate('app_title'),
-                                  style: TextStyle(
-                                      color:
-                                          isDark ? Colors.white : Colors.black,
-                                      fontWeight: FontWeight.bold),
-                                ),
+                                Text(langProv.translate('app_title'),
+                                    style: TextStyle(
+                                        color: isDark
+                                            ? Colors.white
+                                            : Colors.black,
+                                        fontWeight: FontWeight.bold)),
                               ],
                             ),
                           ),
                         ),
                       ),
-                      // Hızlı Ayarlar
                       IconButton(
                         icon: Icon(Icons.settings,
                             color: isDark ? Colors.white70 : Colors.black54,
                             size: 20),
-                        onPressed: () => _navigateTo(
-                            13), // setState yerine navigateTo kullanıyoruz
+                        onPressed: () => _navigateTo(13),
                       ),
                       const WindowButtons(),
                     ],
                   ),
                 ),
+                // İçerik
                 Expanded(
                   child: Row(
                     children: [
-                      // Sidebar'a navigateTo fonksiyonunu gönderiyoruz
                       CustomSidebar(
                           selectedIndex: activeIdx,
                           onIndexChanged: (i) => _navigateTo(i)),
@@ -336,16 +361,17 @@ class _MainWindowState extends State<MainWindow> {
                 ),
               ],
             ),
+
+          // --- SPATIAL MOD ---
           if (uiProv.isSpatialMode) ...[
             Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 40,
-              child: GestureDetector(
-                  onPanStart: (_) => windowManager.startDragging(),
-                  child: Container(color: Colors.transparent)),
-            ),
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 40,
+                child: GestureDetector(
+                    onPanStart: (_) => windowManager.startDragging(),
+                    child: Container(color: Colors.transparent))),
             MovableWindow(
               initialX: 20,
               initialY: 100,
@@ -364,11 +390,11 @@ class _MainWindowState extends State<MainWindow> {
                     child: activeModule),
               ),
             ),
-            // Spatial Modda Navigasyon Kontrolleri (Ana Modülün Üzerine Eklenebilir veya ayrı bir bar yapılabilir)
-            // Şimdilik pencere kontrolleri yeterli
             const Positioned(
                 top: 10, right: 10, child: WindowButtons(isSpatial: true)),
           ],
+
+          // Chatbot
           uiProv.isSpatialMode
               ? MovableWindow(
                   initialX: 1000,
@@ -442,8 +468,7 @@ class _MainWindowState extends State<MainWindow> {
           t = 14;
           break;
       }
-      if (t != null)
-        _navigateTo(t!); // Chatbot da artık geçmiş sistemini kullanıyor
+      if (t != null) _navigateTo(t!);
     }
   }
 }
