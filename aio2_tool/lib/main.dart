@@ -14,7 +14,7 @@ import 'providers/language_provider.dart';
 import 'providers/ui_provider.dart';
 
 // --- VERİ & DATA ---
-import 'data/player_data.dart'; // YENİ: Veritabanı ve Modeller
+import 'data/player_data.dart'; // Oyuncu, PlayStyle ve Maç İstatistikleri Modelleri
 
 // --- UI & EKRANLAR ---
 import 'ui/background.dart';
@@ -33,10 +33,10 @@ import 'modules/resolution_module.dart';
 import 'modules/cleaning_module.dart';
 import 'modules/system_tools.dart';
 import 'modules/ai_photo_module.dart';
-import 'modules/extras_module.dart';
+import 'modules/extras_module.dart'; // WebviewModule burada varsayılıyor
 import 'modules/keyboard_module.dart';
 import 'modules/turkey_map_module.dart';
-import 'modules/palehax_players_view.dart'; // YENİ: Oyuncu Listesi Ekranı
+import 'modules/palehax_players_view.dart'; // Özel Oyuncu Profili Ekranı
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,26 +45,29 @@ void main() async {
     // 1. Hive Başlatma
     await Hive.initFlutter();
 
-    // 2. Adapterleri Kaydet (Veri modellerini tanıması için)
+    // 2. Adapterleri Kaydet (Sıralama önemli)
     Hive.registerAdapter(PlayerAdapter());
     Hive.registerAdapter(PlayStyleAdapter());
+    Hive.registerAdapter(
+        MatchStatAdapter()); // YENİ: Maç İstatistikleri Adapteri
 
     // 3. Kutuları Aç
     await Hive.openBox('natroff_memory'); // Ayarlar vs.
-    var playerBox =
-        await Hive.openBox<Player>('palehax_players'); // Oyuncu veritabanı
+
+    // Veri yapısı değiştiği için kutu ismini v2 yaptık.
+    // Böylece eski hatalı verilerle çakışmadan temiz bir başlangıç yapar.
+    var playerBox = await Hive.openBox<Player>('palehax_players_v2');
 
     // 4. Varsayılan Veri Kontrolü
-    // Eğer oyuncu listesi boşsa (ilk yükleme), default oyuncuları ekle
     if (playerBox.isEmpty) {
       await playerBox.addAll(defaultPlayers);
-      debugPrint("Varsayılan oyuncular veritabanına eklendi.");
+      debugPrint("Varsayılan oyuncu verileri ve maç istatistikleri yüklendi.");
     }
   } catch (e) {
-    debugPrint("Hafıza/Veritabanı Hatası: $e");
+    debugPrint("Veritabanı Başlatma Hatası: $e");
   }
 
-  // Pencere Ayarları (Şeffaflık)
+  // Pencere Ayarları (Şeffaflık İçin)
   await windowManager.ensureInitialized();
   WindowOptions windowOptions = const WindowOptions(
     size: Size(1280, 850),
@@ -128,6 +131,7 @@ class VideoIntroScreen extends StatefulWidget {
 class _VideoIntroScreenState extends State<VideoIntroScreen> {
   late VideoPlayerController _controller;
   bool _isNavigated = false;
+
   @override
   void initState() {
     super.initState();
