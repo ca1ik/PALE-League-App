@@ -35,6 +35,8 @@ import 'modules/keyboard_module.dart';
 import 'modules/turkey_map_module.dart';
 import 'modules/palehax_players_view.dart'; // ÖZEL OYUNCU EKRANI
 
+import 'data/player_data.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
