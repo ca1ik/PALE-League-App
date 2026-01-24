@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:provider/provider.dart';
 import '../data/player_data.dart';
 import '../ui/glass_box.dart';
+import '../providers/language_provider.dart';
 
 class PaleHaxPlayersView extends StatefulWidget {
   const PaleHaxPlayersView({super.key});
@@ -18,7 +20,8 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
   @override
   void initState() {
     super.initState();
-    playerBox = Hive.box<Player>('palehax_players');
+    // Kutu ismini değiştirdik ki eski verilerle çakışmasın
+    playerBox = Hive.box<Player>('palehax_players_v2');
     if (playerBox.isNotEmpty) {
       selectedPlayer = playerBox.getAt(0);
     }
@@ -26,14 +29,17 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
 
   @override
   Widget build(BuildContext context) {
+    final lang = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreatePlayerDialog,
         backgroundColor: Colors.cyanAccent,
         icon: const Icon(Icons.add, color: Colors.black),
-        label: const Text("Oyuncu Oluştur",
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        label: Text(lang.translate('ui_create_player'),
+            style: const TextStyle(
+                color: Colors.black, fontWeight: FontWeight.bold)),
       ),
       body: ValueListenableBuilder(
         valueListenable: playerBox.listenable(),
@@ -42,25 +48,24 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
 
           if (players.isEmpty) {
             return const Center(
-                child: Text("Oyuncu bulunamadı.",
+                child: Text("Veritabanı hazırlanıyor...",
                     style: TextStyle(color: Colors.white)));
           }
 
-          // Seçili oyuncu silindiyse veya null ise ilkini seç
           if (selectedPlayer == null || !players.contains(selectedPlayer)) {
             if (players.isNotEmpty) selectedPlayer = players.first;
           }
 
           return Row(
             children: [
-              // --- SOL: LİSTE ---
+              // --- SOL: OYUNCU LİSTESİ ---
               Container(
                 width: 300,
                 margin: const EdgeInsets.only(right: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("SQUAD LIST",
+                    Text(lang.translate('ui_squad_list'),
                         style: GoogleFonts.orbitron(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -121,7 +126,6 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                       ],
                                     ),
                                   ),
-                                  // Silme butonu (İsteğe bağlı)
                                   IconButton(
                                     icon: const Icon(Icons.delete,
                                         color: Colors.white24, size: 18),
@@ -149,9 +153,10 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // 1. OYUNCU KARTI
                         GlassBox(
                           width: double.infinity,
-                          height: 240,
+                          height: 260, // Yükseklik arttı
                           child: Stack(
                             children: [
                               Positioned.fill(
@@ -174,13 +179,13 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                 padding: const EdgeInsets.all(30.0),
                                 child: Row(
                                   children: [
-                                    // --- PROFİL RESMİ (FORMA NUMARASI) ---
+                                    // SİYAH FORMA NO
                                     Container(
-                                      width: 150,
-                                      height: 150,
+                                      width: 160,
+                                      height: 160,
                                       decoration: BoxDecoration(
                                           shape: BoxShape.circle,
-                                          color: Colors.black, // Simsiyah zemin
+                                          color: Colors.black,
                                           border: Border.all(
                                               color: _getRatingColor(
                                                   selectedPlayer!.rating),
@@ -196,12 +201,11 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                       child: Text(
                                         "${selectedPlayer!.kitNumber}",
                                         style: GoogleFonts.russoOne(
-                                          fontSize: 80,
-                                          color: Colors.white,
-                                        ),
+                                            fontSize: 90, color: Colors.white),
                                       ),
                                     ),
-                                    const SizedBox(width: 30),
+                                    const SizedBox(width: 40),
+                                    // BİLGİLER
                                     Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
@@ -212,22 +216,22 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                           children: [
                                             Text("${selectedPlayer!.rating}",
                                                 style: GoogleFonts.oswald(
-                                                    fontSize: 50,
+                                                    fontSize: 60,
                                                     fontWeight: FontWeight.bold,
                                                     color: _getRatingColor(
                                                         selectedPlayer!
                                                             .rating))),
-                                            const SizedBox(width: 15),
+                                            const SizedBox(width: 20),
                                             Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 5),
+                                                      horizontal: 12,
+                                                      vertical: 6),
                                               decoration: BoxDecoration(
                                                   color: Colors.white
                                                       .withOpacity(0.1),
                                                   borderRadius:
-                                                      BorderRadius.circular(5),
+                                                      BorderRadius.circular(8),
                                                   border: Border.all(
                                                       color: Colors.white24)),
                                               child: Text(
@@ -236,16 +240,44 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                                       color: Colors.white,
                                                       fontWeight:
                                                           FontWeight.bold,
-                                                      fontSize: 20)),
+                                                      fontSize: 24)),
                                             ),
                                           ],
                                         ),
                                         Text(selectedPlayer!.name.toUpperCase(),
                                             style: GoogleFonts.orbitron(
-                                                fontSize: 24,
+                                                fontSize: 30,
                                                 fontWeight: FontWeight.bold,
                                                 color: Colors.white,
                                                 letterSpacing: 1.5)),
+                                        const SizedBox(height: 10),
+                                        // PİYASA DEĞERİ
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 15, vertical: 5),
+                                          decoration: BoxDecoration(
+                                              color: Colors.greenAccent
+                                                  .withOpacity(0.2),
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                              border: Border.all(
+                                                  color: Colors.greenAccent)),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.monetization_on,
+                                                  color: Colors.greenAccent,
+                                                  size: 18),
+                                              const SizedBox(width: 8),
+                                              Text(selectedPlayer!.marketValue,
+                                                  style: GoogleFonts.poppins(
+                                                      color: Colors.greenAccent,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 16)),
+                                            ],
+                                          ),
+                                        )
                                       ],
                                     )
                                   ],
@@ -254,8 +286,11 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 25),
-                        Text("PLAYSTYLES",
+
+                        const SizedBox(height: 30),
+
+                        // 2. PLAYSTYLES (BÜYÜK VE İSİMLİ)
+                        Text(lang.translate('ui_playstyles'),
                             style: GoogleFonts.orbitron(
                                 color: Colors.white70,
                                 letterSpacing: 2,
@@ -263,46 +298,120 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                 fontWeight: FontWeight.bold)),
                         const SizedBox(height: 15),
 
-                        // PLAYSTYLE GÖSTERİMİ
                         Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
+                          spacing: 20, runSpacing: 20, // Boşluklar arttı
                           children: selectedPlayer!.playstyles.map((ps) {
-                            return Tooltip(
-                              message:
-                                  ps.name + (ps.isGold ? " (PlayStyle+)" : ""),
-                              child: Container(
-                                width: 50,
-                                height: 50,
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF15151A),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Tooltip(
+                                  message: ps.name +
+                                      (ps.isGold ? " (PlayStyle+)" : ""),
+                                  child: Container(
+                                    width: 75,
+                                    height: 75, // BÜYÜTÜLDÜ (50 -> 75)
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF15151A),
+                                      borderRadius: BorderRadius.circular(15),
+                                      border: Border.all(
+                                          color: ps.isGold
+                                              ? const Color(0xFFFFD700)
+                                              : Colors.white12,
+                                          width: ps.isGold ? 3 : 1),
+                                      boxShadow: ps.isGold
+                                          ? [
+                                              BoxShadow(
+                                                  color: Colors.amber
+                                                      .withOpacity(0.4),
+                                                  blurRadius: 15)
+                                            ]
+                                          : [],
+                                    ),
+                                    child: Image.asset(
+                                      ps.assetPath,
+                                      fit: BoxFit.contain,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              const Icon(Icons.help_outline,
+                                                  color: Colors.white24),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                // PLAYSTYLE İSMİ (DİLE GÖRE)
+                                Text(
+                                  lang.translate(
+                                      'ps_${ps.name}'), // Çeviri çağırılıyor
+                                  style: GoogleFonts.poppins(
                                       color: ps.isGold
                                           ? const Color(0xFFFFD700)
-                                          : Colors.white12,
-                                      width: ps.isGold ? 2 : 1),
-                                  boxShadow: ps.isGold
-                                      ? [
-                                          BoxShadow(
-                                              color:
-                                                  Colors.amber.withOpacity(0.4),
-                                              blurRadius: 10)
-                                        ]
-                                      : [],
-                                ),
-                                child: Image.asset(
-                                  ps.assetPath,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.help_outline,
-                                          color: Colors.white24),
-                                ),
-                              ),
+                                          : Colors.white60,
+                                      fontSize: 11,
+                                      fontWeight: ps.isGold
+                                          ? FontWeight.bold
+                                          : FontWeight.normal),
+                                )
+                              ],
                             );
                           }).toList(),
-                        )
+                        ),
+
+                        const SizedBox(height: 30),
+
+                        // 3. MAÇ ANALİZİ (YENİ BÖLÜM)
+                        Text(lang.translate('ui_match_analysis'),
+                            style: GoogleFonts.orbitron(
+                                color: Colors.white70,
+                                letterSpacing: 2,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 15),
+
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: selectedPlayer!.matches.map((match) {
+                              return Container(
+                                width: 160,
+                                margin: const EdgeInsets.only(right: 15),
+                                padding: const EdgeInsets.all(15),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(15),
+                                  border: Border.all(color: Colors.white10),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(match.opponent,
+                                        style: GoogleFonts.poppins(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14)),
+                                    const SizedBox(height: 5),
+                                    Text("FT: ${match.score}",
+                                        style: GoogleFonts.sourceCodePro(
+                                            color: Colors.cyanAccent,
+                                            fontSize: 12)),
+                                    const Divider(color: Colors.white12),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        _statBadge(
+                                            "G", match.goals, Colors.green),
+                                        _statBadge(
+                                            "A", match.assists, Colors.blue),
+                                      ],
+                                    )
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 50), // Alt boşluk
                       ],
                     ),
                   ),
@@ -314,6 +423,17 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
     );
   }
 
+  Widget _statBadge(String label, int value, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+        Text("$value",
+            style: TextStyle(
+                color: color, fontWeight: FontWeight.bold, fontSize: 18)),
+      ],
+    );
+  }
+
   Color _getRatingColor(int rating) {
     if (rating >= 90) return const Color(0xFF00FFC2);
     if (rating >= 85) return const Color(0xFFA6FF00);
@@ -321,18 +441,14 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
     return Colors.white;
   }
 
-  // --- OYUNCU OLUŞTURMA PANELİ ---
   void _showCreatePlayerDialog() {
     showDialog(
-      context: context,
-      builder: (context) => const CreatePlayerDialog(),
-    );
+        context: context, builder: (context) => const CreatePlayerDialog());
   }
 }
 
 class CreatePlayerDialog extends StatefulWidget {
   const CreatePlayerDialog({super.key});
-
   @override
   State<CreatePlayerDialog> createState() => _CreatePlayerDialogState();
 }
@@ -340,9 +456,8 @@ class CreatePlayerDialog extends StatefulWidget {
 class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
   final _nameController = TextEditingController();
   final _ratingController = TextEditingController();
+  final _valueController = TextEditingController(); // Yeni alan
   String _selectedPosition = "ST";
-
-  // Seçilen Playstyle'lar (Adı -> Gold mu?)
   final Map<String, bool> _selectedPlayStyles = {};
 
   @override
@@ -354,7 +469,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
           side: const BorderSide(color: Colors.white24)),
       child: Container(
         width: 600,
-        height: 700,
+        height: 750,
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
@@ -369,63 +484,44 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // İsim ve Reyting
                     Row(
                       children: [
                         Expanded(
-                          flex: 2,
-                          child: TextField(
-                            controller: _nameController,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: _inputDec("Oyuncu Adı"),
-                          ),
-                        ),
+                            flex: 2,
+                            child: _field(_nameController, "Oyuncu Adı")),
                         const SizedBox(width: 10),
                         Expanded(
-                          flex: 1,
-                          child: TextField(
-                            controller: _ratingController,
-                            style: const TextStyle(color: Colors.white),
-                            keyboardType: TextInputType.number,
-                            decoration: _inputDec("Reyting"),
-                          ),
-                        ),
+                            flex: 1,
+                            child: _field(_ratingController, "Reyting",
+                                num: true)),
                       ],
                     ),
+                    const SizedBox(height: 10),
+                    _field(_valueController, "Piyasa Değeri (Örn: 10M €)"),
                     const SizedBox(height: 15),
-
-                    // Mevki Seçimi
                     Text("Mevki",
                         style: GoogleFonts.poppins(color: Colors.grey)),
                     Wrap(
                       spacing: 8,
-                      children: availablePositions.map((pos) {
-                        final isSelected = _selectedPosition == pos;
-                        return ChoiceChip(
-                          label: Text(pos),
-                          selected: isSelected,
-                          onSelected: (val) =>
-                              setState(() => _selectedPosition = pos),
-                          selectedColor: Colors.cyanAccent,
-                          labelStyle: TextStyle(
-                              color: isSelected ? Colors.black : Colors.white),
-                          backgroundColor: Colors.white10,
-                        );
-                      }).toList(),
+                      children: availablePositions
+                          .map((pos) => ChoiceChip(
+                                label: Text(pos),
+                                selected: _selectedPosition == pos,
+                                onSelected: (val) =>
+                                    setState(() => _selectedPosition = pos),
+                                selectedColor: Colors.cyanAccent,
+                                backgroundColor: Colors.white10,
+                                labelStyle: TextStyle(
+                                    color: _selectedPosition == pos
+                                        ? Colors.black
+                                        : Colors.white),
+                              ))
+                          .toList(),
                     ),
-
                     const Divider(color: Colors.white24, height: 30),
-
-                    // PlayStyles Seçimi
-                    Text("PlayStyles (Tıkla Seç, Çift Tıkla Gold Yap)",
+                    Text("PlayStyles (Tek Tık: Gümüş, Uzun Bas: Altın)",
                         style: GoogleFonts.poppins(color: Colors.cyanAccent)),
-                    const SizedBox(height: 5),
-                    Text(
-                        "Tek Tık: Gümüş | Uzun Bas: Altın | Tekrar Tık: Kaldır",
-                        style: GoogleFonts.poppins(
-                            color: Colors.grey, fontSize: 10)),
                     const SizedBox(height: 10),
-
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -434,23 +530,12 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                             _selectedPlayStyles.containsKey(psName);
                         final isGold =
                             isSelected && _selectedPlayStyles[psName] == true;
-
                         return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              if (isSelected) {
-                                _selectedPlayStyles.remove(psName);
-                              } else {
-                                _selectedPlayStyles[psName] =
-                                    false; // Gümüş ekle
-                              }
-                            });
-                          },
-                          onLongPress: () {
-                            setState(() {
-                              _selectedPlayStyles[psName] = true; // Altın yap
-                            });
-                          },
+                          onTap: () => setState(() => isSelected
+                              ? _selectedPlayStyles.remove(psName)
+                              : _selectedPlayStyles[psName] = false),
+                          onLongPress: () => setState(
+                              () => _selectedPlayStyles[psName] = true),
                           child: Container(
                             padding: const EdgeInsets.all(5),
                             decoration: BoxDecoration(
@@ -465,25 +550,10 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                                         : Colors.white12,
                                     width: isGold ? 2 : 1),
                                 borderRadius: BorderRadius.circular(8)),
-                            child: Column(
-                              children: [
-                                Image.asset(
-                                  // Önizleme için asset yolunu oluşturuyoruz
-                                  "assets/Playstyles/${isGold ? "${psName}Plus" : psName}.png",
-                                  width: 30, height: 30,
-                                  errorBuilder: (c, e, s) => const Icon(
-                                      Icons.help,
-                                      color: Colors.white),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(psName,
-                                    style: TextStyle(
-                                        fontSize: 9,
-                                        color: isGold
-                                            ? Colors.amber
-                                            : Colors.white70))
-                              ],
-                            ),
+                            child: Image.asset(
+                                "assets/Playstyles/${isGold ? "${psName}Plus" : psName}.png",
+                                width: 40,
+                                height: 40),
                           ),
                         );
                       }).toList(),
@@ -493,55 +563,54 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
               ),
             ),
             const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("İptal",
-                        style: TextStyle(color: Colors.white54))),
-                ElevatedButton(
+            Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("İptal",
+                      style: TextStyle(color: Colors.white54))),
+              ElevatedButton(
                   onPressed: _savePlayer,
                   style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.cyanAccent),
                   child: const Text("OLUŞTUR",
                       style: TextStyle(
-                          color: Colors.black, fontWeight: FontWeight.bold)),
-                )
-              ],
-            )
+                          color: Colors.black, fontWeight: FontWeight.bold)))
+            ])
           ],
         ),
       ),
     );
   }
 
-  InputDecoration _inputDec(String label) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(color: Colors.grey),
-      filled: true,
-      fillColor: Colors.white10,
-      border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+  Widget _field(TextEditingController c, String label, {bool num = false}) {
+    return TextField(
+      controller: c,
+      style: const TextStyle(color: Colors.white),
+      keyboardType: num ? TextInputType.number : TextInputType.text,
+      decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.grey),
+          filled: true,
+          fillColor: Colors.white10,
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none)),
     );
   }
 
   void _savePlayer() {
     if (_nameController.text.isEmpty) return;
-
     final newPlayer = Player(
       name: _nameController.text,
       rating: int.tryParse(_ratingController.text) ?? 75,
       position: _selectedPosition,
+      marketValue:
+          _valueController.text.isEmpty ? "N/A" : _valueController.text,
       playstyles: _selectedPlayStyles.entries
           .map((e) => PlayStyle(e.key, isGold: e.value))
           .toList(),
     );
-
-    // Hive'a Kaydet
-    Hive.box<Player>('palehax_players').add(newPlayer);
-
+    Hive.box<Player>('palehax_players_v2').add(newPlayer);
     Navigator.pop(context);
   }
 }
