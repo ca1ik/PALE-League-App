@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:video_player/video_player.dart';
-import 'package:window_manager/window_manager.dart'; // YENİ PAKET
+import 'package:window_manager/window_manager.dart';
 
 // --- PROVIDERS ---
 import 'providers/music_provider.dart';
@@ -44,21 +44,20 @@ void main() async {
     debugPrint("Hafıza Hatası: $e");
   }
 
-  // --- WINDOW MANAGER KURULUMU (ŞEFFAFLIK İÇİN) ---
   await windowManager.ensureInitialized();
 
   WindowOptions windowOptions = const WindowOptions(
     size: Size(1280, 850),
     center: true,
-    backgroundColor: Colors.transparent, // İŞTE SİYAHLIĞI ÇÖZEN KOD
+    backgroundColor: Colors.transparent,
     skipTaskbar: false,
-    titleBarStyle: TitleBarStyle.hidden, // Windows çubuğunu gizle
+    titleBarStyle: TitleBarStyle.hidden,
   );
 
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.show();
     await windowManager.focus();
-    await windowManager.setBackgroundColor(Colors.transparent); // Garanti olsun
+    await windowManager.setBackgroundColor(Colors.transparent);
   });
 
   runApp(
@@ -86,14 +85,13 @@ class AioApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Natroff AIO',
       locale: langProv.currentLocale,
-      // Scaffold arka planını tamamen şeffaf yapıyoruz
       themeMode: themeProv.isDark ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData.light().copyWith(
         scaffoldBackgroundColor: Colors.grey[100],
         textTheme: GoogleFonts.poppinsTextTheme(ThemeData.light().textTheme),
       ),
       darkTheme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: Colors.transparent, // KRİTİK NOKTA
+        scaffoldBackgroundColor: Colors.transparent,
         textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
       ),
       home: const VideoIntroScreen(),
@@ -101,7 +99,6 @@ class AioApp extends StatelessWidget {
   }
 }
 
-// ... VideoIntroScreen AYNI ...
 class VideoIntroScreen extends StatefulWidget {
   const VideoIntroScreen({super.key});
   @override
@@ -163,7 +160,42 @@ class MainWindow extends StatefulWidget {
 }
 
 class _MainWindowState extends State<MainWindow> {
-  int _idx = 0;
+  // --- NAVİGASYON GEÇMİŞİ SİSTEMİ ---
+  List<int> _history = [0]; // Başlangıçta sadece anasayfa (0) var
+  int _historyIndex = 0; // Şu an geçmişin hangi sırasındayız
+
+  // Sayfa Değiştirme Fonksiyonu (Geçmişe ekler)
+  void _navigateTo(int index) {
+    if (_history[_historyIndex] == index)
+      return; // Aynı sayfadaysak işlem yapma
+
+    setState(() {
+      // Eğer geçmişin ortasındayken yeni bir yere gidersek, ilerideki geçmişi sil (Tarayıcı mantığı)
+      if (_historyIndex < _history.length - 1) {
+        _history = _history.sublist(0, _historyIndex + 1);
+      }
+      _history.add(index);
+      _historyIndex++;
+    });
+  }
+
+  // Geri Git
+  void _goBack() {
+    if (_historyIndex > 0) {
+      setState(() {
+        _historyIndex--;
+      });
+    }
+  }
+
+  // İleri Git
+  void _goForward() {
+    if (_historyIndex < _history.length - 1) {
+      setState(() {
+        _historyIndex++;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -171,6 +203,9 @@ class _MainWindowState extends State<MainWindow> {
     final langProv = Provider.of<LanguageProvider>(context);
     final uiProv = Provider.of<UIProvider>(context);
     final isDark = themeProv.isDark;
+
+    // Aktif sayfa indexi geçmişten çekilir
+    int activeIdx = _history[_historyIndex];
 
     // --- MODÜL LİSTESİ ---
     final List<Widget> pages = [
@@ -188,70 +223,98 @@ class _MainWindowState extends State<MainWindow> {
       const ChartsModule(), // 11
       const TurkeyMapModule(), // 12
       const SettingsScreen(), // 13
+      const WebviewModule(url: "https://palehaxball.com/"), // 14
     ];
 
-    Widget activeModule = pages[_idx < pages.length ? _idx : 0];
+    Widget activeModule = pages[activeIdx < pages.length ? activeIdx : 0];
 
     return Scaffold(
-      // Spatial Moddaysa veya Koyu Temadaysa zemin ŞEFFAF
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          // --- ARKA PLAN (Sadece Normal Modda ve Koyu Temadaysa) ---
-          // Spatial Modda burayı kapattık ki masaüstü görünsün
           if (!uiProv.isSpatialMode && isDark)
             const Positioned.fill(child: ParticleBackground()),
-
-          // Spatial Mod Kapalıyken (Normal Mod) Arka Plan Rengi
           if (!uiProv.isSpatialMode && !isDark)
             Positioned.fill(child: Container(color: Colors.grey[200])),
-
-          // ============================================
-          // DURUM 1: NORMAL MASAÜSTÜ MODU
-          // ============================================
           if (!uiProv.isSpatialMode)
             Column(
               children: [
-                // Özel Title Bar (Window Manager ile Sürükleme)
+                // --- ÜST ÇUBUK (NAVİGASYONLU) ---
                 Container(
-                  height: 32,
+                  height: 40, // Biraz yükselttik
                   color: isDark ? Colors.black26 : Colors.white,
                   child: Row(
                     children: [
+                      // Sürükleme Alanı Başlangıcı
                       Expanded(
                         child: GestureDetector(
-                          onPanStart: (_) =>
-                              windowManager.startDragging(), // SÜRÜKLEME KODU
+                          onPanStart: (_) => windowManager.startDragging(),
                           child: Container(
-                            color:
-                                Colors.transparent, // Tıklama yakalaması için
-                            padding: const EdgeInsets.only(left: 10),
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              langProv.translate('app_title'),
-                              style: TextStyle(
-                                  color: isDark ? Colors.white : Colors.black,
-                                  fontWeight: FontWeight.bold),
+                            color: Colors.transparent,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Row(
+                              children: [
+                                // --- GERİ BUTONU ---
+                                IconButton(
+                                  icon: Icon(Icons.arrow_back_ios_new_rounded,
+                                      size: 16,
+                                      color: _historyIndex > 0
+                                          ? (isDark
+                                              ? Colors.white
+                                              : Colors.black)
+                                          : Colors.grey.withOpacity(0.3)),
+                                  onPressed: _historyIndex > 0 ? _goBack : null,
+                                  tooltip: "Geri",
+                                ),
+                                // --- İLERİ BUTONU ---
+                                IconButton(
+                                  icon: Icon(Icons.arrow_forward_ios_rounded,
+                                      size: 16,
+                                      color: _historyIndex < _history.length - 1
+                                          ? (isDark
+                                              ? Colors.white
+                                              : Colors.black)
+                                          : Colors.grey.withOpacity(0.3)),
+                                  onPressed: _historyIndex < _history.length - 1
+                                      ? _goForward
+                                      : null,
+                                  tooltip: "İleri",
+                                ),
+
+                                const SizedBox(width: 15),
+
+                                // Başlık
+                                Text(
+                                  langProv.translate('app_title'),
+                                  style: TextStyle(
+                                      color:
+                                          isDark ? Colors.white : Colors.black,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
+                      // Hızlı Ayarlar
                       IconButton(
                         icon: Icon(Icons.settings,
                             color: isDark ? Colors.white70 : Colors.black54,
                             size: 20),
-                        onPressed: () => setState(() => _idx = 13),
+                        onPressed: () => _navigateTo(
+                            13), // setState yerine navigateTo kullanıyoruz
                       ),
-                      const WindowButtons(), // Yeni Butonlar
+                      const WindowButtons(),
                     ],
                   ),
                 ),
                 Expanded(
                   child: Row(
                     children: [
+                      // Sidebar'a navigateTo fonksiyonunu gönderiyoruz
                       CustomSidebar(
-                          selectedIndex: _idx,
-                          onIndexChanged: (i) => setState(() => _idx = i)),
+                          selectedIndex: activeIdx,
+                          onIndexChanged: (i) => _navigateTo(i)),
                       Expanded(
                         child: Container(
                           margin: const EdgeInsets.all(20),
@@ -273,33 +336,23 @@ class _MainWindowState extends State<MainWindow> {
                 ),
               ],
             ),
-
-          // ============================================
-          // DURUM 2: SPATIAL MOD (ŞEFFAF ZEMİN)
-          // ============================================
           if (uiProv.isSpatialMode) ...[
-            // Pencereyi taşımak için görünmez alan (En üstte ince bir şerit)
             Positioned(
               top: 0,
               left: 0,
               right: 0,
               height: 40,
               child: GestureDetector(
-                onPanStart: (_) => windowManager.startDragging(),
-                child: Container(color: Colors.transparent),
-              ),
+                  onPanStart: (_) => windowManager.startDragging(),
+                  child: Container(color: Colors.transparent)),
             ),
-
-            // 1. Sidebar (Sol)
             MovableWindow(
               initialX: 20,
               initialY: 100,
               child: SpatialSidebar(
-                  selectedIndex: _idx,
-                  onIndexChanged: (i) => setState(() => _idx = i)),
+                  selectedIndex: activeIdx,
+                  onIndexChanged: (i) => _navigateTo(i)),
             ),
-
-            // 2. Ana Modül (Orta)
             MovableWindow(
               initialX: 140,
               initialY: 80,
@@ -307,40 +360,30 @@ class _MainWindowState extends State<MainWindow> {
                 width: 900,
                 height: 650,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: activeModule,
-                ),
+                    borderRadius: BorderRadius.circular(30),
+                    child: activeModule),
               ),
             ),
-
-            // Kontrol Butonları (Sağ Üstte Yüzen)
+            // Spatial Modda Navigasyon Kontrolleri (Ana Modülün Üzerine Eklenebilir veya ayrı bir bar yapılabilir)
+            // Şimdilik pencere kontrolleri yeterli
             const Positioned(
-              top: 10,
-              right: 10,
-              child: WindowButtons(isSpatial: true),
-            ),
+                top: 10, right: 10, child: WindowButtons(isSpatial: true)),
           ],
-
-          // --- CHATBOT ---
           uiProv.isSpatialMode
               ? MovableWindow(
                   initialX: 1000,
                   initialY: 600,
                   child: FloatingChatbot(
-                    currentLang: langProv.currentLocale.languageCode,
-                    onSystemControl: (command, value) =>
-                        _handleChatCommand(command, value, themeProv, uiProv),
-                  ),
-                )
+                      currentLang: langProv.currentLocale.languageCode,
+                      onSystemControl: (c, v) =>
+                          _handleChatCommand(c, v, themeProv, uiProv)))
               : Positioned(
                   bottom: 20,
                   right: 20,
                   child: FloatingChatbot(
-                    currentLang: langProv.currentLocale.languageCode,
-                    onSystemControl: (command, value) =>
-                        _handleChatCommand(command, value, themeProv, uiProv),
-                  ),
-                ),
+                      currentLang: langProv.currentLocale.languageCode,
+                      onSystemControl: (c, v) =>
+                          _handleChatCommand(c, v, themeProv, uiProv))),
         ],
       ),
     );
@@ -351,7 +394,6 @@ class _MainWindowState extends State<MainWindow> {
     if (command == "THEME")
       theme.setTheme(value.toString().toLowerCase() == "dark");
     if (command == "NAVIGATE") {
-      // ... Navigasyon kodları aynı ...
       int? t;
       switch (value) {
         case "resolution":
@@ -396,52 +438,43 @@ class _MainWindowState extends State<MainWindow> {
         case "settings":
           t = 13;
           break;
+        case "palehax":
+          t = 14;
+          break;
       }
       if (t != null)
-        _idx =
-            t!; // setState gerekebilir, MainWindow içinde olduğu için burası context dışı kalabilir, dikkat.
-      // Not: _handleChatCommand fonksiyonunu MainWindowState içine taşıdım yukarıda.
+        _navigateTo(t!); // Chatbot da artık geçmiş sistemini kullanıyor
     }
   }
 }
 
-// --- YENİ WINDOW BUTTONS (Window Manager ile Uyumlu) ---
 class WindowButtons extends StatelessWidget {
   final bool isSpatial;
   const WindowButtons({super.key, this.isSpatial = false});
-
   @override
   Widget build(BuildContext context) {
-    // Spatial moddaysa butonlar daha belirgin olsun
     final Color iconColor = isSpatial ? Colors.white : Colors.grey;
-    final Color hoverColor = Colors.redAccent;
-
     return Row(
       children: [
-        _winBtn(Icons.minimize, () => windowManager.minimize(), iconColor,
-            Colors.white10),
+        _winBtn(Icons.minimize, () => windowManager.minimize(), iconColor),
         _winBtn(Icons.crop_square, () async {
-          if (await windowManager.isMaximized()) {
+          if (await windowManager.isMaximized())
             windowManager.unmaximize();
-          } else {
+          else
             windowManager.maximize();
-          }
-        }, iconColor, Colors.white10),
-        _winBtn(
-            Icons.close, () => windowManager.close(), iconColor, hoverColor),
+        }, iconColor),
+        _winBtn(Icons.close, () => windowManager.close(), iconColor),
       ],
     );
   }
 
-  Widget _winBtn(IconData icon, VoidCallback onTap, Color color, Color hover) {
+  Widget _winBtn(IconData icon, VoidCallback onTap, Color color) {
     return InkWell(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 32,
-        alignment: Alignment.center,
-        child: Icon(icon, size: 16, color: color),
-      ),
-    );
+        onTap: onTap,
+        child: Container(
+            width: 40,
+            height: 32,
+            alignment: Alignment.center,
+            child: Icon(icon, size: 16, color: color)));
   }
 }
