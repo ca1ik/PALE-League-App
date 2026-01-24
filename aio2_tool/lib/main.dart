@@ -13,6 +13,9 @@ import 'providers/theme_provider.dart';
 import 'providers/language_provider.dart';
 import 'providers/ui_provider.dart';
 
+// --- VERİ & DATA ---
+import 'data/player_data.dart'; // YENİ: Veritabanı ve Modeller
+
 // --- UI & EKRANLAR ---
 import 'ui/background.dart';
 import 'ui/sidebar.dart';
@@ -33,21 +36,35 @@ import 'modules/ai_photo_module.dart';
 import 'modules/extras_module.dart';
 import 'modules/keyboard_module.dart';
 import 'modules/turkey_map_module.dart';
-import 'modules/palehax_players_view.dart'; // ÖZEL OYUNCU EKRANI
-
-import 'data/player_data.dart';
+import 'modules/palehax_players_view.dart'; // YENİ: Oyuncu Listesi Ekranı
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
+    // 1. Hive Başlatma
     await Hive.initFlutter();
-    await Hive.openBox('natroff_memory');
+
+    // 2. Adapterleri Kaydet (Veri modellerini tanıması için)
+    Hive.registerAdapter(PlayerAdapter());
+    Hive.registerAdapter(PlayStyleAdapter());
+
+    // 3. Kutuları Aç
+    await Hive.openBox('natroff_memory'); // Ayarlar vs.
+    var playerBox =
+        await Hive.openBox<Player>('palehax_players'); // Oyuncu veritabanı
+
+    // 4. Varsayılan Veri Kontrolü
+    // Eğer oyuncu listesi boşsa (ilk yükleme), default oyuncuları ekle
+    if (playerBox.isEmpty) {
+      await playerBox.addAll(defaultPlayers);
+      debugPrint("Varsayılan oyuncular veritabanına eklendi.");
+    }
   } catch (e) {
-    debugPrint("Hafıza Hatası: $e");
+    debugPrint("Hafıza/Veritabanı Hatası: $e");
   }
 
-  // Şeffaflık ve Pencere Ayarları
+  // Pencere Ayarları (Şeffaflık)
   await windowManager.ensureInitialized();
   WindowOptions windowOptions = const WindowOptions(
     size: Size(1280, 850),
@@ -197,7 +214,7 @@ class _MainWindowState extends State<MainWindow> {
 
     // --- SAYFA LİSTESİ ---
     final List<Widget> pages = [
-      // 0-13: UPGRADE (Eski Modüller)
+      // 0-13: UPGRADE MODÜLLERİ
       const ResolutionModule(), // 0
       const CleaningModule(), // 1
       const DnsModule(), // 2
@@ -213,21 +230,23 @@ class _MainWindowState extends State<MainWindow> {
       const TurkeyMapModule(), // 12
       const SettingsScreen(), // 13
 
-      // 14-22: PALEHAX (Yeni Modüller)
+      // 14-22: PALEHAX MODÜLLERİ
       const WebviewModule(url: "https://palehaxball.com/"), // 14: Anasayfa
-      const PaleHaxPlayersView(), // 15: OYUNCULAR (Özel Tasarım)
+      const PaleHaxPlayersView(), // 15: OYUNCULAR (Özel Panel)
       const WebviewModule(url: "https://palehaxball.com/teams"), // 16: Takımlar
+
+      // Placeholder Sayfalar
       const Center(
           child: Text("Maçlar Yakında",
-              style: TextStyle(color: Colors.white, fontSize: 20))), // 17
+              style: TextStyle(color: Colors.white, fontSize: 24))), // 17
       const Center(
           child: Text("Puan Durumu",
-              style: TextStyle(color: Colors.white, fontSize: 20))), // 18
+              style: TextStyle(color: Colors.white, fontSize: 24))), // 18
       const Center(
           child: Text("İstatistikler",
-              style: TextStyle(color: Colors.white, fontSize: 20))), // 19
+              style: TextStyle(color: Colors.white, fontSize: 24))), // 19
 
-      // 20: Transferler (Sekmeli)
+      // 20: Transferler
       DefaultTabController(
         length: 2,
         child: Column(
@@ -243,22 +262,25 @@ class _MainWindowState extends State<MainWindow> {
             const Expanded(
                 child: TabBarView(children: [
               Center(
-                  child: Text("Son Transfer Haberleri Burada Olacak",
+                  child: Text("Son Transfer Haberleri",
                       style: TextStyle(color: Colors.white))),
               Center(
-                  child: Text("Transfer Listesi Burada Olacak",
+                  child: Text("Transfer Listesi",
                       style: TextStyle(color: Colors.white))),
             ]))
           ],
         ),
-      ),
+      ), // 20
 
       const Center(
           child: Text("Challenge Modu",
-              style: TextStyle(color: Colors.white, fontSize: 20))), // 21
+              style: TextStyle(color: Colors.white, fontSize: 24))), // 21
       const Center(
           child: Text("Hall of Fame 🏆",
-              style: TextStyle(color: Colors.amber, fontSize: 30))), // 22
+              style: TextStyle(
+                  color: Colors.amber,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold))), // 22
     ];
 
     Widget activeModule = pages[activeIdx < pages.length ? activeIdx : 0];
@@ -267,12 +289,13 @@ class _MainWindowState extends State<MainWindow> {
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
+          // Arka Plan (Normal Mod)
           if (!uiProv.isSpatialMode && isDark)
             const Positioned.fill(child: ParticleBackground()),
           if (!uiProv.isSpatialMode && !isDark)
             Positioned.fill(child: Container(color: Colors.grey[200])),
 
-          // --- NORMAL MOD ---
+          // --- NORMAL MOD ARAYÜZÜ ---
           if (!uiProv.isSpatialMode)
             Column(
               children: [
@@ -290,7 +313,7 @@ class _MainWindowState extends State<MainWindow> {
                             padding: const EdgeInsets.symmetric(horizontal: 10),
                             child: Row(
                               children: [
-                                // Navigasyon Butonları
+                                // Geri/İleri Butonları
                                 IconButton(
                                   icon: Icon(Icons.arrow_back_ios_new_rounded,
                                       size: 16,
@@ -364,7 +387,7 @@ class _MainWindowState extends State<MainWindow> {
               ],
             ),
 
-          // --- SPATIAL MOD ---
+          // --- SPATIAL MOD ARAYÜZÜ ---
           if (uiProv.isSpatialMode) ...[
             Positioned(
                 top: 0,
@@ -396,7 +419,7 @@ class _MainWindowState extends State<MainWindow> {
                 top: 10, right: 10, child: WindowButtons(isSpatial: true)),
           ],
 
-          // Chatbot
+          // Chatbot (Her iki modda da var)
           uiProv.isSpatialMode
               ? MovableWindow(
                   initialX: 1000,
