@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:hive/hive.dart';
 
-// --- HIVE ADAPTERLERİ ---
+// --- HIVE ADAPTERLERİ (V7: cardType eklendi) ---
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
   final int typeId = 1;
@@ -18,7 +18,8 @@ class PlayerAdapter extends TypeAdapter<Player> {
       role: reader.read() ?? "Yok",
       skillMoves: reader.read() ?? 3,
       country: reader.read() ?? "Türkiye",
-      chemistryStyle: reader.read() ?? "Temel");
+      chemistryStyle: reader.read() ?? "Temel",
+      cardType: reader.read() ?? "Temel");
   @override
   void write(BinaryWriter writer, Player obj) {
     writer.write(obj.name);
@@ -33,9 +34,11 @@ class PlayerAdapter extends TypeAdapter<Player> {
     writer.write(obj.skillMoves);
     writer.write(obj.country);
     writer.write(obj.chemistryStyle);
+    writer.write(obj.cardType);
   }
 }
 
+// ... (Diğer adapterler aynı)
 class PlayStyleAdapter extends TypeAdapter<PlayStyle> {
   @override
   final int typeId = 2;
@@ -115,7 +118,8 @@ class Player extends HiveObject {
   String role;
   int skillMoves;
   String country;
-  String chemistryStyle; // YENİ: Kimya Stili
+  String chemistryStyle;
+  String cardType; // YENİ: Kart Tipi
 
   Player(
       {required this.name,
@@ -129,7 +133,8 @@ class Player extends HiveObject {
       this.role = "Yok",
       this.skillMoves = 3,
       this.country = "Türkiye",
-      this.chemistryStyle = "Temel"});
+      this.chemistryStyle = "Temel",
+      this.cardType = "Temel"});
 
   int get kitNumber {
     switch (position.toUpperCase()) {
@@ -152,7 +157,6 @@ class Player extends HiveObject {
     }
   }
 
-  // Segment Ortalamaları
   Map<String, int> getCardStats() {
     return {
       "PAC": _getAvg(statSegments["1. Top Sürme & Fizik"]!.sublist(0, 4)),
@@ -173,8 +177,11 @@ class Player extends HiveObject {
         cs["DRI"]! * 1.2 +
         cs["DEF"]! * 0.2 +
         cs["PHY"]! * 0.8);
-    // Kimya bonusu reytingi hafif etkilesin (Opsiyonel)
     rating = (total / 5.9).round().clamp(1, 99);
+    // Kart tipine göre reyting boost (Opsiyonel)
+    if (cardType == "TOTY" || cardType == "BALLOND'OR")
+      rating = (rating + 3).clamp(1, 99);
+    if (cardType == "BAD") rating = (rating - 5).clamp(1, 99);
   }
 
   void generateRandomMatches() {
@@ -206,7 +213,18 @@ class Player extends HiveObject {
   }
 }
 
-// --- KİMYA STİLLERİ VE BONUSLARI (YENİ) ---
+// --- STATİK VERİLER ---
+final List<String> cardTypes = [
+  "Temel",
+  "TOTW",
+  "TOTM",
+  "TOTY",
+  "MVP",
+  "STAR",
+  "BALLOND'OR",
+  "BAD"
+];
+
 final Map<String, Map<String, int>> chemistryBonuses = {
   "Temel": {
     "Hız": 2,
@@ -246,7 +264,6 @@ final Map<String, Map<String, int>> chemistryBonuses = {
   "Bitirici": {"Bitiricilik": 6, "Hız": 3, "Şut Gücü": 3, "Güç": 1},
 };
 
-// --- DİĞER LİSTELER ---
 final Map<String, List<String>> statSegments = {
   "1. Top Sürme & Fizik": [
     "Hız",

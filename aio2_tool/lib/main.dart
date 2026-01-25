@@ -14,7 +14,7 @@ import 'providers/language_provider.dart';
 import 'providers/ui_provider.dart';
 
 // --- VERİ & DATA ---
-import 'data/player_data.dart'; // Oyuncu, PlayStyle, MatchStat, StrategyModel
+import 'data/player_data.dart';
 
 // --- UI & EKRANLAR ---
 import 'ui/background.dart';
@@ -45,7 +45,7 @@ void main() async {
   try {
     await Hive.initFlutter();
 
-    // Adapter Kayıtları
+    // Adapterleri Kaydet
     Hive.registerAdapter(PlayerAdapter());
     Hive.registerAdapter(PlayStyleAdapter());
     Hive.registerAdapter(MatchStatAdapter());
@@ -53,7 +53,9 @@ void main() async {
 
     await Hive.openBox('natroff_memory');
     await Hive.openBox<StrategyModel>('palehax_strategies');
-    var playerBox = await Hive.openBox<Player>('palehax_players_v4');
+
+    // V7 KUTUSU (YENİ)
+    var playerBox = await Hive.openBox<Player>('palehax_players_v7');
 
     if (playerBox.isEmpty) {
       await playerBox.addAll(defaultPlayers);
@@ -210,7 +212,6 @@ class _MainWindowState extends State<MainWindow> {
     int activeIdx = _history[_historyIndex];
 
     final List<Widget> pages = [
-      // UPGRADE (0-13)
       const ResolutionModule(), // 0
       const CleaningModule(), // 1
       const DnsModule(), // 2
@@ -225,8 +226,6 @@ class _MainWindowState extends State<MainWindow> {
       const ChartsModule(), // 11
       const TurkeyMapModule(), // 12
       const SettingsScreen(), // 13
-
-      // PALEHAX (14-22)
       const WebviewModule(url: "https://palehaxball.com/"), // 14
       const PaleHaxPlayersView(), // 15
       const WebviewModule(url: "https://palehaxball.com/teams"), // 16
@@ -260,7 +259,7 @@ class _MainWindowState extends State<MainWindow> {
                       style: TextStyle(color: Colors.white)))
             ]))
           ])), // 20
-      const StrategyMakerModule(), // 21: CHALLENGE / STRATEJİ
+      const StrategyMakerModule(), // 21
       const Center(
           child: Text("Hall of Fame 🏆",
               style: TextStyle(
