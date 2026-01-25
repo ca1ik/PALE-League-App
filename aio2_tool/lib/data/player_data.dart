@@ -1,6 +1,58 @@
+import 'dart:math';
 import 'package:hive/hive.dart';
 
-// --- ADAPTERLER AYNI KALIYOR ---
+// --- STATİK VERİLERİ EN ÜSTE ALDIK (HATA ÇÖZÜMÜ) ---
+final Map<String, List<String>> statSegments = {
+  "1. Top Sürme & Fizik": [
+    "Hız",
+    "Hızlanma",
+    "Çeviklik",
+    "Denge",
+    "Top Sürme",
+    "Duvar Kabiliyeti",
+    "Teknik"
+  ],
+  "2. Şut & Zihinsel": [
+    "Şut Gücü",
+    "Pozisyon Alma",
+    "Bitiricilik",
+    "Uzaktan Şut",
+    "Soğukkanlılık",
+    "Karar Alma"
+  ],
+  "3. Savunma & Güç": [
+    "Top Kapma",
+    "Savunma Farkındalığı",
+    "Sert Duruş",
+    "Güç",
+    "Saldırganlık",
+    "Markaj"
+  ],
+  "4. Pas & Vizyon": [
+    "Pas",
+    "Ara Pas",
+    "Takım Oyunu",
+    "Görüş",
+    "Topsuz Alan",
+    "Orta Yapma",
+    "Top Kontrolü"
+  ],
+};
+
+final Map<String, List<String>> roleCategories = {
+  "GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
+  "CB": ["Çok Yönlü", "Oyun Kurucu Stoper", "Savunmatik", "Libero"],
+  "LB": ["Kanat Bek", "Hücum Bek", "Çok Yönlü"],
+  "RB": ["Kanat Bek", "Hücum Bek", "Çok Yönlü"],
+  "CDM": ["Tutucu", "Derin Oyun Kurucu", "Savaşçı"],
+  "CM": ["Box to Box", "Oyun Kurucu", "Mezzala"],
+  "CAM": ["Oyun Kurucu", "Gölge Forvet", "Enganche"],
+  "LW": ["İç Forvet", "Kanat Oyuncusu"],
+  "RW": ["İç Forvet", "Kanat Oyuncusu"],
+  "ST": ["Hedef Forvet", "Gizli Forvet", "Avcı Forvet", "Yanlış 9"]
+};
+
+// --- HIVE ADAPTERLERİ ---
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
   final int typeId = 1;
@@ -15,7 +67,8 @@ class PlayerAdapter extends TypeAdapter<Player> {
       team: reader.read(),
       stats: (reader.read() as Map?)?.cast<String, int>() ?? {},
       role: reader.read() ?? "Yok",
-      skillMoves: reader.read() ?? 3);
+      skillMoves: reader.read() ?? 3,
+      country: reader.read() ?? "Türkiye");
   @override
   void write(BinaryWriter writer, Player obj) {
     writer.write(obj.name);
@@ -28,6 +81,7 @@ class PlayerAdapter extends TypeAdapter<Player> {
     writer.write(obj.stats);
     writer.write(obj.role);
     writer.write(obj.skillMoves);
+    writer.write(obj.country);
   }
 }
 
@@ -48,14 +102,15 @@ class MatchStatAdapter extends TypeAdapter<MatchStat> {
   @override
   final int typeId = 3;
   @override
-  MatchStat read(BinaryReader reader) =>
-      MatchStat(reader.read(), reader.read(), reader.read(), reader.read());
+  MatchStat read(BinaryReader reader) => MatchStat(reader.read(), reader.read(),
+      reader.read(), reader.read(), reader.read());
   @override
   void write(BinaryWriter writer, MatchStat obj) {
     writer.write(obj.opponent);
     writer.write(obj.score);
     writer.write(obj.goals);
     writer.write(obj.assists);
+    writer.write(obj.rating);
   }
 }
 
@@ -86,26 +141,30 @@ class MatchStat {
   final String score;
   final int goals;
   final int assists;
-  MatchStat(this.opponent, this.score, this.goals, this.assists);
+  final double rating;
+  MatchStat(this.opponent, this.score, this.goals, this.assists, this.rating);
 }
 
-class StrategyModel {
+class StrategyModel extends HiveObject {
   final String name;
   final String jsonData;
   StrategyModel({required this.name, required this.jsonData});
 }
 
-class Player {
-  final String name;
+// --- PLAYER SINIFI ---
+class Player extends HiveObject {
+  String name;
   int rating;
-  final String position;
-  final List<PlayStyle> playstyles;
-  final String marketValue;
-  final List<MatchStat> matches;
-  final String team;
-  final Map<String, int> stats;
-  final String role;
-  final int skillMoves;
+  String position;
+  List<PlayStyle> playstyles;
+  String marketValue;
+  List<MatchStat> matches;
+  String team;
+  Map<String, int> stats;
+  String role;
+  int skillMoves;
+  String country;
+
   Player(
       {required this.name,
       required this.rating,
@@ -116,7 +175,8 @@ class Player {
       this.team = "Takımsız",
       this.stats = const {},
       this.role = "Yok",
-      this.skillMoves = 3});
+      this.skillMoves = 3,
+      this.country = "Türkiye"});
 
   int get kitNumber {
     switch (position.toUpperCase()) {
@@ -139,47 +199,48 @@ class Player {
     }
   }
 
-  // Otomatik Rating Hesaplama
-  void calculateRating() {
-    if (stats.isEmpty) return;
-    double wPace = 1, wShoot = 1, wPass = 1, wDrib = 1, wDef = 1, wPhy = 1;
-    if (position == "GK") {
-      rating = stats.values.reduce((a, b) => a + b) ~/ stats.length;
-      return;
-    }
-    if (["CB", "LB", "RB"].contains(position)) {
-      wDef = 2.2;
-      wPhy = 1.8;
-      wPace = 1.1;
-    } else if (["CDM", "CM"].contains(position)) {
-      wPass = 2.2;
-      wDef = 1.5;
-      wPhy = 1.5;
-    } else if (["CAM", "LW", "RW"].contains(position)) {
-      wDrib = 2.0;
-      wPass = 1.5;
-      wPace = 1.5;
-      wShoot = 1.2;
-    } else if (position == "ST") {
-      wShoot = 2.5;
-      wPhy = 1.2;
-      wPace = 1.5;
-    }
-
-    double avgPace = _getAvg(
-        statSegments["1. Top Sürme & Fizik"]!); // Segment isimleri aşağıda
-    double avgShoot = _getAvg(statSegments["2. Şut & Zihinsel"]!);
-    double avgDef = _getAvg(statSegments["3. Savunma & Güç"]!);
-    double avgPass = _getAvg(statSegments["4. Pas & Vizyon"]!);
-
-    // Basit bir ağırlıklandırma (Kategorik ortalamalara göre)
-    double total =
-        (avgPace * wPace + avgShoot * wShoot + avgPass * wPass + avgDef * wDef);
-    double weights = wPace + wShoot + wPass + wDef;
-    rating = (total / weights).round().clamp(1, 99);
+  Map<String, int> getCardStats() {
+    return {
+      "PAC": _getAvg(statSegments["1. Top Sürme & Fizik"]!.sublist(0, 4)),
+      "SHO": _getAvg(statSegments["2. Şut & Zihinsel"]!),
+      "PAS": _getAvg(statSegments["4. Pas & Vizyon"]!),
+      "DRI": _getAvg(["Top Sürme", "Teknik", "Çeviklik", "Denge"]),
+      "DEF": _getAvg(statSegments["3. Savunma & Güç"]!),
+      "PHY": _getAvg(["Güç", "Saldırganlık", "Sert Duruş", "Duvar Kabiliyeti"]),
+    };
   }
 
-  double _getAvg(List<String> keys) {
+  void calculateRating() {
+    if (stats.isEmpty) return;
+    var cs = getCardStats();
+    double total = (cs["PAC"]! * 1.2 +
+        cs["SHO"]! * 1.5 +
+        cs["PAS"]! * 1.0 +
+        cs["DRI"]! * 1.2 +
+        cs["DEF"]! * 0.2 +
+        cs["PHY"]! * 0.8);
+    rating = (total / 5.9).round().clamp(1, 99);
+  }
+
+  void generateRandomMatches() {
+    final random = Random();
+    matches = List.generate(5, (index) {
+      int g = position == "GK"
+          ? 0
+          : (position == "ST" ? random.nextInt(3) : random.nextInt(2));
+      int a = random.nextInt(2);
+      double r = 6.0 + random.nextDouble() * 4.0;
+      return MatchStat(
+          "Hafta ${5 - index}",
+          "${random.nextInt(4)}-${random.nextInt(4)}",
+          g,
+          a,
+          double.parse(r.toStringAsFixed(1)));
+    });
+  }
+
+  // _getAvg DÜZELTİLDİ: (Return int, Rounding)
+  int _getAvg(List<String> keys) {
     int s = 0, c = 0;
     for (var k in keys) {
       if (stats.containsKey(k)) {
@@ -187,63 +248,11 @@ class Player {
         c++;
       }
     }
-    return c == 0 ? 50 : s / c;
+    return c == 0 ? 50 : (s / c).round();
   }
 }
 
-// --- STATİK VERİLER (GÜNCELLENDİ: TEKNİK YER DEĞİŞTİRDİ) ---
-final Map<String, List<String>> statSegments = {
-  "1. Top Sürme & Fizik": [
-    "Hız",
-    "Hızlanma",
-    "Çeviklik",
-    "Denge",
-    "Top Sürme",
-    "Duvar Kabiliyeti",
-    "Teknik"
-  ], // Teknik buraya geldi
-  "2. Şut & Zihinsel": [
-    "Şut Gücü",
-    "Pozisyon Alma",
-    "Bitiricilik",
-    "Uzaktan Şut",
-    "Soğukkanlılık",
-    "Karar Alma"
-  ],
-  "3. Savunma & Güç": [
-    "Top Kapma",
-    "Savunma Farkındalığı",
-    "Sert Duruş",
-    "Güç",
-    "Saldırganlık",
-    "Markaj"
-  ],
-  "4. Pas & Vizyon": [
-    "Pas",
-    "Ara Pas",
-    "Takım Oyunu",
-    "Görüş",
-    "Topsuz Alan",
-    "Orta Yapma",
-    "Top Kontrolü"
-  ],
-};
-
-final Map<String, List<String>> roleCategories = {
-  "GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
-  "CB": ["Çok Yönlü", "Oyun Kurucu Stoper", "Savunmatik"],
-  "LB": ["Kanat Bek", "Hücum Bek", "Çok Yönlü"],
-  "RB": ["Kanat Bek", "Hücum Bek", "Çok Yönlü"],
-  "CDM": ["Tutucu", "Derin Oyun Kurucu", "Savaşçı"],
-  "CM": ["Box to Box", "Oyun Kurucu", "Mezzala"],
-  "CAM": ["Oyun Kurucu", "Gölge Forvet", "Enganche"],
-  "LW": ["İç Forvet", "Kanat Oyuncusu"],
-  "RW": ["İç Forvet", "Kanat Oyuncusu"],
-  "ST": ["Hedef Forvet", "Gizli Forvet", "Avcı Forvet", "Yanlış 9"]
-};
-
-final List<Player> defaultPlayers =
-    []; // Boş başlatıyoruz, Main.dart dolduruyor
+final List<Player> defaultPlayers = [];
 final List<String> availableTeams = [
   "Takımsız",
   "Livorno",
