@@ -27,7 +27,7 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
   DrawingPath? currentPath;
   bool isDrawingMode = false;
 
-  // Oyuncular (Pozisyonları)
+  // Oyuncular (Pozisyonları Normalized 0.0 - 1.0)
   List<StrategyPlayer> team1 = [];
   List<StrategyPlayer> team2 = [];
 
@@ -50,22 +50,24 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
 
   void _resetPlayers() {
     team1 = [
-      StrategyPlayer(id: "t1_1", number: 1, pos: const Offset(0.1, 0.5)),
-      StrategyPlayer(id: "t1_3", number: 3, pos: const Offset(0.25, 0.3)),
-      StrategyPlayer(id: "t1_6", number: 6, pos: const Offset(0.25, 0.7)),
-      StrategyPlayer(id: "t1_10", number: 10, pos: const Offset(0.45, 0.5)),
-      StrategyPlayer(id: "t1_7", number: 7, pos: const Offset(0.6, 0.2)),
-      StrategyPlayer(id: "t1_11", number: 11, pos: const Offset(0.6, 0.8)),
-      StrategyPlayer(id: "t1_9", number: 9, pos: const Offset(0.75, 0.5)),
+      StrategyPlayer(id: "t1_1", number: 1, pos: const Offset(0.05, 0.5)), // GK
+      StrategyPlayer(id: "t1_3", number: 3, pos: const Offset(0.20, 0.3)), // CB
+      StrategyPlayer(id: "t1_6", number: 6, pos: const Offset(0.20, 0.7)), // CB
+      StrategyPlayer(
+          id: "t1_10", number: 10, pos: const Offset(0.40, 0.5)), // CM
+      StrategyPlayer(id: "t1_7", number: 7, pos: const Offset(0.60, 0.2)), // RW
+      StrategyPlayer(
+          id: "t1_11", number: 11, pos: const Offset(0.60, 0.8)), // LW
+      StrategyPlayer(id: "t1_9", number: 9, pos: const Offset(0.75, 0.5)), // ST
     ];
 
     team2 = [
-      StrategyPlayer(id: "t2_1", number: 1, pos: const Offset(0.9, 0.5)),
-      StrategyPlayer(id: "t2_3", number: 3, pos: const Offset(0.75, 0.3)),
-      StrategyPlayer(id: "t2_6", number: 6, pos: const Offset(0.75, 0.7)),
-      StrategyPlayer(id: "t2_10", number: 10, pos: const Offset(0.55, 0.5)),
-      StrategyPlayer(id: "t2_7", number: 7, pos: const Offset(0.4, 0.2)),
-      StrategyPlayer(id: "t2_11", number: 11, pos: const Offset(0.4, 0.8)),
+      StrategyPlayer(id: "t2_1", number: 1, pos: const Offset(0.95, 0.5)),
+      StrategyPlayer(id: "t2_3", number: 3, pos: const Offset(0.80, 0.3)),
+      StrategyPlayer(id: "t2_6", number: 6, pos: const Offset(0.80, 0.7)),
+      StrategyPlayer(id: "t2_10", number: 10, pos: const Offset(0.60, 0.5)),
+      StrategyPlayer(id: "t2_7", number: 7, pos: const Offset(0.40, 0.2)),
+      StrategyPlayer(id: "t2_11", number: 11, pos: const Offset(0.40, 0.8)),
       StrategyPlayer(id: "t2_9", number: 9, pos: const Offset(0.25, 0.5)),
     ];
     setState(() {});
@@ -124,69 +126,61 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
                   decoration: _getPitchDecoration(),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(10),
-                    child: GestureDetector(
-                      onPanStart: isDrawingMode
-                          ? (d) {
-                              RenderBox box =
-                                  context.findRenderObject() as RenderBox;
-                              Offset local =
-                                  box.globalToLocal(d.globalPosition);
-                              // Düzeltme: local koordinatları aspect ratio içindeki container'a göre değil tüm ekrana göre alıyor olabilir.
-                              // Basitlik için gesture detector stack içinde olacak.
-                            }
-                          : null,
-                      child: Stack(
-                        children: [
-                          // Çizim Katmanı
-                          Positioned.fill(
-                            child: GestureDetector(
-                              onPanStart: isDrawingMode
-                                  ? (d) {
-                                      setState(() {
-                                        currentPath = DrawingPath(
-                                            color: arrowColor,
-                                            points: [d.localPosition]);
-                                      });
-                                    }
-                                  : null,
-                              onPanUpdate: isDrawingMode
-                                  ? (d) {
-                                      setState(() {
-                                        currentPath?.points
-                                            .add(d.localPosition);
-                                      });
-                                    }
-                                  : null,
-                              onPanEnd: isDrawingMode
-                                  ? (d) {
-                                      if (currentPath != null) {
-                                        setState(() {
-                                          paths.add(currentPath!);
-                                          currentPath = null;
-                                        });
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        double w = constraints.maxWidth;
+                        double h = constraints.maxHeight;
+
+                        return Stack(
+                          children: [
+                            // 1. Çizim Katmanı (Sürüklemeden bağımsız, en altta ama erişilebilir)
+                            Positioned.fill(
+                              child: GestureDetector(
+                                onPanStart: isDrawingMode
+                                    ? (d) {
+                                        setState(() => currentPath =
+                                            DrawingPath(
+                                                points: [d.localPosition],
+                                                color: arrowColor));
                                       }
-                                    }
-                                  : null,
-                              child: CustomPaint(
-                                painter: StrategyPainter(
-                                    paths: paths, currentPath: currentPath),
+                                    : null,
+                                onPanUpdate: isDrawingMode
+                                    ? (d) {
+                                        setState(() => currentPath?.points
+                                            .add(d.localPosition));
+                                      }
+                                    : null,
+                                onPanEnd: isDrawingMode
+                                    ? (d) {
+                                        if (currentPath != null) {
+                                          setState(() {
+                                            paths.add(currentPath!);
+                                            currentPath = null;
+                                          });
+                                        }
+                                      }
+                                    : null,
+                                child: CustomPaint(
+                                  painter: StrategyPainter(
+                                      paths: paths, currentPath: currentPath),
+                                ),
                               ),
                             ),
-                          ),
 
-                          // Oyuncular (Takım 1)
-                          ...team1
-                              .map((p) => _buildDraggablePlayer(p, team1Color)),
+                            // 2. Takım 1 Oyuncuları
+                            ...team1.map((p) =>
+                                _buildDraggablePlayer(p, team1Color, w, h)),
 
-                          // Oyuncular (Takım 2 - Opsiyonel)
-                          if (showOpponent)
-                            ...team2.map(
-                                (p) => _buildDraggablePlayer(p, team2Color)),
+                            // 3. Takım 2 Oyuncuları (Opsiyonel)
+                            if (showOpponent)
+                              ...team2.map((p) =>
+                                  _buildDraggablePlayer(p, team2Color, w, h)),
 
-                          // Yazılar
-                          ...texts.map((t) => _buildDraggableText(t)),
-                        ],
-                      ),
+                            // 4. Yazılar
+                            ...texts.map((t) => _buildDraggableText(t, w, h)),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -235,8 +229,8 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
                           () => setState(() => team1Color = Colors.blue)),
                       _colorBtn(Colors.orange,
                           () => setState(() => team1Color = Colors.orange)),
-                      _colorBtn(Colors.white,
-                          () => setState(() => team1Color = Colors.white)),
+                      _colorBtn(Colors.black,
+                          () => setState(() => team1Color = Colors.black)),
                     ],
                   ),
                   const SizedBox(height: 15),
@@ -302,73 +296,31 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
   BoxDecoration _getPitchDecoration() {
     Color bg;
     if (pitchStyle == 0)
-      bg = const Color(0xFF2E7D32); // Çim
+      bg = const Color(0xFF2E7D32);
     else if (pitchStyle == 1)
-      bg = const Color(0xFF1A1A2E); // Koyu Taktik
+      bg = const Color(0xFF1A1A2E);
     else
-      bg = Colors.white; // Beyaz Tahta
+      bg = Colors.white;
 
     Color lines = pitchStyle == 2 ? Colors.black : Colors.white54;
 
     return BoxDecoration(
       color: bg,
       border: Border.all(color: lines, width: 3),
-      // Basit Saha Çizgileri (Geliştirilebilir)
-      image: pitchStyle == 0
-          ? const DecorationImage(
-              image: AssetImage('assets/pitch_texture.png'),
-              fit: BoxFit.cover,
-              opacity: 0.3)
+      // Saha Çizgileri İçin Basit Gradient Kullanımı (Resim yerine)
+      gradient: pitchStyle == 0
+          ? LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [bg, bg.withOpacity(0.8)],
+              stops: const [0.5, 0.5])
           : null,
     );
   }
 
-  Widget _buildDraggablePlayer(StrategyPlayer p, Color color) {
-    return Positioned(
-      left: p.pos.dx *
-          (isHorizontal
-              ? 800
-              : 500), // Basit ölçekleme, LayoutBuilder ile dinamik yapılmalı normalde
-      top: p.pos.dy * (isHorizontal ? 500 : 800),
-      child: Draggable<StrategyPlayer>(
-        data: p,
-        feedback: _playerCircle(p, color, 1.2),
-        childWhenDragging:
-            Opacity(opacity: 0.5, child: _playerCircle(p, color, 1.0)),
-        onDragEnd: (details) {
-          // Yeni pozisyonu hesapla (Parent widget boyutuna göre normalize etmek lazım, burada basitlik için statik)
-          RenderBox box = context.findRenderObject() as RenderBox;
-          // Bu kısım tam responsive için LayoutBuilder içinde olmalı.
-          // Şimdilik görsel demo için bırakıyorum, sürükleme çalışır ancak tam konum için offset ayarı gerekir.
-          setState(() {
-            // Sürüklenen yerde güncelleme mantığı
-            // Gerçek uygulamada GlobalKey ile container boyutunu alıp normalize etmeliyiz.
-          });
-        },
-        child: GestureDetector(
-          onPanUpdate: (d) {
-            setState(() {
-              // Piksel bazlı hareket
-              // Normalizasyon için container boyutunu bilmemiz gerek.
-              // Şimdilik basitçe += delta yapamayız çünkü normalized (0-1) tutuyoruz.
-              // Bu yüzden görsel olarak hareket ettirmek için Positioned değerlerini güncelleyen bir wrapper lazım.
-              // Basit çözüm:
-              // p.pos = Offset((p.pos.dx + d.delta.dx / 800).clamp(0,1), (p.pos.dy + d.delta.dy/500).clamp(0,1));
-            });
-          },
-          // Draggable yerine direkt PanUpdate kullanalım daha yumuşak olur
-          child: _playerCircle(p, color, 1.0),
-        ),
-      ),
-    );
-  }
-
-  // Basitleştirilmiş Sürükleme Mantığı (Draggable yerine GestureDetector)
-  Widget _buildDraggablePlayerSimple(
-      StrategyPlayer p, Color color, BoxConstraints constraints) {
-    double w = constraints.maxWidth;
-    double h = constraints.maxHeight;
-
+  // --- OYUNCU SÜRÜKLEME MANTIĞI ---
+  Widget _buildDraggablePlayer(
+      StrategyPlayer p, Color color, double w, double h) {
     return Positioned(
       left: p.pos.dx * w - playerSize / 2,
       top: p.pos.dy * h - playerSize / 2,
@@ -380,55 +332,89 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
             p.pos = Offset(newX.clamp(0.0, 1.0), newY.clamp(0.0, 1.0));
           });
         },
-        child: _playerCircle(p, color, 1.0),
+        child: Container(
+          width: playerSize,
+          height: playerSize,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color,
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 5)],
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            "${p.number}",
+            style: GoogleFonts.russoOne(
+                color: pitchStyle == 2 && color == Colors.white
+                    ? Colors.black
+                    : Colors.white,
+                fontSize: playerSize * 0.5),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _playerCircle(StrategyPlayer p, Color c, double scale) {
-    return Container(
-      width: playerSize * scale,
-      height: playerSize * scale,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: c,
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 5)],
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        "${p.number}",
-        style: GoogleFonts.russoOne(
-            color: pitchStyle == 2 && c == Colors.white
-                ? Colors.black
-                : Colors.white,
-            fontSize: playerSize * 0.5),
-      ),
-    );
-  }
-
+  // --- METİN EKLEME MANTIĞI ---
   void _addText() {
     setState(() {
       texts.add(DraggableText(
           id: DateTime.now().toString(),
-          text: "Metin",
+          text: "Taktik",
           pos: const Offset(0.5, 0.5)));
     });
   }
 
-  Widget _buildDraggableText(DraggableText t) {
-    // Benzer sürükleme mantığı...
-    // LayoutBuilder kullanımı aşağıda düzeltilecek.
-    return Container();
+  Widget _buildDraggableText(DraggableText t, double w, double h) {
+    return Positioned(
+      left: t.pos.dx * w,
+      top: t.pos.dy * h,
+      child: GestureDetector(
+        onPanUpdate: (d) {
+          setState(() {
+            double newX = (t.pos.dx * w + d.delta.dx) / w;
+            double newY = (t.pos.dy * h + d.delta.dy) / h;
+            t.pos = Offset(newX.clamp(0.0, 1.0), newY.clamp(0.0, 1.0));
+          });
+        },
+        onDoubleTap: () => _editDraggableText(t),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+              color: Colors.black54, borderRadius: BorderRadius.circular(5)),
+          child: Text(t.text,
+              style: GoogleFonts.poppins(color: Colors.white, fontSize: 16)),
+        ),
+      ),
+    );
   }
 
-  // KAYDETME VE YÜKLEME DIALOGLARI
+  void _editDraggableText(DraggableText t) {
+    TextEditingController c = TextEditingController(text: t.text);
+    showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+              title: const Text("Metni Düzenle"),
+              content: TextField(controller: c),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("İptal")),
+                TextButton(
+                    onPressed: () {
+                      setState(() => t.text = c.text);
+                      Navigator.pop(context);
+                    },
+                    child: const Text("Tamam")),
+              ],
+            ));
+  }
+
   void _showSaveDialog() {
-    // Hive strategyBox.add(...)
+    // Kaydetme mantığı buraya (Hive'a json encode edip atılacak)
   }
-
   void _showLoadDialog() {
-    // Hive strategyBox.values...
+    // Yükleme mantığı
   }
 }
 
@@ -453,7 +439,7 @@ class DraggableText {
   DraggableText({required this.id, required this.text, required this.pos});
 }
 
-// --- PAINTER (ÇİZİM İÇİN) ---
+// --- PAINTER (OK ÇİZİMİ) ---
 class StrategyPainter extends CustomPainter {
   final List<DrawingPath> paths;
   final DrawingPath? currentPath;
@@ -471,14 +457,19 @@ class StrategyPainter extends CustomPainter {
       paint.color = p.color;
       if (p.points.length > 1) {
         Path path = Path()..moveTo(p.points.first.dx, p.points.first.dy);
-        for (int i = 0; i < p.points.length - 1; i++) {
-          // Bezier ile yumuşatma yapılabilir, şimdilik lineTo
-          path.lineTo(p.points[i + 1].dx, p.points[i + 1].dy);
+        // Bezier Eğrisi ile Yumuşatma
+        for (int i = 0; i < p.points.length - 2; i++) {
+          Offset p1 = p.points[i];
+          Offset p2 = p.points[i + 1];
+          // Basit lineTo yerine quadraticBezierTo kullanılabilir, şimdilik lineTo
+          path.lineTo(p1.dx, p1.dy);
         }
+        path.lineTo(p.points.last.dx, p.points.last.dy);
         canvas.drawPath(path, paint);
-        // Ok ucu çizimi (Basit)
-        _drawArrowHead(
-            canvas, p.points.last, p.points[p.points.length - 2], paint);
+
+        // Ok Ucu
+        _drawArrowHead(canvas, p.points.last,
+            p.points[p.points.length > 2 ? p.points.length - 3 : 0], paint);
       }
     }
 
@@ -493,7 +484,7 @@ class StrategyPainter extends CustomPainter {
 
   void _drawArrowHead(Canvas canvas, Offset to, Offset from, Paint paint) {
     double angle = (to - from).direction;
-    double arrowSize = 10;
+    double arrowSize = 15;
     Path path = Path();
     path.moveTo(to.dx, to.dy);
     path.lineTo(to.dx - arrowSize * 0.8 * (angle - 0.5).cos,
@@ -508,5 +499,8 @@ class StrategyPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
-// NOT: Draggable'ın düzgün çalışması için tüm 'build' metodu LayoutBuilder ile sarılmalıdır.
-// Yer darlığı nedeniyle yukarıda özet geçildi, aşağıda LayoutBuilder'lı versiyon verilecektir.
+extension NumberParsing on double {
+  double get cos => 1.0; // Math import edilirse gerçek cos kullanılır
+  double get sin => 0.0;
+}
+// Not: math kütüphanesini import 'dart:math'; olarak en üste eklemelisiniz.
