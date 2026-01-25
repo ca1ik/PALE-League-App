@@ -15,7 +15,7 @@ class StrategyMakerModule extends StatefulWidget {
 class _StrategyMakerModuleState extends State<StrategyMakerModule> {
   bool isEditing = false;
   bool isHorizontal = true;
-  bool isStraightLine = true; // Default: Düz Ok
+  bool isStraightLine = true;
   bool showOpponent = false;
   int pitchStyle = 0;
   Color arrowColor = Colors.yellow;
@@ -30,7 +30,6 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
   List<DraggableText> texts = [];
   List<String> undoStack = [];
   List<String> redoStack = [];
-
   late Box<StrategyModel> strategyBox;
 
   @override
@@ -48,12 +47,12 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
   void _resetPlayers() {
     team1 = [
       StrategyPlayer(id: "t1_1", number: 1, pos: const Offset(0.05, 0.5)),
-      StrategyPlayer(id: "t1_3", number: 3, pos: const Offset(0.25, 0.2)),
-      StrategyPlayer(id: "t1_6", number: 6, pos: const Offset(0.25, 0.8)),
-      StrategyPlayer(id: "t1_10", number: 10, pos: const Offset(0.45, 0.5)),
-      StrategyPlayer(id: "t1_7", number: 7, pos: const Offset(0.70, 0.1)),
-      StrategyPlayer(id: "t1_11", number: 11, pos: const Offset(0.70, 0.9)),
-      StrategyPlayer(id: "t1_9", number: 9, pos: const Offset(0.85, 0.5)),
+      StrategyPlayer(id: "t1_3", number: 3, pos: const Offset(0.20, 0.3)),
+      StrategyPlayer(id: "t1_6", number: 6, pos: const Offset(0.20, 0.7)),
+      StrategyPlayer(id: "t1_10", number: 10, pos: const Offset(0.40, 0.5)),
+      StrategyPlayer(id: "t1_7", number: 7, pos: const Offset(0.60, 0.2)),
+      StrategyPlayer(id: "t1_11", number: 11, pos: const Offset(0.60, 0.8)),
+      StrategyPlayer(id: "t1_9", number: 9, pos: const Offset(0.75, 0.5)),
     ];
     team2 = List.generate(
         7,
@@ -161,7 +160,6 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
     );
   }
 
-  // --- LİSTE GÖRÜNÜMÜ ---
   Widget _buildList() {
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -232,7 +230,6 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
     );
   }
 
-  // --- EDİTÖR GÖRÜNÜMÜ ---
   Widget _buildEditor() {
     return LayoutBuilder(builder: (context, constraints) {
       return Row(children: [

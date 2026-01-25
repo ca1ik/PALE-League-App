@@ -50,16 +50,13 @@ void main() async {
     Hive.registerAdapter(PlayStyleAdapter());
     Hive.registerAdapter(MatchStatAdapter());
     Hive.registerAdapter(StrategyAdapter());
+    Hive.registerAdapter(SeasonStatAdapter()); // YENİ
 
     await Hive.openBox('natroff_memory');
     await Hive.openBox<StrategyModel>('palehax_strategies');
 
-    // V7 KUTUSU (YENİ)
-    var playerBox = await Hive.openBox<Player>('palehax_players_v7');
-
-    if (playerBox.isEmpty) {
-      await playerBox.addAll(defaultPlayers);
-    }
+    // V8 KUTUSU (Yeni özellikler için)
+    await Hive.openBox<Player>('palehax_players_v8');
   } catch (e) {
     debugPrint("Veritabanı Başlatma Hatası: $e");
   }

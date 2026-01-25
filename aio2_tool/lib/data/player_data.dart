@@ -1,7 +1,36 @@
 import 'dart:math';
 import 'package:hive/hive.dart';
 
-// --- HIVE ADAPTERLERİ (V7: cardType eklendi) ---
+final Map<String, String> playStyleTranslations = {
+  "Acrobatic": "Akrobatik",
+  "AerialFortress": "Hava Hakimi",
+  "Anticipate": "Sezgi",
+  "Block": "Blok",
+  "Bruiser": "Sert",
+  "CrossClaimer": "Orta Kesici",
+  "FarReach": "Uzak Erişim",
+  "FinesseShot": "Plase",
+  "FirstTouch": "İlk Dokunuş",
+  "Footwork": "Ayak Oyunu",
+  "GameChanger": "Oyun Kurucu",
+  "IncisivePass": "Ara Pası",
+  "Intercept": "Pas Arası",
+  "Inventive": "Yaratıcı",
+  "Jockey": "Markaj",
+  "LongBallPass": "Uzun Top",
+  "PingedPass": "Adrese Teslim",
+  "PowerShot": "Sert Şut",
+  "PressProven": "Baskı Yemez",
+  "QuickStep": "Seri Adım",
+  "Rapid": "Süratli",
+  "RushOut": "Kalesini Terk",
+  "SlideTackle": "Kayarak Müdahale",
+  "Technical": "Teknik",
+  "TikiTaka": "Tiki Taka",
+  "Trickster": "Cambaz",
+  "WhippedPass": "Kavisli Pas"
+};
+
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
   final int typeId = 1;
@@ -19,7 +48,8 @@ class PlayerAdapter extends TypeAdapter<Player> {
       skillMoves: reader.read() ?? 3,
       country: reader.read() ?? "Türkiye",
       chemistryStyle: reader.read() ?? "Temel",
-      cardType: reader.read() ?? "Temel");
+      cardType: reader.read() ?? "Temel",
+      seasons: (reader.read() as List?)?.cast<SeasonStat>() ?? []);
   @override
   void write(BinaryWriter writer, Player obj) {
     writer.write(obj.name);
@@ -35,10 +65,11 @@ class PlayerAdapter extends TypeAdapter<Player> {
     writer.write(obj.country);
     writer.write(obj.chemistryStyle);
     writer.write(obj.cardType);
+    writer.write(obj.seasons);
   }
 }
 
-// ... (Diğer adapterler aynı)
+// ... Diğer adapterler aynı kalsın (PlayStyleAdapter, MatchStatAdapter, SeasonStatAdapter, StrategyAdapter) ...
 class PlayStyleAdapter extends TypeAdapter<PlayStyle> {
   @override
   final int typeId = 2;
@@ -68,6 +99,22 @@ class MatchStatAdapter extends TypeAdapter<MatchStat> {
   }
 }
 
+class SeasonStatAdapter extends TypeAdapter<SeasonStat> {
+  @override
+  final int typeId = 5;
+  @override
+  SeasonStat read(BinaryReader reader) => SeasonStat(reader.read(),
+      reader.read(), reader.read(), reader.read(), reader.read());
+  @override
+  void write(BinaryWriter writer, SeasonStat obj) {
+    writer.write(obj.season);
+    writer.write(obj.avgRating);
+    writer.write(obj.goals);
+    writer.write(obj.assists);
+    writer.write(obj.isMVP);
+  }
+}
+
 class StrategyAdapter extends TypeAdapter<StrategyModel> {
   @override
   final int typeId = 4;
@@ -81,7 +128,6 @@ class StrategyAdapter extends TypeAdapter<StrategyModel> {
   }
 }
 
-// --- MODELLER ---
 class PlayStyle {
   final String name;
   final bool isGold;
@@ -99,13 +145,21 @@ class MatchStat {
   MatchStat(this.opponent, this.score, this.goals, this.assists, this.rating);
 }
 
+class SeasonStat {
+  final String season;
+  final double avgRating;
+  final int goals;
+  final int assists;
+  final bool isMVP;
+  SeasonStat(this.season, this.avgRating, this.goals, this.assists, this.isMVP);
+}
+
 class StrategyModel extends HiveObject {
   final String name;
   final String jsonData;
   StrategyModel({required this.name, required this.jsonData});
 }
 
-// --- PLAYER SINIFI ---
 class Player extends HiveObject {
   String name;
   int rating;
@@ -119,8 +173,8 @@ class Player extends HiveObject {
   int skillMoves;
   String country;
   String chemistryStyle;
-  String cardType; // YENİ: Kart Tipi
-
+  String cardType;
+  List<SeasonStat> seasons;
   Player(
       {required this.name,
       required this.rating,
@@ -134,7 +188,8 @@ class Player extends HiveObject {
       this.skillMoves = 3,
       this.country = "Türkiye",
       this.chemistryStyle = "Temel",
-      this.cardType = "Temel"});
+      this.cardType = "Temel",
+      this.seasons = const []});
 
   int get kitNumber {
     switch (position.toUpperCase()) {
@@ -178,13 +233,12 @@ class Player extends HiveObject {
         cs["DEF"]! * 0.2 +
         cs["PHY"]! * 0.8);
     rating = (total / 5.9).round().clamp(1, 99);
-    // Kart tipine göre reyting boost (Opsiyonel)
     if (cardType == "TOTY" || cardType == "BALLOND'OR")
       rating = (rating + 3).clamp(1, 99);
-    if (cardType == "BAD") rating = (rating - 5).clamp(1, 99);
+    if (cardType == "BAD") rating = (rating - 10).clamp(1, 99);
   }
 
-  void generateRandomMatches() {
+  void generateRandomMatchesAndSeasons() {
     final random = Random();
     matches = List.generate(5, (index) {
       int g = position == "GK"
@@ -198,6 +252,11 @@ class Player extends HiveObject {
           g,
           a,
           double.parse(r.toStringAsFixed(1)));
+    });
+    seasons = List.generate(5, (index) {
+      double r = 6.5 + random.nextDouble() * 3.5;
+      return SeasonStat("S${index + 1}", double.parse(r.toStringAsFixed(1)),
+          random.nextInt(30), random.nextInt(15), r > 9.0);
     });
   }
 
@@ -224,7 +283,6 @@ final List<String> cardTypes = [
   "BALLOND'OR",
   "BAD"
 ];
-
 final Map<String, Map<String, int>> chemistryBonuses = {
   "Temel": {
     "Hız": 2,
@@ -261,9 +319,8 @@ final Map<String, Map<String, int>> chemistryBonuses = {
   "Avcı": {"Bitiricilik": 3, "Hız": 3, "Çeviklik": 3, "Görüş": 2},
   "Keskin Nişancı": {"Bitiricilik": 5, "Şut Gücü": 4, "Görüş": 2},
   "Şahin": {"Bitiricilik": 2, "Hız": 5, "Şut Gücü": 2, "Güç": 3},
-  "Bitirici": {"Bitiricilik": 6, "Hız": 3, "Şut Gücü": 3, "Güç": 1},
+  "Bitirici": {"Bitiricilik": 6, "Hız": 3, "Şut Gücü": 3, "Güç": 1}
 };
-
 final Map<String, List<String>> statSegments = {
   "1. Top Sürme & Fizik": [
     "Hız",
@@ -299,9 +356,8 @@ final Map<String, List<String>> statSegments = {
     "Topsuz Alan",
     "Orta Yapma",
     "Top Kontrolü"
-  ],
+  ]
 };
-
 final Map<String, List<String>> roleCategories = {
   "GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
   "CB": ["Çok Yönlü", "Oyun Kurucu Stoper", "Savunmatik", "Libero"],
@@ -314,7 +370,6 @@ final Map<String, List<String>> roleCategories = {
   "RW": ["İç Forvet", "Kanat Oyuncusu"],
   "ST": ["Hedef Forvet", "Gizli Forvet", "Avcı Forvet", "Yanlış 9"]
 };
-
 final List<Player> defaultPlayers = [];
 final List<String> availableTeams = [
   "Takımsız",
