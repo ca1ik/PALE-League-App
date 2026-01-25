@@ -81,6 +81,10 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
           Container(
             width: 80,
             margin: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+                color: const Color(0xFF15151A),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white10)),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
