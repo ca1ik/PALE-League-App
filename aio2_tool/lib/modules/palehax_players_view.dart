@@ -2,11 +2,13 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:url_launcher/url_launcher.dart'; // Eğer link açmak istersen
+import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart'; // PAKET EKLENDİ
 import '../data/player_data.dart';
 import '../ui/glass_box.dart';
 import '../ui/fc_animated_card.dart';
 import 'player_editor.dart';
+import '../providers/language_provider.dart';
 
 class PaleHaxPlayersView extends StatefulWidget {
   const PaleHaxPlayersView({super.key});
@@ -21,18 +23,10 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
   @override
   void initState() {
     super.initState();
-    _initHive();
-  }
-
-  Future<void> _initHive() async {
-    // V8 -> V9 Migration (Rec Link için)
-    var v8Box = await Hive.openBox<Player>('palehax_players_v8');
-    var v9Box = await Hive.openBox<Player>('palehax_players_v9');
-    if (v9Box.isEmpty && v8Box.isNotEmpty) {
-      v9Box.addAll(v8Box.values);
+    if (Hive.isBoxOpen('palehax_players_v9')) {
+      var box = Hive.box<Player>('palehax_players_v9');
+      if (box.isNotEmpty) selectedPlayer = box.getAt(0);
     }
-    if (v9Box.isNotEmpty) selectedPlayer = v9Box.getAt(0);
-    setState(() {});
   }
 
   @override
@@ -79,9 +73,11 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
               if (allPlayers.isNotEmpty) selectedPlayer = allPlayers.first;
             }
 
+            // Stacking Logic
             List<Player> playerVersions = allPlayers
                 .where((p) => p.name == selectedPlayer!.name)
                 .toList();
+            // Kartları tarihe veya türe göre sıralayabilirsin, şimdilik olduğu gibi bırakıyoruz
             if (currentCardIndex >= playerVersions.length) currentCardIndex = 0;
             Player displayPlayer = playerVersions.isNotEmpty
                 ? playerVersions[currentCardIndex]
@@ -89,7 +85,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
 
             return Row(
               children: [
-                // SOL LİSTE
+                // SOL LİSTE (Sabit)
                 Container(
                   width: 260,
                   decoration: const BoxDecoration(
@@ -98,6 +94,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                     itemCount: allPlayers.length,
                     itemBuilder: (context, index) {
                       final p = allPlayers[index];
+                      // Unique isim kontrolü
                       if (index > 0 && allPlayers[index - 1].name == p.name)
                         return const SizedBox.shrink();
                       bool isSel = selectedPlayer!.name == p.name;
@@ -125,7 +122,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                   ),
                 ),
 
-                // TAB İÇERİKLERİ
+                // SAĞ İÇERİK (Tablar)
                 Expanded(
                   child: TabBarView(
                     physics: const NeverScrollableScrollPhysics(),
@@ -150,7 +147,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
   }
 }
 
-// --- SEKME 1: PROFİL (Klasik) ---
+// --- SEKME 1: PROFİL (Klasik - Geliştirilmiş) ---
 class _Tab1Profile extends StatelessWidget {
   final Player player;
   final BuildContext context;
@@ -161,28 +158,55 @@ class _Tab1Profile extends StatelessWidget {
       padding: const EdgeInsets.all(30),
       child: Column(
         children: [
-          FCAnimatedCard(player: player), // KART ORTADA
-          const SizedBox(height: 30),
-          ElevatedButton.icon(
-              onPressed: () => _showDetailsDialog(context, player),
-              icon: const Icon(Icons.analytics, color: Colors.black),
-              label: const Text("DETAYLI ANALİZ RAPORU",
-                  style: TextStyle(
-                      color: Colors.black, fontWeight: FontWeight.bold)),
-              style:
-                  ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent)),
-          const SizedBox(height: 30),
-          const Text("OYUN STİLLERİ",
-              style:
-                  TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          Wrap(
-              spacing: 10,
-              children: player.playstyles
-                  .map((ps) => Tooltip(
-                      message: ps.name,
-                      child: Image.asset(ps.assetPath, width: 40, height: 40)))
-                  .toList()),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FCAnimatedCard(player: player),
+              const SizedBox(width: 40),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(player.name.toUpperCase(),
+                      style: GoogleFonts.orbitron(
+                          fontSize: 32,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold)),
+                  Text("${player.position} | ${player.team}",
+                      style: GoogleFonts.montserrat(
+                          fontSize: 18, color: Colors.white70)),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                      onPressed: () => _showDetailsDialog(context, player),
+                      icon: const Icon(Icons.analytics, color: Colors.black),
+                      label: const Text("DETAYLI ANALİZ",
+                          style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.cyanAccent,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 30, vertical: 15))),
+                  const SizedBox(height: 20),
+                  Text("OYUN STİLLERİ",
+                      style: TextStyle(
+                          color: Colors.amber,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: GoogleFonts.orbitron().fontFamily)),
+                  const SizedBox(height: 10),
+                  Wrap(
+                      spacing: 10,
+                      children: player.playstyles
+                          .map((ps) => Tooltip(
+                              message:
+                                  playStyleTranslations[ps.name] ?? ps.name,
+                              child: Image.asset(ps.assetPath,
+                                  width: 40, height: 40)))
+                          .toList())
+                ],
+              )
+            ],
+          ),
           const SizedBox(height: 30),
           _buildMatchHistory(player),
         ],
@@ -191,7 +215,7 @@ class _Tab1Profile extends StatelessWidget {
   }
 }
 
-// --- SEKME 2: ULTIMATE ANALİZ (YENİLENMİŞ) ---
+// --- SEKME 2: ULTIMATE ANALİZ (YENİLENMİŞ - 3. RESME UYGUN) ---
 class _Tab2Ultimate extends StatelessWidget {
   final Player player;
   final List<Player> versions;
@@ -211,7 +235,7 @@ class _Tab2Ultimate extends StatelessWidget {
 
     return Row(
       children: [
-        // ORTA: KART STACK (Daha görünür animasyon)
+        // ORTA: KART STACK (Sola dayalı değil, ortada)
         Expanded(
           flex: 4,
           child: Column(
@@ -223,46 +247,46 @@ class _Tab2Ultimate extends StatelessWidget {
                   alignment: Alignment.center,
                   clipBehavior: Clip.none,
                   children: [
+                    // ARKA KARTLAR (Sağda görünüyor, tıklanabilir)
                     if (versions.length > 1)
                       AnimatedPositioned(
                         duration: const Duration(milliseconds: 500),
-                        curve: Curves.easeInOut,
-                        right: -60, top: 20, // Daha dışarıda
+                        right: -80,
+                        top: 0,
                         child: GestureDetector(
                           onTap: () => onIndex((index + 1) % versions.length),
-                          child: MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: Stack(
-                              alignment: Alignment.topRight,
-                              children: [
-                                Transform.scale(
-                                    scale: 0.9,
-                                    child: Opacity(
-                                        opacity: 0.8,
-                                        child: FCAnimatedCard(
-                                            player: versions[(index + 1) %
-                                                versions.length]))),
-                                Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 5),
-                                    margin: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                        color: Colors.black,
-                                        borderRadius: BorderRadius.circular(5),
-                                        border:
-                                            Border.all(color: Colors.white54)),
-                                    child: Text(
-                                        versions[(index + 1) % versions.length]
-                                            .cardType,
-                                        style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12))),
-                              ],
-                            ),
+                          child: Stack(
+                            alignment: Alignment.topRight,
+                            children: [
+                              Transform.scale(
+                                  scale: 0.85,
+                                  child: Opacity(
+                                      opacity: 0.7,
+                                      child: FCAnimatedCard(
+                                          player: versions[
+                                              (index + 1) % versions.length]))),
+                              // Arka Kart Etiketi (TOTW vb.)
+                              Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 5),
+                                  margin:
+                                      const EdgeInsets.only(top: 20, right: 20),
+                                  decoration: BoxDecoration(
+                                      color: Colors.black,
+                                      borderRadius: BorderRadius.circular(5),
+                                      border: Border.all(color: Colors.white)),
+                                  child: Text(
+                                      versions[(index + 1) % versions.length]
+                                          .cardType,
+                                      style: const TextStyle(
+                                          color: Colors.cyanAccent,
+                                          fontWeight: FontWeight.bold)))
+                            ],
                           ),
                         ),
                       ),
+
+                    // ÖN KART
                     FCAnimatedCard(player: player),
                     Positioned(
                         top: 0,
@@ -282,7 +306,7 @@ class _Tab2Ultimate extends StatelessWidget {
           ),
         ),
 
-        // SAĞ: DETAYLAR (ŞEFFAF VE DOLU)
+        // SAĞ: DETAYLAR (ŞEFFAF VE DOLU DOLU)
         Expanded(
           flex: 5,
           child: SingleChildScrollView(
@@ -290,10 +314,10 @@ class _Tab2Ultimate extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // İSTATİSTİK KUTULARI (Daha şık)
+                // İSTATİSTİK GRID
                 Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+                  spacing: 12,
+                  runSpacing: 12,
                   children: [
                     _statBox("GOALS", simStats['Goals']!, Colors.greenAccent,
                         Icons.sports_soccer),
@@ -302,6 +326,8 @@ class _Tab2Ultimate extends StatelessWidget {
                         "${player.matches.fold(0, (s, m) => s + m.assists)}",
                         Colors.blueAccent,
                         Icons.assist_walker),
+                    _statBox("KICKS", simStats['Kicks']!, Colors.white,
+                        Icons.sports),
                     _statBox("PASSES", simStats['Passes']!, Colors.white,
                         Icons.compare_arrows),
                     _statBox("KEY PASS", simStats['Key Pass']!,
@@ -310,62 +336,83 @@ class _Tab2Ultimate extends StatelessWidget {
                         Icons.track_changes),
                     _statBox("POSS%", simStats['Possession']!,
                         Colors.purpleAccent, Icons.pie_chart),
+                    _statBox("RATING", "${player.rating}", Colors.cyanAccent,
+                        Icons.star),
                   ],
                 ),
-                const SizedBox(height: 20),
-                // REC BUTONU
+                const SizedBox(height: 30),
+
+                // REC LINK BUTONU
                 if (player.recLink.isNotEmpty)
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.only(bottom: 20),
                     child: ElevatedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.videocam),
-                        label: const Text("MAÇ KAYDINI İZLE"),
+                        onPressed: () async {
+                          final Uri url = Uri.parse(player.recLink);
+                          if (!await launchUrl(url))
+                            throw Exception('Could not launch $url');
+                        },
+                        icon: const Icon(Icons.videocam, color: Colors.white),
+                        label: const Text("MAÇ KAYDINI İZLE",
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            padding: const EdgeInsets.all(15))),
+                            backgroundColor: Colors.redAccent,
+                            padding: const EdgeInsets.all(18),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)))),
                   ),
 
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // MİNİ SAHA
-                    Container(
-                      width: 160,
-                      height: 220,
-                      decoration: BoxDecoration(
-                          border: Border.all(color: Colors.white24, width: 2),
-                          borderRadius: BorderRadius.circular(10),
-                          color: Colors.white.withOpacity(0.02)),
-                      child: CustomPaint(
-                        painter: _MiniPitchPainter(
-                            playerPos: player.getPitchPosition()),
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              left: player.getPitchPosition().dx * 160 - 10,
-                              top: player.getPitchPosition().dy * 220 - 10,
-                              child: Column(children: [
-                                const Icon(Icons.circle,
-                                    color: Colors.redAccent, size: 14),
-                                Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 4),
-                                    color: Colors.black54,
-                                    child: Text(player.position,
-                                        style: const TextStyle(
-                                            color: Colors.redAccent,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold)))
-                              ]),
-                            )
-                          ],
+                    Column(
+                      children: [
+                        Text("MEVKİ",
+                            style: GoogleFonts.orbitron(
+                                color: Colors.white54, fontSize: 12)),
+                        const SizedBox(height: 5),
+                        Container(
+                          width: 160,
+                          height: 220,
+                          decoration: BoxDecoration(
+                              border:
+                                  Border.all(color: Colors.white24, width: 2),
+                              borderRadius: BorderRadius.circular(10),
+                              color: Colors.white.withOpacity(0.02)),
+                          child: CustomPaint(
+                            painter: _MiniPitchPainter(
+                                playerPos: player.getPitchPosition()),
+                            child: Stack(
+                              children: [
+                                Positioned(
+                                  left: player.getPitchPosition().dx * 160 - 10,
+                                  top: player.getPitchPosition().dy * 220 - 10,
+                                  child: Column(children: [
+                                    const Icon(Icons.circle,
+                                        color: Colors.redAccent, size: 14),
+                                    Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4),
+                                        color: Colors.black54,
+                                        child: Text(player.position,
+                                            style: const TextStyle(
+                                                color: Colors.redAccent,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold)))
+                                  ]),
+                                )
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                     const SizedBox(width: 20),
-                    // SEZON TABLOSU (Daha Kompakt)
+                    // SEZON TABLOSU (Kompakt)
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -380,32 +427,44 @@ class _Tab2Ultimate extends StatelessWidget {
                             columnWidths: const {
                               0: FlexColumnWidth(1),
                               1: FlexColumnWidth(1),
-                              2: FlexColumnWidth(1),
-                              3: FixedColumnWidth(20)
+                              2: FlexColumnWidth(1.2),
+                              3: FixedColumnWidth(25)
                             },
-                            children: player.seasons
-                                .map((s) => TableRow(children: [
-                                      Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 4),
-                                          child: Text(s.season,
-                                              style: const TextStyle(
-                                                  color: Colors.white54,
-                                                  fontSize: 11))),
-                                      Text("${s.avgRating}",
-                                          style: const TextStyle(
-                                              color: Colors.cyanAccent,
-                                              fontWeight: FontWeight.bold)),
-                                      Text("${s.goals}G ${s.assists}A",
-                                          style: const TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 11)),
-                                      s.isMVP
-                                          ? const Icon(Icons.star,
-                                              color: Colors.amber, size: 14)
-                                          : const SizedBox()
-                                    ]))
-                                .toList(),
+                            children: [
+                              const TableRow(children: [
+                                Text("SEZON",
+                                    style: TextStyle(
+                                        color: Colors.grey, fontSize: 10)),
+                                Text("RTG",
+                                    style: TextStyle(
+                                        color: Colors.grey, fontSize: 10)),
+                                Text("G/A",
+                                    style: TextStyle(
+                                        color: Colors.grey, fontSize: 10)),
+                                SizedBox()
+                              ]),
+                              ...player.seasons.map((s) => TableRow(children: [
+                                    Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 6),
+                                        child: Text(s.season,
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12))),
+                                    Text("${s.avgRating}",
+                                        style: const TextStyle(
+                                            color: Colors.cyanAccent,
+                                            fontWeight: FontWeight.bold)),
+                                    Text("${s.goals} / ${s.assists}",
+                                        style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 12)),
+                                    s.isMVP
+                                        ? const Icon(Icons.star,
+                                            color: Colors.amber, size: 16)
+                                        : const SizedBox()
+                                  ]))
+                            ],
                           )
                         ],
                       ),
@@ -413,15 +472,22 @@ class _Tab2Ultimate extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 20),
-                // Vücut ve Form
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _infoBadge("BOY/KİLO",
-                        "185cm / 78kg"), // Mock data (veri modeline eklenebilir)
-                    _infoBadge("AYAK", "Sağ"),
-                    _infoBadge("FORM", "Mükemmel", color: Colors.green),
-                  ],
+                // Vücut Bilgileri (Mockup)
+                Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                      border: Border.all(color: Colors.white10),
+                      borderRadius: BorderRadius.circular(10)),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _infoBadge("BOY", "185 cm"),
+                      _infoBadge("KİLO", "78 kg"),
+                      _infoBadge("AYAK", "Sağ"),
+                      _infoBadge("FORM", "🔥 Mükemmel",
+                          color: Colors.orangeAccent),
+                    ],
+                  ),
                 )
               ],
             ),
@@ -434,26 +500,33 @@ class _Tab2Ultimate extends StatelessWidget {
   Widget _statBox(String label, String value, Color c, IconData icon) {
     return Container(
       width: 100,
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-          color: c.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: c.withOpacity(0.3))),
+          color: c.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: c.withOpacity(0.2))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, color: c, size: 16),
+        Icon(icon, color: c, size: 18),
         const SizedBox(height: 5),
         Text(value,
             style:
-                TextStyle(color: c, fontSize: 18, fontWeight: FontWeight.bold)),
-        Text(label, style: TextStyle(color: c.withOpacity(0.7), fontSize: 8))
+                TextStyle(color: c, fontSize: 20, fontWeight: FontWeight.bold)),
+        Text(label,
+            style: TextStyle(
+                color: c.withOpacity(0.7),
+                fontSize: 9,
+                fontWeight: FontWeight.w600))
       ]),
     );
   }
 
   Widget _infoBadge(String label, String val, {Color color = Colors.white}) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
       Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
-      Text(val, style: TextStyle(color: color, fontWeight: FontWeight.bold))
+      const SizedBox(height: 2),
+      Text(val,
+          style: TextStyle(
+              color: color, fontWeight: FontWeight.bold, fontSize: 14))
     ]);
   }
 }
@@ -737,7 +810,7 @@ Color _getRatingColor(int r) {
 
 Color _getCardTypeColor(String t) {
   switch (t) {
-    case "TOTS":
+    case "TOTY":
     case "STAR":
       return Colors.cyanAccent;
     case "MVP":
