@@ -14,7 +14,7 @@ import 'providers/language_provider.dart';
 import 'providers/ui_provider.dart';
 
 // --- VERİ & DATA ---
-import 'data/player_data.dart'; // Oyuncu, PlayStyle ve Maç İstatistikleri Modelleri
+import 'data/player_data.dart'; // Oyuncu, PlayStyle, MatchStat, StrategyModel
 
 // --- UI & EKRANLAR ---
 import 'ui/background.dart';
@@ -33,10 +33,11 @@ import 'modules/resolution_module.dart';
 import 'modules/cleaning_module.dart';
 import 'modules/system_tools.dart';
 import 'modules/ai_photo_module.dart';
-import 'modules/extras_module.dart'; // WebviewModule burada varsayılıyor
+import 'modules/extras_module.dart';
 import 'modules/keyboard_module.dart';
 import 'modules/turkey_map_module.dart';
-import 'modules/palehax_players_view.dart'; // Özel Oyuncu Profili Ekranı
+import 'modules/palehax_players_view.dart';
+import 'modules/strategy_maker_module.dart'; // YENİ EKLENDİ
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,26 +49,27 @@ void main() async {
     // 2. Adapterleri Kaydet (Sıralama önemli)
     Hive.registerAdapter(PlayerAdapter());
     Hive.registerAdapter(PlayStyleAdapter());
-    Hive.registerAdapter(
-        MatchStatAdapter()); // YENİ: Maç İstatistikleri Adapteri
+    Hive.registerAdapter(MatchStatAdapter());
+    Hive.registerAdapter(StrategyAdapter()); // YENİ: Strateji Adapteri
 
     // 3. Kutuları Aç
-    await Hive.openBox('natroff_memory'); // Ayarlar vs.
+    await Hive.openBox('natroff_memory');
+    await Hive.openBox<StrategyModel>(
+        'palehax_strategies'); // YENİ: Taktik Kutusu
 
-    // Veri yapısı değiştiği için kutu ismini v2 yaptık.
-    // Böylece eski hatalı verilerle çakışmadan temiz bir başlangıç yapar.
-    var playerBox = await Hive.openBox<Player>('palehax_players_v3');
+    // Veri Modeli V4'e geçtiği için kutu ismini güncelledik (Eski hatalı verilerden kaçış)
+    var playerBox = await Hive.openBox<Player>('palehax_players_v4');
 
     // 4. Varsayılan Veri Kontrolü
     if (playerBox.isEmpty) {
       await playerBox.addAll(defaultPlayers);
-      debugPrint("Varsayılan oyuncu verileri ve maç istatistikleri yüklendi.");
+      debugPrint("Varsayılan oyuncu verileri (V4) yüklendi.");
     }
   } catch (e) {
     debugPrint("Veritabanı Başlatma Hatası: $e");
   }
 
-  // Pencere Ayarları (Şeffaflık İçin)
+  // Pencere Ayarları
   await windowManager.ensureInitialized();
   WindowOptions windowOptions = const WindowOptions(
     size: Size(1280, 850),
@@ -184,7 +186,6 @@ class MainWindow extends StatefulWidget {
 }
 
 class _MainWindowState extends State<MainWindow> {
-  // --- NAVİGASYON GEÇMİŞİ ---
   List<int> _history = [0];
   int _historyIndex = 0;
 
@@ -218,7 +219,7 @@ class _MainWindowState extends State<MainWindow> {
 
     // --- SAYFA LİSTESİ ---
     final List<Widget> pages = [
-      // 0-13: UPGRADE MODÜLLERİ
+      // UPGRADE (0-13)
       const ResolutionModule(), // 0
       const CleaningModule(), // 1
       const DnsModule(), // 2
@@ -234,12 +235,11 @@ class _MainWindowState extends State<MainWindow> {
       const TurkeyMapModule(), // 12
       const SettingsScreen(), // 13
 
-      // 14-22: PALEHAX MODÜLLERİ
-      const WebviewModule(url: "https://palehaxball.com/"), // 14: Anasayfa
-      const PaleHaxPlayersView(), // 15: OYUNCULAR (Özel Panel)
-      const WebviewModule(url: "https://palehaxball.com/teams"), // 16: Takımlar
+      // PALEHAX (14-22)
+      const WebviewModule(url: "https://palehaxball.com/"), // 14
+      const PaleHaxPlayersView(), // 15: OYUNCULAR
+      const WebviewModule(url: "https://palehaxball.com/teams"), // 16
 
-      // Placeholder Sayfalar
       const Center(
           child: Text("Maçlar Yakında",
               style: TextStyle(color: Colors.white, fontSize: 24))), // 17
@@ -274,17 +274,18 @@ class _MainWindowState extends State<MainWindow> {
             ]))
           ],
         ),
-      ), // 20
+      ),
 
-      const Center(
-          child: Text("Challenge Modu",
-              style: TextStyle(color: Colors.white, fontSize: 24))), // 21
+      // 21: CHALLENGE / STRATEJİ (GÜNCELLENDİ)
+      const StrategyMakerModule(),
+
+      // 22: Hall of Fame
       const Center(
           child: Text("Hall of Fame 🏆",
               style: TextStyle(
                   color: Colors.amber,
                   fontSize: 32,
-                  fontWeight: FontWeight.bold))), // 22
+                  fontWeight: FontWeight.bold))),
     ];
 
     Widget activeModule = pages[activeIdx < pages.length ? activeIdx : 0];
@@ -293,17 +294,15 @@ class _MainWindowState extends State<MainWindow> {
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          // Arka Plan (Normal Mod)
           if (!uiProv.isSpatialMode && isDark)
             const Positioned.fill(child: ParticleBackground()),
           if (!uiProv.isSpatialMode && !isDark)
             Positioned.fill(child: Container(color: Colors.grey[200])),
 
-          // --- NORMAL MOD ARAYÜZÜ ---
+          // --- NORMAL MOD ---
           if (!uiProv.isSpatialMode)
             Column(
               children: [
-                // Title Bar
                 Container(
                   height: 40,
                   color: isDark ? Colors.black26 : Colors.white,
@@ -317,7 +316,6 @@ class _MainWindowState extends State<MainWindow> {
                             padding: const EdgeInsets.symmetric(horizontal: 10),
                             child: Row(
                               children: [
-                                // Geri/İleri Butonları
                                 IconButton(
                                   icon: Icon(Icons.arrow_back_ios_new_rounded,
                                       size: 16,
@@ -362,7 +360,6 @@ class _MainWindowState extends State<MainWindow> {
                     ],
                   ),
                 ),
-                // İçerik
                 Expanded(
                   child: Row(
                     children: [
@@ -391,7 +388,7 @@ class _MainWindowState extends State<MainWindow> {
               ],
             ),
 
-          // --- SPATIAL MOD ARAYÜZÜ ---
+          // --- SPATIAL MOD ---
           if (uiProv.isSpatialMode) ...[
             Positioned(
                 top: 0,
@@ -423,7 +420,6 @@ class _MainWindowState extends State<MainWindow> {
                 top: 10, right: 10, child: WindowButtons(isSpatial: true)),
           ],
 
-          // Chatbot (Her iki modda da var)
           uiProv.isSpatialMode
               ? MovableWindow(
                   initialX: 1000,
