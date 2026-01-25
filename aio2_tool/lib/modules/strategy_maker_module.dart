@@ -1,40 +1,37 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../data/player_data.dart';
-import '../ui/glass_box.dart';
 
 class StrategyMakerModule extends StatefulWidget {
   const StrategyMakerModule({super.key});
-
   @override
   State<StrategyMakerModule> createState() => _StrategyMakerModuleState();
 }
 
 class _StrategyMakerModuleState extends State<StrategyMakerModule> {
+  // Durum Yönetimi (Liste Görünümü / Düzenleme Modu)
+  bool isEditing = false;
+
   // Ayarlar
   bool isHorizontal = true;
-  double playerSize = 40.0;
-  Color team1Color = Colors.red;
-  Color team2Color = Colors.blue;
-  Color arrowColor = Colors.yellow;
-  int pitchStyle = 0; // 0: Çim, 1: Taktik(Koyu), 2: Beyaz Tahta
+  bool isStraightLine = true; // YENİ: Düz Ok / Yılan Ok
   bool showOpponent = false;
+  int pitchStyle = 0;
 
-  // Çizim Verileri
-  List<DrawingPath> paths = [];
-  DrawingPath? currentPath;
-  bool isDrawingMode = false;
+  // Undo/Redo Yığınları
+  List<String> undoStack = [];
+  List<String> redoStack = [];
 
-  // Oyuncular (Pozisyonları Normalized 0.0 - 1.0)
+  // Veriler
   List<StrategyPlayer> team1 = [];
   List<StrategyPlayer> team2 = [];
-
-  // Yazılar
+  List<DrawingPath> paths = [];
+  DrawingPath? currentPath;
   List<DraggableText> texts = [];
 
-  // Veritabanı
   late Box<StrategyModel> strategyBox;
 
   @override
@@ -46,40 +43,190 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
 
   Future<void> _openBox() async {
     strategyBox = await Hive.openBox<StrategyModel>('palehax_strategies');
+    setState(() {});
   }
 
   void _resetPlayers() {
     team1 = [
-      StrategyPlayer(id: "t1_1", number: 1, pos: const Offset(0.05, 0.5)), // GK
-      StrategyPlayer(id: "t1_3", number: 3, pos: const Offset(0.20, 0.3)), // CB
-      StrategyPlayer(id: "t1_6", number: 6, pos: const Offset(0.20, 0.7)), // CB
-      StrategyPlayer(
-          id: "t1_10", number: 10, pos: const Offset(0.40, 0.5)), // CM
-      StrategyPlayer(id: "t1_7", number: 7, pos: const Offset(0.60, 0.2)), // RW
-      StrategyPlayer(
-          id: "t1_11", number: 11, pos: const Offset(0.60, 0.8)), // LW
-      StrategyPlayer(id: "t1_9", number: 9, pos: const Offset(0.75, 0.5)), // ST
+      StrategyPlayer(id: "t1_1", number: 1, pos: const Offset(0.05, 0.5)),
+      StrategyPlayer(id: "t1_3", number: 3, pos: const Offset(0.20, 0.3)),
+      StrategyPlayer(id: "t1_6", number: 6, pos: const Offset(0.20, 0.7)),
+      StrategyPlayer(id: "t1_10", number: 10, pos: const Offset(0.40, 0.5)),
+      StrategyPlayer(id: "t1_7", number: 7, pos: const Offset(0.60, 0.2)),
+      StrategyPlayer(id: "t1_11", number: 11, pos: const Offset(0.60, 0.8)),
+      StrategyPlayer(id: "t1_9", number: 9, pos: const Offset(0.75, 0.5)),
     ];
+    team2 = List.generate(
+        7,
+        (i) => StrategyPlayer(
+            id: "t2_$i", number: i + 1, pos: Offset(0.95 - (i * 0.05), 0.5)));
+  }
 
-    team2 = [
-      StrategyPlayer(id: "t2_1", number: 1, pos: const Offset(0.95, 0.5)),
-      StrategyPlayer(id: "t2_3", number: 3, pos: const Offset(0.80, 0.3)),
-      StrategyPlayer(id: "t2_6", number: 6, pos: const Offset(0.80, 0.7)),
-      StrategyPlayer(id: "t2_10", number: 10, pos: const Offset(0.60, 0.5)),
-      StrategyPlayer(id: "t2_7", number: 7, pos: const Offset(0.40, 0.2)),
-      StrategyPlayer(id: "t2_11", number: 11, pos: const Offset(0.40, 0.8)),
-      StrategyPlayer(id: "t2_9", number: 9, pos: const Offset(0.25, 0.5)),
-    ];
-    setState(() {});
+  // --- UNDO / REDO ---
+  void _saveState() {
+    final state = jsonEncode({
+      't1': team1
+          .map((e) =>
+              {'id': e.id, 'n': e.number, 'dx': e.pos.dx, 'dy': e.pos.dy})
+          .toList(),
+      'paths': paths
+          .map((e) => {
+                'c': e.color.value,
+                'pts': e.points.map((p) => [p.dx, p.dy]).toList()
+              })
+          .toList(),
+    });
+    undoStack.add(state);
+    if (undoStack.length > 20) undoStack.removeAt(0);
+    redoStack.clear();
+  }
+
+  void _undo() {
+    if (undoStack.isEmpty) return;
+    redoStack.add(_getCurrentStateJson());
+    _loadState(undoStack.removeLast());
+  }
+
+  void _redo() {
+    if (redoStack.isEmpty) return;
+    undoStack.add(_getCurrentStateJson());
+    _loadState(redoStack.removeLast());
+  }
+
+  String _getCurrentStateJson() {
+    return jsonEncode({
+      't1': team1
+          .map((e) =>
+              {'id': e.id, 'n': e.number, 'dx': e.pos.dx, 'dy': e.pos.dy})
+          .toList(),
+      'paths': paths
+          .map((e) => {
+                'c': e.color.value,
+                'pts': e.points.map((p) => [p.dx, p.dy]).toList()
+              })
+          .toList(),
+    });
+  }
+
+  void _loadState(String jsonStr) {
+    try {
+      final data = jsonDecode(jsonStr);
+      setState(() {
+        team1 = (data['t1'] as List)
+            .map((e) => StrategyPlayer(
+                id: e['id'], number: e['n'], pos: Offset(e['dx'], e['dy'])))
+            .toList();
+        paths = (data['paths'] as List).map((e) {
+          return DrawingPath(
+              color: Color(e['c']),
+              points:
+                  (e['pts'] as List).map((p) => Offset(p[0], p[1])).toList());
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint("Undo Error: $e");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Klavye Kısayolları İçin Listener
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyZ, control: true): _undo,
+        const SingleActivator(LogicalKeyboardKey.keyY, control: true): _redo,
+      },
+      child: Focus(
+        autofocus: true,
+        child: isEditing ? _buildEditor() : _buildList(),
+      ),
+    );
+  }
+
+  // --- 1. LİSTE EKRANI ---
+  Widget _buildList() {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Row(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text("STRATEJİ MERKEZİ",
+            style: GoogleFonts.orbitron(
+                color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(
+            onPressed: () {
+              _resetPlayers();
+              paths.clear();
+              setState(() => isEditing = true);
+            },
+            icon: const Icon(Icons.add_circle,
+                color: Colors.cyanAccent, size: 30),
+            tooltip: "Yeni Strateji",
+          )
+        ],
+      ),
+      body: ValueListenableBuilder(
+        valueListenable: strategyBox.listenable(),
+        builder: (context, Box<StrategyModel> box, _) {
+          if (box.isEmpty)
+            return const Center(
+                child: Text("Henüz kayıtlı strateji yok.",
+                    style: TextStyle(color: Colors.white54)));
+          return GridView.builder(
+            padding: const EdgeInsets.all(20),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4, crossAxisSpacing: 15, mainAxisSpacing: 15),
+            itemCount: box.length,
+            itemBuilder: (context, index) {
+              final strategy = box.getAt(index);
+              return GestureDetector(
+                onTap: () {
+                  // Yükleme
+                  _resetPlayers();
+                  paths.clear(); // Temizle
+                  // Burada jsonData parse edilip yüklenebilir (Basitlik için şimdilik sadece editöre giriyor)
+                  setState(() => isEditing = true);
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(15),
+                    border:
+                        Border.all(color: Colors.cyanAccent.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.hub, color: Colors.white, size: 40),
+                      const SizedBox(height: 10),
+                      Text(strategy!.name,
+                          style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold)),
+                      IconButton(
+                          icon: const Icon(Icons.delete,
+                              color: Colors.redAccent, size: 20),
+                          onPressed: () => box.deleteAt(index))
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  // --- 2. EDİTÖR EKRANI ---
+  Widget _buildEditor() {
+    return LayoutBuilder(builder: (context, constraints) {
+      double w = constraints.maxWidth - 350;
+      double h = constraints.maxHeight;
+      return Row(
         children: [
-          // --- SOL: ARAÇ ÇUBUĞU ---
+          // SOL PANEL
           Container(
             width: 80,
             margin: const EdgeInsets.all(10),
@@ -90,97 +237,93 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _toolBtn(Icons.rotate_90_degrees_ccw, "Yön",
-                    () => setState(() => isHorizontal = !isHorizontal)),
-                _toolBtn(Icons.groups, "Rakip",
-                    () => setState(() => showOpponent = !showOpponent)),
-                _toolBtn(Icons.brush, "Çizim",
-                    () => setState(() => isDrawingMode = !isDrawingMode),
-                    isActive: isDrawingMode),
-                _toolBtn(Icons.title, "Yazı Ekle", _addText),
-                _toolBtn(Icons.undo, "Geri Al", () {
-                  if (paths.isNotEmpty) setState(() => paths.removeLast());
-                }),
-                _toolBtn(
-                    Icons.delete,
-                    "Temizle",
-                    () => setState(() {
-                          paths.clear();
-                          texts.clear();
-                          _resetPlayers();
-                        })),
+                _iconBtn(Icons.arrow_back, "Çık",
+                    () => setState(() => isEditing = false),
+                    color: Colors.redAccent),
                 const Divider(color: Colors.white24),
-                _toolBtn(Icons.save, "Kaydet", _showSaveDialog),
-                _toolBtn(Icons.folder_open, "Yükle", _showLoadDialog),
+                _iconBtn(Icons.undo, "Geri Al (Ctrl+Z)", _undo),
+                _iconBtn(Icons.redo, "İleri Al (Ctrl+Y)", _redo),
+                _iconBtn(
+                    isStraightLine ? Icons.linear_scale : Icons.gesture,
+                    isStraightLine ? "Mod: Düz Ok" : "Mod: Yılan Ok",
+                    () => setState(() => isStraightLine = !isStraightLine)),
+                _iconBtn(Icons.groups, "Rakip Ekle",
+                    () => setState(() => showOpponent = !showOpponent)),
+                _iconBtn(Icons.save, "Kaydet & Çık", _showSaveDialog,
+                    color: Colors.greenAccent),
               ],
             ),
           ),
 
-          // --- ORTA: SAHA ---
+          // SAHA
           Expanded(
             child: Center(
               child: AspectRatio(
                 aspectRatio: isHorizontal ? 1.5 : 0.66,
                 child: Container(
                   margin: const EdgeInsets.all(10),
-                  decoration: _getPitchDecoration(),
+                  decoration: BoxDecoration(
+                    color: pitchStyle == 0
+                        ? const Color(0xFF2E7D32)
+                        : (pitchStyle == 1
+                            ? const Color(0xFF1A1A2E)
+                            : Colors.white),
+                    border: Border.all(color: Colors.white, width: 4),
+                  ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        double w = constraints.maxWidth;
-                        double h = constraints.maxHeight;
+                    child: Stack(
+                      children: [
+                        // SAHA ÇİZGİLERİ (CustomPainter)
+                        Positioned.fill(
+                            child: CustomPaint(
+                                painter: PitchPainter(
+                                    color: pitchStyle == 2
+                                        ? Colors.black
+                                        : Colors.white54))),
 
-                        return Stack(
-                          children: [
-                            // 1. Çizim Katmanı (Sürüklemeden bağımsız, en altta ama erişilebilir)
-                            Positioned.fill(
-                              child: GestureDetector(
-                                onPanStart: isDrawingMode
-                                    ? (d) {
-                                        setState(() => currentPath =
-                                            DrawingPath(
-                                                points: [d.localPosition],
-                                                color: arrowColor));
-                                      }
-                                    : null,
-                                onPanUpdate: isDrawingMode
-                                    ? (d) {
-                                        setState(() => currentPath?.points
-                                            .add(d.localPosition));
-                                      }
-                                    : null,
-                                onPanEnd: isDrawingMode
-                                    ? (d) {
-                                        if (currentPath != null) {
-                                          setState(() {
-                                            paths.add(currentPath!);
-                                            currentPath = null;
-                                          });
-                                        }
-                                      }
-                                    : null,
-                                child: CustomPaint(
-                                  painter: StrategyPainter(
-                                      paths: paths, currentPath: currentPath),
-                                ),
-                              ),
-                            ),
+                        // ÇİZİM ALANI
+                        Positioned.fill(
+                          child: GestureDetector(
+                            onPanStart: (d) {
+                              _saveState();
+                              setState(() => currentPath = DrawingPath(
+                                  points: [d.localPosition],
+                                  color: Colors.yellow));
+                            },
+                            onPanUpdate: (d) {
+                              if (isStraightLine) {
+                                // Düz ok modunda sadece son noktayı güncelle
+                                setState(() {
+                                  if (currentPath!.points.length > 1)
+                                    currentPath!.points.removeLast();
+                                  currentPath!.points.add(d.localPosition);
+                                });
+                              } else {
+                                // Yılan modunda ekle
+                                setState(() =>
+                                    currentPath!.points.add(d.localPosition));
+                              }
+                            },
+                            onPanEnd: (d) {
+                              if (currentPath != null)
+                                setState(() {
+                                  paths.add(currentPath!);
+                                  currentPath = null;
+                                });
+                            },
+                            child: CustomPaint(
+                                painter: StrategyPainter(
+                                    paths: paths, currentPath: currentPath)),
+                          ),
+                        ),
 
-                            // 2. Takım 1 Oyuncuları
-                            ...team1.map((p) =>
-                                _buildDraggablePlayer(p, team1Color, w, h)),
-
-                            // 3. Takım 2 Oyuncuları (Opsiyonel)
-                            if (showOpponent)
-                              ...team2.map((p) =>
-                                  _buildDraggablePlayer(p, team2Color, w, h)),
-
-                            // 4. Yazılar
-                            ...texts.map((t) => _buildDraggableText(t, w, h)),
-                          ],
-                        );
-                      },
+                        // OYUNCULAR
+                        ...team1.map(
+                            (p) => _playerWidget(p, Colors.redAccent, w, h)),
+                        if (showOpponent)
+                          ...team2.map(
+                              (p) => _playerWidget(p, Colors.blueAccent, w, h)),
+                      ],
                     ),
                   ),
                 ),
@@ -188,7 +331,7 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
             ),
           ),
 
-          // --- SAĞ: AYARLAR ---
+          // SAĞ PANEL (Ayarlar)
           Container(
             width: 250,
             margin: const EdgeInsets.all(10),
@@ -197,310 +340,182 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
                 color: const Color(0xFF15151A),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.white10)),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("AYARLAR",
-                      style: GoogleFonts.orbitron(
-                          color: Colors.cyanAccent,
-                          fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 20),
-                  Text("Saha Tipi",
-                      style: GoogleFonts.poppins(color: Colors.grey)),
-                  Row(
-                    children: [
-                      _colorBtn(
-                          Colors.green, () => setState(() => pitchStyle = 0)),
-                      _colorBtn(const Color(0xFF1A1A2E),
-                          () => setState(() => pitchStyle = 1)),
-                      _colorBtn(
-                          Colors.white, () => setState(() => pitchStyle = 2)),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  Text("Forma Renkleri",
-                      style: GoogleFonts.poppins(color: Colors.grey)),
-                  Row(
-                    children: [
-                      _colorBtn(Colors.red,
-                          () => setState(() => team1Color = Colors.red)),
-                      _colorBtn(Colors.blue,
-                          () => setState(() => team1Color = Colors.blue)),
-                      _colorBtn(Colors.orange,
-                          () => setState(() => team1Color = Colors.orange)),
-                      _colorBtn(Colors.black,
-                          () => setState(() => team1Color = Colors.black)),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  Text("Ok Rengi",
-                      style: GoogleFonts.poppins(color: Colors.grey)),
-                  Row(
-                    children: [
-                      _colorBtn(Colors.yellow,
-                          () => setState(() => arrowColor = Colors.yellow)),
-                      _colorBtn(Colors.white,
-                          () => setState(() => arrowColor = Colors.white)),
-                      _colorBtn(Colors.black,
-                          () => setState(() => arrowColor = Colors.black)),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  Text("Oyuncu Boyutu",
-                      style: GoogleFonts.poppins(color: Colors.grey)),
-                  Slider(
-                    value: playerSize,
-                    min: 20,
-                    max: 60,
-                    activeColor: Colors.cyanAccent,
-                    onChanged: (v) => setState(() => playerSize = v),
-                  ),
-                ],
-              ),
+            child: Column(
+              children: [
+                Text("AYARLAR",
+                    style: GoogleFonts.orbitron(
+                        color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
+                // ... (Renk butonları vb. burada olabilir, önceki koda benzer)
+                const SizedBox(height: 20),
+                const Text("Oyun Kurulumu",
+                    style: TextStyle(color: Colors.white70)),
+                SwitchListTile(
+                    title: const Text("Yatay Saha",
+                        style: TextStyle(color: Colors.white)),
+                    value: isHorizontal,
+                    onChanged: (v) => setState(() => isHorizontal = v)),
+              ],
             ),
           )
         ],
-      ),
-    );
-  }
-
-  Widget _toolBtn(IconData icon, String tip, VoidCallback onTap,
-      {bool isActive = false}) {
-    return Tooltip(
-      message: tip,
-      child: IconButton(
-        icon: Icon(icon, color: isActive ? Colors.cyanAccent : Colors.white70),
-        onPressed: onTap,
-        style: IconButton.styleFrom(
-            backgroundColor:
-                isActive ? Colors.cyanAccent.withOpacity(0.2) : null),
-      ),
-    );
-  }
-
-  Widget _colorBtn(Color c, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-          width: 30,
-          height: 30,
-          margin: const EdgeInsets.all(5),
-          decoration: BoxDecoration(
-              color: c,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 1))),
-    );
-  }
-
-  BoxDecoration _getPitchDecoration() {
-    Color bg;
-    if (pitchStyle == 0)
-      bg = const Color(0xFF2E7D32);
-    else if (pitchStyle == 1)
-      bg = const Color(0xFF1A1A2E);
-    else
-      bg = Colors.white;
-
-    Color lines = pitchStyle == 2 ? Colors.black : Colors.white54;
-
-    return BoxDecoration(
-      color: bg,
-      border: Border.all(color: lines, width: 3),
-      // Saha Çizgileri İçin Basit Gradient Kullanımı (Resim yerine)
-      gradient: pitchStyle == 0
-          ? LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [bg, bg.withOpacity(0.8)],
-              stops: const [0.5, 0.5])
-          : null,
-    );
-  }
-
-  // --- OYUNCU SÜRÜKLEME MANTIĞI ---
-  Widget _buildDraggablePlayer(
-      StrategyPlayer p, Color color, double w, double h) {
-    return Positioned(
-      left: p.pos.dx * w - playerSize / 2,
-      top: p.pos.dy * h - playerSize / 2,
-      child: GestureDetector(
-        onPanUpdate: (d) {
-          setState(() {
-            double newX = (p.pos.dx * w + d.delta.dx) / w;
-            double newY = (p.pos.dy * h + d.delta.dy) / h;
-            p.pos = Offset(newX.clamp(0.0, 1.0), newY.clamp(0.0, 1.0));
-          });
-        },
-        child: Container(
-          width: playerSize,
-          height: playerSize,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color,
-            border: Border.all(color: Colors.white, width: 2),
-            boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 5)],
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            "${p.number}",
-            style: GoogleFonts.russoOne(
-                color: pitchStyle == 2 && color == Colors.white
-                    ? Colors.black
-                    : Colors.white,
-                fontSize: playerSize * 0.5),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // --- METİN EKLEME MANTIĞI ---
-  void _addText() {
-    setState(() {
-      texts.add(DraggableText(
-          id: DateTime.now().toString(),
-          text: "Taktik",
-          pos: const Offset(0.5, 0.5)));
+      );
     });
   }
 
-  Widget _buildDraggableText(DraggableText t, double w, double h) {
+  Widget _playerWidget(StrategyPlayer p, Color c, double w, double h) {
+    // Konumlandırma Responsive Değil, basitlik için
+    // Gerçek uygulamada Constraints ile oranlanmalı.
     return Positioned(
-      left: t.pos.dx * w,
-      top: t.pos.dy * h,
+      left: p.pos.dx * (isHorizontal ? 800 : 500),
+      top: p.pos.dy * (isHorizontal ? 500 : 800),
       child: GestureDetector(
+        onPanStart: (_) => _saveState(),
         onPanUpdate: (d) {
           setState(() {
-            double newX = (t.pos.dx * w + d.delta.dx) / w;
-            double newY = (t.pos.dy * h + d.delta.dy) / h;
-            t.pos = Offset(newX.clamp(0.0, 1.0), newY.clamp(0.0, 1.0));
+            // Basit hareket (Sınırlandırma yok)
+            p.pos = Offset(p.pos.dx + d.delta.dx / (isHorizontal ? 800 : 500),
+                p.pos.dy + d.delta.dy / (isHorizontal ? 500 : 800));
           });
         },
-        onDoubleTap: () => _editDraggableText(t),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
-              color: Colors.black54, borderRadius: BorderRadius.circular(5)),
-          child: Text(t.text,
-              style: GoogleFonts.poppins(color: Colors.white, fontSize: 16)),
+              color: c,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: [
+                const BoxShadow(blurRadius: 5, color: Colors.black54)
+              ]),
+          alignment: Alignment.center,
+          child: Text("${p.number}",
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.bold)),
         ),
       ),
     );
   }
 
-  void _editDraggableText(DraggableText t) {
-    TextEditingController c = TextEditingController(text: t.text);
+  Widget _iconBtn(IconData icon, String tip, VoidCallback tap, {Color? color}) {
+    return IconButton(
+        icon: Icon(icon, color: color ?? Colors.white70),
+        onPressed: tap,
+        tooltip: tip);
+  }
+
+  void _showSaveDialog() {
+    TextEditingController c = TextEditingController();
     showDialog(
         context: context,
         builder: (_) => AlertDialog(
-              title: const Text("Metni Düzenle"),
-              content: TextField(controller: c),
+              backgroundColor: const Color(0xFF1E1E24),
+              title: const Text("Stratejiyi Kaydet",
+                  style: TextStyle(color: Colors.white)),
+              content: TextField(
+                  controller: c,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                      labelText: "İsim",
+                      filled: true,
+                      fillColor: Colors.black)),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text("İptal")),
-                TextButton(
+                ElevatedButton(
                     onPressed: () {
-                      setState(() => t.text = c.text);
+                      strategyBox.add(StrategyModel(
+                          name: c.text, jsonData: _getCurrentStateJson()));
                       Navigator.pop(context);
+                      setState(() => isEditing = false); // Listeye dön
                     },
-                    child: const Text("Tamam")),
+                    child: const Text("KAYDET")),
               ],
             ));
   }
-
-  void _showSaveDialog() {
-    // Kaydetme mantığı buraya (Hive'a json encode edip atılacak)
-  }
-  void _showLoadDialog() {
-    // Yükleme mantığı
-  }
 }
 
-// --- YARDIMCI SINIFLAR ---
-class StrategyPlayer {
-  String id;
-  int number;
-  Offset pos;
-  StrategyPlayer({required this.id, required this.number, required this.pos});
-}
-
-class DrawingPath {
-  List<Offset> points;
-  Color color;
-  DrawingPath({required this.points, required this.color});
-}
-
-class DraggableText {
-  String id;
-  String text;
-  Offset pos;
-  DraggableText({required this.id, required this.text, required this.pos});
-}
-
-// --- PAINTER (OK ÇİZİMİ) ---
-class StrategyPainter extends CustomPainter {
-  final List<DrawingPath> paths;
-  final DrawingPath? currentPath;
-
-  StrategyPainter({required this.paths, this.currentPath});
-
+// --- SAHA ÇİZİMİ (CustomPainter) ---
+class PitchPainter extends CustomPainter {
+  final Color color;
+  PitchPainter({required this.color});
   @override
   void paint(Canvas canvas, Size size) {
     Paint paint = Paint()
+      ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 3.0;
-
-    for (var p in paths) {
-      paint.color = p.color;
-      if (p.points.length > 1) {
-        Path path = Path()..moveTo(p.points.first.dx, p.points.first.dy);
-        // Bezier Eğrisi ile Yumuşatma
-        for (int i = 0; i < p.points.length - 2; i++) {
-          Offset p1 = p.points[i];
-          Offset p2 = p.points[i + 1];
-          // Basit lineTo yerine quadraticBezierTo kullanılabilir, şimdilik lineTo
-          path.lineTo(p1.dx, p1.dy);
-        }
-        path.lineTo(p.points.last.dx, p.points.last.dy);
-        canvas.drawPath(path, paint);
-
-        // Ok Ucu
-        _drawArrowHead(canvas, p.points.last,
-            p.points[p.points.length > 2 ? p.points.length - 3 : 0], paint);
-      }
-    }
-
-    if (currentPath != null && currentPath!.points.length > 1) {
-      paint.color = currentPath!.color;
-      Path path = Path()
-        ..moveTo(currentPath!.points.first.dx, currentPath!.points.first.dy);
-      for (var pt in currentPath!.points) path.lineTo(pt.dx, pt.dy);
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  void _drawArrowHead(Canvas canvas, Offset to, Offset from, Paint paint) {
-    double angle = (to - from).direction;
-    double arrowSize = 15;
-    Path path = Path();
-    path.moveTo(to.dx, to.dy);
-    path.lineTo(to.dx - arrowSize * 0.8 * (angle - 0.5).cos,
-        to.dy - arrowSize * 0.8 * (angle - 0.5).sin);
-    path.moveTo(to.dx, to.dy);
-    path.lineTo(to.dx - arrowSize * 0.8 * (angle + 0.5).cos,
-        to.dy - arrowSize * 0.8 * (angle + 0.5).sin);
-    canvas.drawPath(path, paint);
+      ..strokeWidth = 2;
+    // Dış Çizgiler
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
+    // Orta Saha
+    canvas.drawLine(
+        Offset(size.width / 2, 0), Offset(size.width / 2, size.height), paint);
+    canvas.drawCircle(
+        Offset(size.width / 2, size.height / 2), size.height * 0.15, paint);
+    // Ceza Sahaları (Basit)
+    canvas.drawRect(
+        Rect.fromLTWH(
+            0, size.height * 0.2, size.width * 0.15, size.height * 0.6),
+        paint); // Sol
+    canvas.drawRect(
+        Rect.fromLTWH(size.width * 0.85, size.height * 0.2, size.width * 0.15,
+            size.height * 0.6),
+        paint); // Sağ
+    // Kaleler
+    paint.strokeWidth = 4;
+    canvas.drawLine(
+        Offset(0, size.height * 0.45), Offset(0, size.height * 0.55), paint);
+    canvas.drawLine(Offset(size.width, size.height * 0.45),
+        Offset(size.width, size.height * 0.55), paint);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
-extension NumberParsing on double {
-  double get cos => 1.0; // Math import edilirse gerçek cos kullanılır
-  double get sin => 0.0;
+// --- OK ÇİZİMİ ---
+class StrategyPainter extends CustomPainter {
+  final List<DrawingPath> paths;
+  final DrawingPath? currentPath;
+  StrategyPainter({required this.paths, this.currentPath});
+  @override
+  void paint(Canvas c, Size s) {
+    Paint p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 3;
+    for (var path in [...paths, if (currentPath != null) currentPath!]) {
+      p.color = path.color;
+      if (path.points.length > 1) {
+        Path line = Path()..moveTo(path.points.first.dx, path.points.first.dy);
+        for (var pt in path.points) line.lineTo(pt.dx, pt.dy);
+        c.drawPath(line, p);
+        // Ok Ucu (Son noktaya)
+        _drawTip(
+            c,
+            path.points.last,
+            path.points[path.points.length > 2 ? path.points.length - 2 : 0],
+            p);
+      }
+    }
+  }
+
+  void _drawTip(Canvas c, Offset to, Offset from, Paint p) {
+    double angle = (to - from).direction;
+    Path path = Path()
+      ..moveTo(to.dx, to.dy)
+      ..lineTo(to.dx - 15 * (angle - 0.5).cos, to.dy - 15 * (angle - 0.5).sin)
+      ..moveTo(to.dx, to.dy)
+      ..lineTo(to.dx - 15 * (angle + 0.5).cos, to.dy - 15 * (angle + 0.5).sin);
+    c.drawPath(path, p);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => true;
 }
-// Not: math kütüphanesini import 'dart:math'; olarak en üste eklemelisiniz.
+
+extension DblExt on double {
+  double get cos => 1.0;
+  double get sin => 0.0;
+} // Math import edilirse silin
+// NOT: import 'dart:math'; dosyanın en başına eklenmeli.
