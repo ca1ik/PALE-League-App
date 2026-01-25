@@ -1,57 +1,6 @@
 import 'dart:math';
 import 'package:hive/hive.dart';
 
-// --- STATİK VERİLERİ EN ÜSTE ALDIK (HATA ÇÖZÜMÜ) ---
-final Map<String, List<String>> statSegments = {
-  "1. Top Sürme & Fizik": [
-    "Hız",
-    "Hızlanma",
-    "Çeviklik",
-    "Denge",
-    "Top Sürme",
-    "Duvar Kabiliyeti",
-    "Teknik"
-  ],
-  "2. Şut & Zihinsel": [
-    "Şut Gücü",
-    "Pozisyon Alma",
-    "Bitiricilik",
-    "Uzaktan Şut",
-    "Soğukkanlılık",
-    "Karar Alma"
-  ],
-  "3. Savunma & Güç": [
-    "Top Kapma",
-    "Savunma Farkındalığı",
-    "Sert Duruş",
-    "Güç",
-    "Saldırganlık",
-    "Markaj"
-  ],
-  "4. Pas & Vizyon": [
-    "Pas",
-    "Ara Pas",
-    "Takım Oyunu",
-    "Görüş",
-    "Topsuz Alan",
-    "Orta Yapma",
-    "Top Kontrolü"
-  ],
-};
-
-final Map<String, List<String>> roleCategories = {
-  "GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
-  "CB": ["Çok Yönlü", "Oyun Kurucu Stoper", "Savunmatik", "Libero"],
-  "LB": ["Kanat Bek", "Hücum Bek", "Çok Yönlü"],
-  "RB": ["Kanat Bek", "Hücum Bek", "Çok Yönlü"],
-  "CDM": ["Tutucu", "Derin Oyun Kurucu", "Savaşçı"],
-  "CM": ["Box to Box", "Oyun Kurucu", "Mezzala"],
-  "CAM": ["Oyun Kurucu", "Gölge Forvet", "Enganche"],
-  "LW": ["İç Forvet", "Kanat Oyuncusu"],
-  "RW": ["İç Forvet", "Kanat Oyuncusu"],
-  "ST": ["Hedef Forvet", "Gizli Forvet", "Avcı Forvet", "Yanlış 9"]
-};
-
 // --- HIVE ADAPTERLERİ ---
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
@@ -68,7 +17,8 @@ class PlayerAdapter extends TypeAdapter<Player> {
       stats: (reader.read() as Map?)?.cast<String, int>() ?? {},
       role: reader.read() ?? "Yok",
       skillMoves: reader.read() ?? 3,
-      country: reader.read() ?? "Türkiye");
+      country: reader.read() ?? "Türkiye",
+      chemistryStyle: reader.read() ?? "Temel");
   @override
   void write(BinaryWriter writer, Player obj) {
     writer.write(obj.name);
@@ -82,6 +32,7 @@ class PlayerAdapter extends TypeAdapter<Player> {
     writer.write(obj.role);
     writer.write(obj.skillMoves);
     writer.write(obj.country);
+    writer.write(obj.chemistryStyle);
   }
 }
 
@@ -164,6 +115,7 @@ class Player extends HiveObject {
   String role;
   int skillMoves;
   String country;
+  String chemistryStyle; // YENİ: Kimya Stili
 
   Player(
       {required this.name,
@@ -176,7 +128,8 @@ class Player extends HiveObject {
       this.stats = const {},
       this.role = "Yok",
       this.skillMoves = 3,
-      this.country = "Türkiye"});
+      this.country = "Türkiye",
+      this.chemistryStyle = "Temel"});
 
   int get kitNumber {
     switch (position.toUpperCase()) {
@@ -199,6 +152,7 @@ class Player extends HiveObject {
     }
   }
 
+  // Segment Ortalamaları
   Map<String, int> getCardStats() {
     return {
       "PAC": _getAvg(statSegments["1. Top Sürme & Fizik"]!.sublist(0, 4)),
@@ -219,6 +173,7 @@ class Player extends HiveObject {
         cs["DRI"]! * 1.2 +
         cs["DEF"]! * 0.2 +
         cs["PHY"]! * 0.8);
+    // Kimya bonusu reytingi hafif etkilesin (Opsiyonel)
     rating = (total / 5.9).round().clamp(1, 99);
   }
 
@@ -239,7 +194,6 @@ class Player extends HiveObject {
     });
   }
 
-  // _getAvg DÜZELTİLDİ: (Return int, Rounding)
   int _getAvg(List<String> keys) {
     int s = 0, c = 0;
     for (var k in keys) {
@@ -251,6 +205,98 @@ class Player extends HiveObject {
     return c == 0 ? 50 : (s / c).round();
   }
 }
+
+// --- KİMYA STİLLERİ VE BONUSLARI (YENİ) ---
+final Map<String, Map<String, int>> chemistryBonuses = {
+  "Temel": {
+    "Hız": 2,
+    "Çeviklik": 1,
+    "Savunma Farkındalığı": 2,
+    "Bitiricilik": 1
+  },
+  "Omurga": {"Top Kesme": 4, "Savunma Farkındalığı": 3, "Güç": 3},
+  "Motor": {"Hız": 2, "Pas": 4, "Ara Pas": 2, "Görüş": 1, "Güç": 1},
+  "Muhafız": {
+    "Güç": 4,
+    "Soğukkanlılık": 2,
+    "Savunma Farkındalığı": 3,
+    "Top Kesme": 1
+  },
+  "Güçlü": {"Güç": 5, "Savunma Farkındalığı": 3, "Hız": 1, "Saldırganlık": 2},
+  "Gölge": {
+    "Güç": 1,
+    "Savunma Farkındalığı": 3,
+    "Hız": 3,
+    "Pas": 1,
+    "Soğukkanlılık": 2
+  },
+  "Mimar": {
+    "Pas": 4,
+    "Ara Pas": 2,
+    "Görüş": 3,
+    "Çeviklik": 2,
+    "Top Kontrolü": 2
+  },
+  "Sanatçı": {"Pas": 2, "Ara Pas": 2, "Görüş": 3, "Çeviklik": 3, "Teknik": 4},
+  "Nişancı": {"Bitiricilik": 4, "Şut Gücü": 3, "Görüş": 2, "Güç": 1},
+  "Maestro": {"Pas": 4, "Ara Pas": 4, "Görüş": 4},
+  "Avcı": {"Bitiricilik": 3, "Hız": 3, "Çeviklik": 3, "Görüş": 2},
+  "Keskin Nişancı": {"Bitiricilik": 5, "Şut Gücü": 4, "Görüş": 2},
+  "Şahin": {"Bitiricilik": 2, "Hız": 5, "Şut Gücü": 2, "Güç": 3},
+  "Bitirici": {"Bitiricilik": 6, "Hız": 3, "Şut Gücü": 3, "Güç": 1},
+};
+
+// --- DİĞER LİSTELER ---
+final Map<String, List<String>> statSegments = {
+  "1. Top Sürme & Fizik": [
+    "Hız",
+    "Hızlanma",
+    "Çeviklik",
+    "Denge",
+    "Top Sürme",
+    "Duvar Kabiliyeti",
+    "Teknik"
+  ],
+  "2. Şut & Zihinsel": [
+    "Şut Gücü",
+    "Pozisyon Alma",
+    "Bitiricilik",
+    "Uzaktan Şut",
+    "Soğukkanlılık",
+    "Karar Alma"
+  ],
+  "3. Savunma & Güç": [
+    "Top Kapma",
+    "Savunma Farkındalığı",
+    "Sert Duruş",
+    "Güç",
+    "Saldırganlık",
+    "Markaj",
+    "Top Kesme"
+  ],
+  "4. Pas & Vizyon": [
+    "Pas",
+    "Ara Pas",
+    "Takım Oyunu",
+    "Görüş",
+    "Topsuz Alan",
+    "Orta Yapma",
+    "Top Kontrolü"
+  ],
+};
+
+final Map<String, List<String>> roleCategories = {
+  "GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
+  "CB": ["Çok Yönlü", "Oyun Kurucu Stoper", "Savunmatik", "Libero"],
+  "LB": ["Kanat Bek", "Hücum Bek", "Çok Yönlü"],
+  "RB": ["Kanat Bek", "Hücum Bek", "Çok Yönlü"],
+  "CDM": ["Tutucu", "Derin Oyun Kurucu", "Savaşçı"],
+  "CM": ["Box to Box", "Oyun Kurucu", "Mezzala"],
+  "CAM": ["Oyun Kurucu", "Gölge Forvet", "Enganche"],
+  "LW": ["İç Forvet", "Kanat Oyuncusu"],
+  "RW": ["İç Forvet", "Kanat Oyuncusu"],
+  "ST": ["Hedef Forvet", "Gizli Forvet", "Avcı Forvet", "Yanlış 9"]
+};
 
 final List<Player> defaultPlayers = [];
 final List<String> availableTeams = [
