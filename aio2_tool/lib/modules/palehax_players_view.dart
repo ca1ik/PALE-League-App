@@ -51,7 +51,8 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
   @override
   void initState() {
     super.initState();
-    playerBox = Hive.box<Player>('palehax_players_v4');
+    // V5 Kutusunu açıyoruz (Yeni veri yapısı)
+    playerBox = Hive.box<Player>('palehax_players_v5');
     if (playerBox.isNotEmpty) selectedPlayer = playerBox.getAt(0);
   }
 
@@ -70,6 +71,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
         valueListenable: playerBox.listenable(),
         builder: (context, Box<Player> box, _) {
           final players = box.values.toList();
+
           if (players.isEmpty)
             return const Center(
                 child: Text("Veritabanı boş. Yeni oyuncu oluşturun.",
@@ -80,6 +82,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
 
           return Row(
             children: [
+              // LİSTE
               Container(
                 width: 280,
                 margin: const EdgeInsets.only(right: 20),
@@ -109,6 +112,8 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                   },
                 ),
               ),
+
+              // PROFİL
               if (selectedPlayer != null)
                 Expanded(
                   child: SingleChildScrollView(
@@ -160,16 +165,12 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                           style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white10,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 40, vertical: 20),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  side:
-                                      const BorderSide(color: Colors.white24))),
+                                  horizontal: 40, vertical: 20)),
                         ),
                         const SizedBox(height: 30),
-                        Text("SON 5 MAÇ PERFORMANSI",
-                            style: GoogleFonts.orbitron(
-                                color: Colors.cyanAccent, letterSpacing: 2)),
+                        Text("SON 5 MAÇ",
+                            style:
+                                GoogleFonts.orbitron(color: Colors.cyanAccent)),
                         const SizedBox(height: 15),
                         SizedBox(
                           height: 150,
@@ -184,42 +185,42 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                       color: Colors.white.withOpacity(0.05),
                                       borderRadius: BorderRadius.circular(10)),
                                   child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(m.opponent,
-                                          style: const TextStyle(
-                                              color: Colors.white54,
-                                              fontSize: 10),
-                                          overflow: TextOverflow.ellipsis),
-                                      const SizedBox(height: 5),
-                                      Container(
-                                        height: 50,
-                                        width: 10,
-                                        decoration: BoxDecoration(
-                                            color: Colors.black,
-                                            borderRadius:
-                                                BorderRadius.circular(5)),
-                                        alignment: Alignment.bottomCenter,
-                                        child: Container(
-                                            height: (m.rating / 10) * 50,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(m.opponent,
+                                            style: const TextStyle(
+                                                color: Colors.white54,
+                                                fontSize: 10),
+                                            overflow: TextOverflow.ellipsis),
+                                        const SizedBox(height: 5),
+                                        Container(
+                                            height: 50,
                                             width: 10,
                                             decoration: BoxDecoration(
-                                                color: _getRatingColor(
-                                                    (m.rating * 10).toInt()),
+                                                color: Colors.black,
                                                 borderRadius:
-                                                    BorderRadius.circular(5))),
-                                      ),
-                                      const SizedBox(height: 5),
-                                      Text("${m.rating}",
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold)),
-                                      Text("${m.goals}G ${m.assists}A",
-                                          style: const TextStyle(
-                                              color: Colors.greenAccent,
-                                              fontSize: 10)),
-                                    ],
-                                  ),
+                                                    BorderRadius.circular(5)),
+                                            alignment: Alignment.bottomCenter,
+                                            child: Container(
+                                                height: (m.rating / 10) * 50,
+                                                width: 10,
+                                                decoration: BoxDecoration(
+                                                    color: _getRatingColor(
+                                                        (m.rating * 10)
+                                                            .toInt()),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            5)))),
+                                        Text("${m.rating}",
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold)),
+                                        Text("${m.goals}G",
+                                            style: const TextStyle(
+                                                color: Colors.greenAccent,
+                                                fontSize: 10)),
+                                      ]),
                                 ),
                               );
                             }).toList(),
@@ -239,11 +240,10 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
 
   Widget _buildFCCard(Player p) {
     Map<String, int> cs = p.getCardStats();
-    PlayStyle? goldPs;
-    if (p.playstyles.isNotEmpty) {
-      goldPs = p.playstyles
-          .firstWhere((ps) => ps.isGold, orElse: () => p.playstyles.first);
-    }
+    PlayStyle? goldPs = p.playstyles.isNotEmpty
+        ? p.playstyles
+            .firstWhere((ps) => ps.isGold, orElse: () => p.playstyles.first)
+        : null;
 
     return Container(
       width: 320,
@@ -313,64 +313,68 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
             top: 250,
             left: 30,
             right: 30,
-            child: Column(
-              children: [
-                const Divider(color: Color(0xFFD4AF37), thickness: 1),
-                const SizedBox(height: 10),
-                Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _cardStat("PAC", cs["PAC"]!),
-                      _cardStat("DRI", cs["DRI"]!)
-                    ]),
-                const SizedBox(height: 5),
-                Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _cardStat("SHO", cs["SHO"]!),
-                      _cardStat("DEF", cs["DEF"]!)
-                    ]),
-                const SizedBox(height: 5),
-                Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _cardStat("PAS", cs["PAS"]!),
-                      _cardStat("PHY", cs["PHY"]!)
-                    ]),
-                const SizedBox(height: 15),
-                const Divider(color: Color(0xFFD4AF37), thickness: 1),
-              ],
-            ),
+            child: Column(children: [
+              const Divider(color: Color(0xFFD4AF37), thickness: 1),
+              const SizedBox(height: 10),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                _cardStat("PAC", cs["PAC"]!),
+                _cardStat("DRI", cs["DRI"]!)
+              ]),
+              const SizedBox(height: 5),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                _cardStat("SHO", cs["SHO"]!),
+                _cardStat("DEF", cs["DEF"]!)
+              ]),
+              const SizedBox(height: 5),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                _cardStat("PAS", cs["PAS"]!),
+                _cardStat("PHY", cs["PHY"]!)
+              ]),
+              const SizedBox(height: 15),
+              const Divider(color: Color(0xFFD4AF37), thickness: 1),
+            ]),
           ),
           Positioned(
             bottom: 20,
             left: 20,
+            right: 20,
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (goldPs != null)
-                  Image.asset(goldPs.assetPath,
-                      width: 40,
-                      height: 40,
-                      errorBuilder: (c, e, s) =>
-                          const Icon(Icons.star, color: Colors.amber)),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                        children: List.generate(
-                            5,
-                            (i) => Icon(
-                                i < p.skillMoves
-                                    ? Icons.star
-                                    : Icons.star_border,
-                                color: Colors.white,
-                                size: 14))),
-                    Text(p.role,
-                        style: GoogleFonts.poppins(
-                            color: Colors.white70, fontSize: 12)),
-                  ],
-                )
+                Row(children: [
+                  if (goldPs != null)
+                    Image.asset(goldPs.assetPath,
+                        width: 40,
+                        height: 40,
+                        errorBuilder: (c, e, s) =>
+                            const Icon(Icons.star, color: Colors.amber)),
+                  const SizedBox(width: 10),
+                  Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                            children: List.generate(
+                                5,
+                                (i) => Icon(
+                                    i < p.skillMoves
+                                        ? Icons.star
+                                        : Icons.star_border,
+                                    color: Colors.white,
+                                    size: 14))),
+                        Text(p.role,
+                            style: GoogleFonts.poppins(
+                                color: Colors.white70, fontSize: 12)),
+                      ]),
+                ]),
+                // Kimya İkonu (Asset yoksa metin)
+                Column(children: [
+                  const Icon(Icons.science, color: Colors.cyanAccent, size: 20),
+                  Text(p.chemistryStyle,
+                      style: const TextStyle(
+                          color: Colors.cyanAccent,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold))
+                ])
               ],
             ),
           )
@@ -382,19 +386,16 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
   Widget _cardStat(String label, int val) {
     return SizedBox(
       width: 80,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          Text("$val",
-              style: GoogleFonts.oswald(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white)),
-          const SizedBox(width: 5),
-          Text(label,
-              style: GoogleFonts.oswald(fontSize: 18, color: Colors.white70)),
-        ],
-      ),
+      child: Row(children: [
+        Text("$val",
+            style: GoogleFonts.oswald(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white)),
+        const SizedBox(width: 5),
+        Text(label,
+            style: GoogleFonts.oswald(fontSize: 18, color: Colors.white70)),
+      ]),
     );
   }
 
@@ -402,6 +403,10 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
     showDialog(
         context: context,
         builder: (_) => StatefulBuilder(builder: (context, setSt) {
+              // Kimya Bonuslarını Al
+              Map<String, int> bonuses =
+                  chemistryBonuses[selectedPlayer!.chemistryStyle] ?? {};
+
               return Dialog(
                 backgroundColor: const Color(0xFF101014),
                 child: Container(
@@ -413,22 +418,25 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text("DETAYLI ANALİZ",
-                              style: GoogleFonts.orbitron(
-                                  color: Colors.cyanAccent, fontSize: 24)),
-                          Row(
-                            children: [
-                              Text(
-                                  isFMView
-                                      ? "Mod: FM (1-20)"
-                                      : "Mod: FC (1-99)",
-                                  style: const TextStyle(color: Colors.white)),
-                              Switch(
-                                  value: isFMView,
-                                  onChanged: (v) => setSt(() => isFMView = v),
-                                  activeColor: Colors.cyanAccent),
-                            ],
-                          )
+                          Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("DETAYLI ANALİZ",
+                                    style: GoogleFonts.orbitron(
+                                        color: Colors.cyanAccent,
+                                        fontSize: 24)),
+                                Text("Kimya: ${selectedPlayer!.chemistryStyle}",
+                                    style: const TextStyle(
+                                        color: Colors.lightBlueAccent)),
+                              ]),
+                          Row(children: [
+                            Text(isFMView ? "Mod: FM (1-20)" : "Mod: FC (1-99)",
+                                style: const TextStyle(color: Colors.white)),
+                            Switch(
+                                value: isFMView,
+                                onChanged: (v) => setSt(() => isFMView = v),
+                                activeColor: Colors.cyanAccent),
+                          ])
                         ],
                       ),
                       const Divider(color: Colors.white24),
@@ -459,6 +467,8 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                                 .round()
                                                 .clamp(1, 20)
                                             : val;
+                                        int bonus = bonuses[statName] ?? 0;
+
                                         return Row(
                                           children: [
                                             Expanded(
@@ -466,18 +476,41 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                                     style: const TextStyle(
                                                         color: Colors.white70,
                                                         fontSize: 12))),
-                                            Text("$displayVal",
-                                                style: TextStyle(
-                                                    color: _getRatingColor(val),
-                                                    fontWeight:
-                                                        FontWeight.bold)),
+                                            // Bonus Varsa Göster
+                                            if (!isFMView && bonus > 0) ...[
+                                              Text("$displayVal",
+                                                  style: TextStyle(
+                                                      color:
+                                                          _getRatingColor(val),
+                                                      fontWeight:
+                                                          FontWeight.bold)),
+                                              Text(" +$bonus",
+                                                  style: const TextStyle(
+                                                      color: Colors
+                                                          .lightBlueAccent,
+                                                      fontWeight:
+                                                          FontWeight.bold)),
+                                            ] else
+                                              Text("$displayVal",
+                                                  style: TextStyle(
+                                                      color:
+                                                          _getRatingColor(val),
+                                                      fontWeight:
+                                                          FontWeight.bold)),
+
                                             const SizedBox(width: 10),
                                             SizedBox(
                                                 width: 100,
                                                 height: 5,
                                                 child: LinearProgressIndicator(
-                                                    value: val / 99,
-                                                    color: _getRatingColor(val),
+                                                    value: (val +
+                                                            (isFMView
+                                                                ? 0
+                                                                : bonus)) /
+                                                        99,
+                                                    color: bonus > 0
+                                                        ? Colors.lightBlueAccent
+                                                        : _getRatingColor(val),
                                                     backgroundColor:
                                                         Colors.white10))
                                           ],
@@ -495,40 +528,37 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                     const EdgeInsets.symmetric(horizontal: 20)),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text("OYUN STİLLERİ",
-                                      style: TextStyle(
-                                          color: Colors.amber,
-                                          fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 10),
-                                  Wrap(
-                                    spacing: 15,
-                                    runSpacing: 15,
-                                    children:
-                                        selectedPlayer!.playstyles.map((ps) {
-                                      return Column(
-                                        children: [
-                                          Image.asset(ps.assetPath,
-                                              width: 50,
-                                              height: 50,
-                                              errorBuilder: (c, e, s) =>
-                                                  const Icon(Icons.star,
-                                                      color: Colors.white)),
-                                          Text(
-                                              playStyleTranslations[ps.name] ??
-                                                  ps.name,
-                                              style: TextStyle(
-                                                  color: ps.isGold
-                                                      ? Colors.amber
-                                                      : Colors.white,
-                                                  fontSize: 10))
-                                        ],
-                                      );
-                                    }).toList(),
-                                  )
-                                ],
-                              ),
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text("OYUN STİLLERİ",
+                                        style: TextStyle(
+                                            color: Colors.amber,
+                                            fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 10),
+                                    Wrap(
+                                        spacing: 15,
+                                        runSpacing: 15,
+                                        children: selectedPlayer!.playstyles
+                                            .map((ps) {
+                                          return Column(children: [
+                                            Image.asset(ps.assetPath,
+                                                width: 50,
+                                                height: 50,
+                                                errorBuilder: (c, e, s) =>
+                                                    const Icon(Icons.star,
+                                                        color: Colors.white)),
+                                            Text(
+                                                playStyleTranslations[
+                                                        ps.name] ??
+                                                    ps.name,
+                                                style: TextStyle(
+                                                    color: ps.isGold
+                                                        ? Colors.amber
+                                                        : Colors.white,
+                                                    fontSize: 10))
+                                          ]);
+                                        }).toList())
+                                  ]),
                             )
                           ],
                         ),
@@ -570,6 +600,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
   String _pos = "ST";
   String _team = "Takımsız";
   String _role = "Seçiniz";
+  String _chem = "Temel"; // YENİ: Kimya
   int _skillMoves = 3;
   late TabController _tabController;
   final Map<String, int> _stats = {};
@@ -587,6 +618,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
       _team = p.team;
       _role = p.role;
       _skillMoves = p.skillMoves;
+      _chem = p.chemistryStyle;
       _stats.addAll(p.stats);
       for (var style in p.playstyles) _ps[style.name] = style.isGold;
     } else {
@@ -614,19 +646,18 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                     fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             TabBar(
-              controller: _tabController,
-              indicatorColor: Colors.cyanAccent,
-              labelColor: Colors.cyanAccent,
-              unselectedLabelColor: Colors.grey,
-              isScrollable: true,
-              tabs: const [
-                Tab(text: "KİMLİK"),
-                Tab(text: "FİZİK & TOP"),
-                Tab(text: "ŞUT"),
-                Tab(text: "DEFANS"),
-                Tab(text: "PAS")
-              ],
-            ),
+                controller: _tabController,
+                indicatorColor: Colors.cyanAccent,
+                labelColor: Colors.cyanAccent,
+                unselectedLabelColor: Colors.grey,
+                isScrollable: true,
+                tabs: const [
+                  Tab(text: "KİMLİK"),
+                  Tab(text: "FİZİK & TOP"),
+                  Tab(text: "ŞUT"),
+                  Tab(text: "DEFANS"),
+                  Tab(text: "PAS")
+                ]),
             Expanded(
               child: TabBarView(
                 controller: _tabController,
@@ -663,7 +694,14 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                                   "Rol",
                                   roleCategories[_pos] ?? ["Yok"],
                                   _role,
-                                  (v) => _role = v!))
+                                  (v) => _role = v!)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                              child: _dropdown(
+                                  "Kimya",
+                                  chemistryBonuses.keys.toList(),
+                                  _chem,
+                                  (v) => _chem = v!)), // YENİ: KİMYA SEÇİMİ
                         ]),
                         const SizedBox(height: 20),
                         const Text("YETENEK YILDIZI",
@@ -701,15 +739,14 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
               ),
             ),
             ElevatedButton(
-              onPressed: _save,
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.cyanAccent,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 50, vertical: 15)),
-              child: const Text("KAYDET",
-                  style: TextStyle(
-                      color: Colors.black, fontWeight: FontWeight.bold)),
-            )
+                onPressed: _save,
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.cyanAccent,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 50, vertical: 15)),
+                child: const Text("KAYDET",
+                    style: TextStyle(
+                        color: Colors.black, fontWeight: FontWeight.bold)))
           ],
         ),
       ),
@@ -720,29 +757,30 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Wrap(
-        spacing: 30,
-        runSpacing: 20,
-        children: (statSegments[key] ?? []).map((s) {
-          return SizedBox(
-              width: 200,
-              child: Column(children: [
-                Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(s, style: const TextStyle(color: Colors.white70)),
-                      Text("${_stats[s]}",
-                          style: const TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.bold))
-                    ]),
-                Slider(
-                    value: _stats[s]!.toDouble(),
-                    min: 1,
-                    max: 99,
-                    activeColor: _getColor(_stats[s]!),
-                    onChanged: (v) => setState(() => _stats[s] = v.toInt()))
-              ]));
-        }).toList(),
-      ),
+          spacing: 30,
+          runSpacing: 20,
+          children: (statSegments[key] ?? [])
+              .map((s) => SizedBox(
+                  width: 200,
+                  child: Column(children: [
+                    Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(s,
+                              style: const TextStyle(color: Colors.white70)),
+                          Text("${_stats[s]}",
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold))
+                        ]),
+                    Slider(
+                        value: _stats[s]!.toDouble(),
+                        min: 1,
+                        max: 99,
+                        activeColor: _getColor(_stats[s]!),
+                        onChanged: (v) => setState(() => _stats[s] = v.toInt()))
+                  ])))
+              .toList()),
     );
   }
 
@@ -766,27 +804,26 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
     bool isSel = _ps.containsKey(name);
     bool isGold = isSel && _ps[name]!;
     return GestureDetector(
-      onTap: () => setState(() => isSel ? _ps.remove(name) : _ps[name] = false),
-      onLongPress: () => setState(() => _ps[name] = true),
-      child: Container(
-        padding: const EdgeInsets.all(5),
-        decoration: BoxDecoration(
-            color: isSel
-                ? (isGold ? Colors.amber.withOpacity(0.2) : Colors.white24)
-                : Colors.transparent,
-            border: Border.all(
+        onTap: () =>
+            setState(() => isSel ? _ps.remove(name) : _ps[name] = false),
+        onLongPress: () => setState(() => _ps[name] = true),
+        child: Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
                 color: isSel
-                    ? (isGold ? Colors.amber : Colors.white)
-                    : Colors.white12),
-            borderRadius: BorderRadius.circular(5)),
-        child: Image.asset(
-            "assets/Playstyles/${isGold ? "${name}Plus" : name}.png",
-            width: 30,
-            height: 30,
-            errorBuilder: (c, e, s) =>
-                const Icon(Icons.help, size: 30, color: Colors.white54)),
-      ),
-    );
+                    ? (isGold ? Colors.amber.withOpacity(0.2) : Colors.white24)
+                    : Colors.transparent,
+                border: Border.all(
+                    color: isSel
+                        ? (isGold ? Colors.amber : Colors.white)
+                        : Colors.white12),
+                borderRadius: BorderRadius.circular(5)),
+            child: Image.asset(
+                "assets/Playstyles/${isGold ? "${name}Plus" : name}.png",
+                width: 30,
+                height: 30,
+                errorBuilder: (c, e, s) =>
+                    const Icon(Icons.help, size: 30, color: Colors.white54))));
   }
 
   Color _getColor(int v) {
@@ -807,16 +844,16 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
     p.team = _team;
     p.role = _role;
     p.skillMoves = _skillMoves;
+    p.chemistryStyle = _chem;
     p.stats = Map.from(_stats);
     p.playstyles = psList;
     p.calculateRating();
     if (widget.playerToEdit == null) p.generateRandomMatches();
-    var box = Hive.box<Player>('palehax_players_v4');
-    if (widget.playerToEdit == null) {
+    var box = Hive.box<Player>('palehax_players_v5'); // V5'e Kayıt
+    if (widget.playerToEdit == null)
       box.add(p);
-    } else {
+    else
       p.save();
-    }
     Navigator.pop(context);
   }
 }
