@@ -25,7 +25,7 @@ import 'ui/spatial_sidebar.dart';
 import 'ui/movable_window.dart';
 import 'screens/settings_screen.dart';
 
-// --- MODÜLLER ---
+// --- MODÜLLER (SİSTEM) ---
 import 'modules/wifi_module.dart';
 import 'modules/optimization_module.dart';
 import 'modules/charts_module.dart';
@@ -36,8 +36,12 @@ import 'modules/ai_photo_module.dart';
 import 'modules/extras_module.dart';
 import 'modules/keyboard_module.dart';
 import 'modules/turkey_map_module.dart';
-import 'modules/palehax_players_view.dart';
-import 'modules/strategy_maker_module.dart';
+
+// --- MODÜLLER (PALEHAX) ---
+import 'modules/palehax_players_view.dart'; // Oyuncu Veritabanı
+import 'modules/pale_webview.dart'; // Web Site Gömme
+import 'modules/challenge_hub.dart'; // Strateji & Kadro Kurma
+import 'modules/squad_builder_module.dart'; // TOTW için direct import
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,13 +53,13 @@ void main() async {
     Hive.registerAdapter(PlayerAdapter());
     Hive.registerAdapter(PlayStyleAdapter());
     Hive.registerAdapter(MatchStatAdapter());
+    Hive.registerAdapter(SeasonStatAdapter());
     Hive.registerAdapter(StrategyAdapter());
-    Hive.registerAdapter(SeasonStatAdapter()); // YENİ
 
     await Hive.openBox('natroff_memory');
     await Hive.openBox<StrategyModel>('palehax_strategies');
 
-    // V8 KUTUSU (Yeni özellikler için)
+    // V9 KUTUSU (Yeni Veritabanı)
     await Hive.openBox<Player>('palehax_players_v9');
   } catch (e) {
     debugPrint("Veritabanı Başlatma Hatası: $e");
@@ -208,7 +212,9 @@ class _MainWindowState extends State<MainWindow> {
 
     int activeIdx = _history[_historyIndex];
 
+    // --- SAYFA LİSTESİ ---
     final List<Widget> pages = [
+      // UPGRADE (0-13)
       const ResolutionModule(), // 0
       const CleaningModule(), // 1
       const DnsModule(), // 2
@@ -223,46 +229,34 @@ class _MainWindowState extends State<MainWindow> {
       const ChartsModule(), // 11
       const TurkeyMapModule(), // 12
       const SettingsScreen(), // 13
-      const WebviewModule(url: "https://palehaxball.com/"), // 14
-      const PaleHaxPlayersView(), // 15
-      const WebviewModule(url: "https://palehaxball.com/teams"), // 16
-      const Center(
-          child: Text("Maçlar Yakında",
-              style: TextStyle(color: Colors.white, fontSize: 24))), // 17
-      const Center(
-          child: Text("Puan Durumu",
-              style: TextStyle(color: Colors.white, fontSize: 24))), // 18
-      const Center(
-          child: Text("İstatistikler",
-              style: TextStyle(color: Colors.white, fontSize: 24))), // 19
-      DefaultTabController(
-          length: 2,
-          child: Column(children: [
-            TabBar(
-                labelColor: Colors.cyanAccent,
-                unselectedLabelColor: Colors.grey,
-                indicatorColor: Colors.cyanAccent,
-                tabs: const [
-                  Tab(text: "Transferler"),
-                  Tab(text: "Transfer Listesi")
-                ]),
-            const Expanded(
-                child: TabBarView(children: [
-              Center(
-                  child: Text("Son Transfer Haberleri",
-                      style: TextStyle(color: Colors.white))),
-              Center(
-                  child: Text("Transfer Listesi",
-                      style: TextStyle(color: Colors.white)))
-            ]))
-          ])), // 20
-      const StrategyMakerModule(), // 21
-      const Center(
-          child: Text("Hall of Fame 🏆",
-              style: TextStyle(
-                  color: Colors.amber,
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold))), // 22
+
+      // PALEHAX MENÜSÜ (14-22)
+      // 14: Anasayfa (Site)
+      const PaleWebView(url: "https://palehaxball.com/"),
+
+      // 15: Oyuncular (Bizim DB)
+      const PaleHaxPlayersView(),
+
+      // 16: Takımlar (Site)
+      const PaleWebView(url: "https://palehaxball.com/takimlar"),
+
+      // 17: Maçlar (Site)
+      const PaleWebView(url: "https://palehaxball.com/maclar"),
+
+      // 18: Puan Durumu (Site)
+      const PaleWebView(url: "https://palehaxball.com/puan-durumu"),
+
+      // 19: İstatistikler (Site)
+      const PaleWebView(url: "https://palehaxball.com/istatistikler"),
+
+      // 20: Transferler (Site)
+      const PaleWebView(url: "https://palehaxball.com/transferler"),
+
+      // 21: CHALLENGE HUB (Strateji + Kadro Kurma)
+      const ChallengeHub(),
+
+      // 22: Haftanın 7'lisi (TOTW Modu)
+      const SquadBuilderModule(isTOTWMode: true),
     ];
 
     Widget activeModule = pages[activeIdx < pages.length ? activeIdx : 0];
@@ -278,6 +272,7 @@ class _MainWindowState extends State<MainWindow> {
           if (!uiProv.isSpatialMode)
             Column(
               children: [
+                // ÜST BAR
                 Container(
                   height: 40,
                   color: isDark ? Colors.black26 : Colors.white,
@@ -335,6 +330,8 @@ class _MainWindowState extends State<MainWindow> {
                     ],
                   ),
                 ),
+
+                // ALT İÇERİK (SIDEBAR + MODULE)
                 Expanded(
                   child: Row(
                     children: [
@@ -344,7 +341,9 @@ class _MainWindowState extends State<MainWindow> {
                       Expanded(
                         child: Container(
                           margin: const EdgeInsets.all(20),
-                          padding: const EdgeInsets.all(20),
+                          // Padding kaldırıldı veya azaltıldı, webview ve yeni modüller tam otursun diye
+                          clipBehavior:
+                              Clip.antiAlias, // Köşeleri yuvarlatmak için
                           decoration: BoxDecoration(
                             color: isDark
                                 ? const Color(0xFF1E1E24).withOpacity(0.6)

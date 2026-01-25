@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart'; // PAKET EKLENDİ
+import 'package:url_launcher/url_launcher.dart';
 import '../data/player_data.dart';
 import '../ui/glass_box.dart';
 import '../ui/fc_animated_card.dart';
@@ -29,6 +29,17 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
     }
   }
 
+  // Kart ekleme/güncelleme sonrası tetiklenecek
+  void _onSaveCallback(Player newPlayer) {
+    setState(() {
+      selectedPlayer = newPlayer;
+      var box = Hive.box<Player>('palehax_players_v9');
+      List<Player> versions =
+          box.values.where((p) => p.name == newPlayer.name).toList();
+      currentCardIndex = versions.length - 1;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!Hive.isBoxOpen('palehax_players_v9'))
@@ -49,16 +60,32 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
               tabs: [
                 Tab(text: "1. PROFİL"),
                 Tab(text: "2. ULTIMATE ANALİZ"),
-                Tab(text: "3. TÜM KARTLAR")
+                Tab(text: "3. OYUNCUNUN TÜM KARTLARI")
               ]),
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => _showEditor(context, null),
-          label: const Text("OYUNCU OLUŞTUR",
-              style:
-                  TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-          icon: const Icon(Icons.add, color: Colors.black),
-          backgroundColor: Colors.cyanAccent,
+        floatingActionButton: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            FloatingActionButton.extended(
+              heroTag: "global",
+              onPressed: () => _showAllCardsGlobal(context),
+              label: const Text("TÜM OYUNCU KARTLARI (GLOBAL)",
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold)),
+              icon: const Icon(Icons.apps, color: Colors.white),
+              backgroundColor: Colors.purple,
+            ),
+            const SizedBox(height: 10),
+            FloatingActionButton.extended(
+              heroTag: "create",
+              onPressed: () => _showEditor(context, null, _onSaveCallback),
+              label: const Text("OYUNCU OLUŞTUR",
+                  style: TextStyle(
+                      color: Colors.black, fontWeight: FontWeight.bold)),
+              icon: const Icon(Icons.add, color: Colors.black),
+              backgroundColor: Colors.cyanAccent,
+            ),
+          ],
         ),
         body: ValueListenableBuilder(
           valueListenable: Hive.box<Player>('palehax_players_v9').listenable(),
@@ -77,7 +104,6 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
             List<Player> playerVersions = allPlayers
                 .where((p) => p.name == selectedPlayer!.name)
                 .toList();
-            // Kartları tarihe veya türe göre sıralayabilirsin, şimdilik olduğu gibi bırakıyoruz
             if (currentCardIndex >= playerVersions.length) currentCardIndex = 0;
             Player displayPlayer = playerVersions.isNotEmpty
                 ? playerVersions[currentCardIndex]
@@ -90,51 +116,106 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                   width: 260,
                   decoration: const BoxDecoration(
                       border: Border(right: BorderSide(color: Colors.white10))),
-                  child: ListView.builder(
-                    itemCount: allPlayers.length,
-                    itemBuilder: (context, index) {
-                      final p = allPlayers[index];
-                      // Unique isim kontrolü
-                      if (index > 0 && allPlayers[index - 1].name == p.name)
-                        return const SizedBox.shrink();
-                      bool isSel = selectedPlayer!.name == p.name;
-                      return ListTile(
-                        onTap: () => setState(() {
-                          selectedPlayer = p;
-                          currentCardIndex = 0;
-                        }),
-                        selected: isSel,
-                        selectedTileColor: Colors.cyanAccent.withOpacity(0.1),
-                        leading: Text("${p.rating}",
-                            style: GoogleFonts.russoOne(
-                                fontSize: 18,
-                                color: _getRatingColor(p.rating))),
-                        title: Text(p.name,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold),
-                            overflow: TextOverflow.ellipsis),
-                        subtitle: Text(p.position,
-                            style: const TextStyle(
-                                color: Colors.white54, fontSize: 10)),
-                      );
-                    },
+                  child: Column(
+                    children: [
+                      Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Text("TÜM OYUNCU LİSTESİ",
+                              style: GoogleFonts.orbitron(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold))),
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: allPlayers.length,
+                          itemBuilder: (context, index) {
+                            final p = allPlayers[index];
+                            if (index > 0 &&
+                                allPlayers[index - 1].name == p.name)
+                              return const SizedBox.shrink();
+                            bool isSel = selectedPlayer!.name == p.name;
+                            return ListTile(
+                              onTap: () => setState(() {
+                                selectedPlayer = p;
+                                currentCardIndex = 0;
+                              }),
+                              selected: isSel,
+                              selectedTileColor:
+                                  Colors.cyanAccent.withOpacity(0.1),
+                              leading: Text("${p.rating}",
+                                  style: GoogleFonts.russoOne(
+                                      fontSize: 18,
+                                      color: _getRatingColor(p.rating))),
+                              title: Text(p.name,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold),
+                                  overflow: TextOverflow.ellipsis),
+                              subtitle: Text(p.position,
+                                  style: const TextStyle(
+                                      color: Colors.white54, fontSize: 10)),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 
-                // SAĞ İÇERİK (Tablar)
+                // SAĞ İÇERİK
                 Expanded(
-                  child: TabBarView(
-                    physics: const NeverScrollableScrollPhysics(),
+                  child: Column(
                     children: [
-                      _Tab1Profile(player: displayPlayer, context: context),
-                      _Tab2Ultimate(
-                          player: displayPlayer,
-                          versions: playerVersions,
-                          index: currentCardIndex,
-                          onIndex: (i) => setState(() => currentCardIndex = i),
-                          context: context),
-                      _Tab3AllCards(allPlayers: allPlayers),
+                      // TOP BAR (İSİM)
+                      Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          width: double.infinity,
+                          alignment: Alignment.center,
+                          color: Colors.black12,
+                          child: Text(selectedPlayer!.name.toUpperCase(),
+                              style: GoogleFonts.orbitron(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  letterSpacing: 5,
+                                  fontWeight: FontWeight.bold))),
+                      Expanded(
+                        child: TabBarView(
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: [
+                            // 1. SEKME: PROFİL
+                            _Tab1Profile(
+                                player: displayPlayer,
+                                versions: playerVersions,
+                                context: context,
+                                onSelectVersion: (p) {
+                                  int idx = playerVersions.indexOf(p);
+                                  if (idx != -1)
+                                    setState(() => currentCardIndex = idx);
+                                }),
+
+                            // 2. SEKME: ULTIMATE ANALİZ
+                            _Tab2Ultimate(
+                                player: displayPlayer,
+                                versions: playerVersions,
+                                index: currentCardIndex,
+                                onIndex: (i) =>
+                                    setState(() => currentCardIndex = i),
+                                context: context,
+                                onSave: _onSaveCallback),
+
+                            // 3. SEKME: OYUNCUNUN TÜM KARTLARI (HATA BURADAYDI, DÜZELTİLDİ)
+                            _Tab3AllCards(
+                                playerVersions:
+                                    playerVersions, // Doğru parametre
+                                onSelect: (p) {
+                                  // Seçim fonksiyonu eklendi
+                                  int idx = playerVersions.indexOf(p);
+                                  if (idx != -1)
+                                    setState(() => currentCardIndex = idx);
+                                }),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 )
@@ -147,11 +228,17 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
   }
 }
 
-// --- SEKME 1: PROFİL (Klasik - Geliştirilmiş) ---
+// --- SEKME 1: PROFİL ---
 class _Tab1Profile extends StatelessWidget {
   final Player player;
+  final List<Player> versions;
   final BuildContext context;
-  const _Tab1Profile({required this.player, required this.context});
+  final Function(Player) onSelectVersion;
+  const _Tab1Profile(
+      {required this.player,
+      required this.versions,
+      required this.context,
+      required this.onSelectVersion});
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -195,39 +282,69 @@ class _Tab1Profile extends StatelessWidget {
                           fontFamily: GoogleFonts.orbitron().fontFamily)),
                   const SizedBox(height: 10),
                   Wrap(
-                      spacing: 10,
+                      spacing: 15,
+                      runSpacing: 10,
                       children: player.playstyles
-                          .map((ps) => Tooltip(
-                              message:
-                                  playStyleTranslations[ps.name] ?? ps.name,
-                              child: Image.asset(ps.assetPath,
-                                  width: 40, height: 40)))
-                          .toList())
+                          .map((ps) => Column(children: [
+                                Image.asset(ps.assetPath,
+                                    width: 40, height: 40),
+                                Text(playStyleTranslations[ps.name] ?? ps.name,
+                                    style: TextStyle(
+                                        color: ps.isGold
+                                            ? Colors.amber
+                                            : Colors.white70,
+                                        fontSize: 10))
+                              ]))
+                          .toList()),
+                  const SizedBox(height: 30),
+                  Text("DİĞER KARTLAR",
+                      style: TextStyle(
+                          color: Colors.purpleAccent,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                      height: 80,
+                      width: 400,
+                      child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: versions.length,
+                          itemBuilder: (c, i) {
+                            return GestureDetector(
+                                onTap: () => onSelectVersion(versions[i]),
+                                child: Container(
+                                    margin: const EdgeInsets.only(right: 15),
+                                    child: Transform.scale(
+                                        scale: 0.2,
+                                        child: FCAnimatedCard(
+                                            player: versions[i]))));
+                          }))
                 ],
               )
             ],
           ),
           const SizedBox(height: 30),
-          _buildMatchHistory(player),
+          _buildMatchHistory(player, true),
         ],
       ),
     );
   }
 }
 
-// --- SEKME 2: ULTIMATE ANALİZ (YENİLENMİŞ - 3. RESME UYGUN) ---
+// --- SEKME 2: ULTIMATE ANALİZ ---
 class _Tab2Ultimate extends StatelessWidget {
   final Player player;
   final List<Player> versions;
   final int index;
   final Function(int) onIndex;
   final BuildContext context;
+  final Function(Player) onSave;
   const _Tab2Ultimate(
       {required this.player,
       required this.versions,
       required this.index,
       required this.onIndex,
-      required this.context});
+      required this.context,
+      required this.onSave});
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +352,6 @@ class _Tab2Ultimate extends StatelessWidget {
 
     return Row(
       children: [
-        // ORTA: KART STACK (Sola dayalı değil, ortada)
         Expanded(
           flex: 4,
           child: Column(
@@ -247,7 +363,6 @@ class _Tab2Ultimate extends StatelessWidget {
                   alignment: Alignment.center,
                   clipBehavior: Clip.none,
                   children: [
-                    // ARKA KARTLAR (Sağda görünüyor, tıklanabilir)
                     if (versions.length > 1)
                       AnimatedPositioned(
                         duration: const Duration(milliseconds: 500),
@@ -265,7 +380,6 @@ class _Tab2Ultimate extends StatelessWidget {
                                       child: FCAnimatedCard(
                                           player: versions[
                                               (index + 1) % versions.length]))),
-                              // Arka Kart Etiketi (TOTW vb.)
                               Container(
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 10, vertical: 5),
@@ -285,19 +399,17 @@ class _Tab2Ultimate extends StatelessWidget {
                           ),
                         ),
                       ),
-
-                    // ÖN KART
                     FCAnimatedCard(player: player),
                     Positioned(
                         top: 0,
                         right: 0,
-                        child: _buildCardMenu(context, player)),
+                        child: _buildCardMenu(context, player, onSave)),
                   ],
                 ),
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                  onPressed: () => _createVersion(context, player),
+                  onPressed: () => _createVersion(context, player, onSave),
                   style:
                       ElevatedButton.styleFrom(backgroundColor: Colors.white10),
                   child: const Text("+ YENİ KART VERSİYONU EKLE",
@@ -305,8 +417,6 @@ class _Tab2Ultimate extends StatelessWidget {
             ],
           ),
         ),
-
-        // SAĞ: DETAYLAR (ŞEFFAF VE DOLU DOLU)
         Expanded(
           flex: 5,
           child: SingleChildScrollView(
@@ -314,35 +424,30 @@ class _Tab2Ultimate extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // İSTATİSTİK GRID
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
                   children: [
-                    _statBox("GOALS", simStats['Goals']!, Colors.greenAccent,
+                    _statBox("GOL", simStats['Gol']!, Colors.greenAccent,
                         Icons.sports_soccer),
                     _statBox(
-                        "ASSISTS",
+                        "ASİST",
                         "${player.matches.fold(0, (s, m) => s + m.assists)}",
                         Colors.blueAccent,
                         Icons.assist_walker),
-                    _statBox("KICKS", simStats['Kicks']!, Colors.white,
-                        Icons.sports),
-                    _statBox("PASSES", simStats['Passes']!, Colors.white,
-                        Icons.compare_arrows),
-                    _statBox("KEY PASS", simStats['Key Pass']!,
+                    _statBox(
+                        "PAS", simStats['Pas']!, Colors.white, Icons.sports),
+                    _statBox("İSABETLİ", simStats['İsabetli Pas']!,
+                        Colors.white, Icons.check),
+                    _statBox("KİLİT PAS", simStats['Kilit Pas']!,
                         Colors.amberAccent, Icons.vpn_key),
-                    _statBox("SHOTS", simStats['Shots']!, Colors.redAccent,
+                    _statBox("ŞUT", simStats['Şut']!, Colors.redAccent,
                         Icons.track_changes),
-                    _statBox("POSS%", simStats['Possession']!,
+                    _statBox("TOPLA OYNAMA", simStats['Topla Oynama']!,
                         Colors.purpleAccent, Icons.pie_chart),
-                    _statBox("RATING", "${player.rating}", Colors.cyanAccent,
-                        Icons.star),
                   ],
                 ),
-                const SizedBox(height: 30),
-
-                // REC LINK BUTONU
+                const SizedBox(height: 20),
                 if (player.recLink.isNotEmpty)
                   Container(
                     width: double.infinity,
@@ -351,7 +456,7 @@ class _Tab2Ultimate extends StatelessWidget {
                         onPressed: () async {
                           final Uri url = Uri.parse(player.recLink);
                           if (!await launchUrl(url))
-                            throw Exception('Could not launch $url');
+                            throw Exception('Link Hatası');
                         },
                         icon: const Icon(Icons.videocam, color: Colors.white),
                         label: const Text("MAÇ KAYDINI İZLE",
@@ -364,55 +469,43 @@ class _Tab2Ultimate extends StatelessWidget {
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10)))),
                   ),
-
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // MİNİ SAHA
-                    Column(
-                      children: [
-                        Text("MEVKİ",
-                            style: GoogleFonts.orbitron(
-                                color: Colors.white54, fontSize: 12)),
-                        const SizedBox(height: 5),
-                        Container(
-                          width: 160,
-                          height: 220,
-                          decoration: BoxDecoration(
-                              border:
-                                  Border.all(color: Colors.white24, width: 2),
-                              borderRadius: BorderRadius.circular(10),
-                              color: Colors.white.withOpacity(0.02)),
-                          child: CustomPaint(
-                            painter: _MiniPitchPainter(
-                                playerPos: player.getPitchPosition()),
-                            child: Stack(
-                              children: [
-                                Positioned(
-                                  left: player.getPitchPosition().dx * 160 - 10,
-                                  top: player.getPitchPosition().dy * 220 - 10,
-                                  child: Column(children: [
-                                    const Icon(Icons.circle,
-                                        color: Colors.redAccent, size: 14),
-                                    Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 4),
-                                        color: Colors.black54,
-                                        child: Text(player.position,
-                                            style: const TextStyle(
-                                                color: Colors.redAccent,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold)))
-                                  ]),
-                                )
-                              ],
-                            ),
-                          ),
+                    Container(
+                      width: 160,
+                      height: 220,
+                      decoration: BoxDecoration(
+                          border: Border.all(color: Colors.white24, width: 2),
+                          borderRadius: BorderRadius.circular(10),
+                          color: Colors.white.withOpacity(0.02)),
+                      child: CustomPaint(
+                        painter: _MiniPitchPainter(
+                            playerPos: player.getPitchPosition()),
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              left: player.getPitchPosition().dx * 160 - 10,
+                              top: player.getPitchPosition().dy * 220 - 10,
+                              child: Column(children: [
+                                const Icon(Icons.circle,
+                                    color: Colors.redAccent, size: 14),
+                                Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 4),
+                                    color: Colors.black54,
+                                    child: Text(player.position,
+                                        style: const TextStyle(
+                                            color: Colors.redAccent,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold)))
+                              ]),
+                            )
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                     const SizedBox(width: 20),
-                    // SEZON TABLOSU (Kompakt)
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -472,7 +565,6 @@ class _Tab2Ultimate extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 20),
-                // Vücut Bilgileri (Mockup)
                 Container(
                   padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(
@@ -481,11 +573,13 @@ class _Tab2Ultimate extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _infoBadge("BOY", "185 cm"),
-                      _infoBadge("KİLO", "78 kg"),
-                      _infoBadge("AYAK", "Sağ"),
-                      _infoBadge("FORM", "🔥 Mükemmel",
-                          color: Colors.orangeAccent),
+                      _infoBadge("SKILLS", "${player.skillMoves} ★",
+                          color: Colors.amber),
+                      _infoBadge(
+                          "MAÇ REYTİNG",
+                          "${player.matches.isNotEmpty ? player.matches.map((m) => m.rating).reduce((a, b) => a + b) / player.matches.length : 0.0}"
+                              .substring(0, 3)),
+                      _infoBadge("ROL", player.role),
                     ],
                   ),
                 )
@@ -520,118 +614,120 @@ class _Tab2Ultimate extends StatelessWidget {
     );
   }
 
-  Widget _infoBadge(String label, String val, {Color color = Colors.white}) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-      Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
-      const SizedBox(height: 2),
-      Text(val,
-          style: TextStyle(
-              color: color, fontWeight: FontWeight.bold, fontSize: 14))
-    ]);
-  }
+  Widget _infoBadge(String label, String val, {Color color = Colors.white}) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Text(label,
+            style: const TextStyle(color: Colors.white38, fontSize: 10)),
+        const SizedBox(height: 2),
+        Text(val,
+            style: TextStyle(
+                color: color, fontWeight: FontWeight.bold, fontSize: 14))
+      ]);
 }
 
-// --- SEKME 3: TÜM KARTLAR GALERİSİ ---
+// --- SEKME 3: OYUNCUNUN TÜM KARTLARI (DÜZELTİLDİ) ---
 class _Tab3AllCards extends StatelessWidget {
-  final List<Player> allPlayers;
-  const _Tab3AllCards({required this.allPlayers});
+  final List<Player> playerVersions;
+  final Function(Player) onSelect; // Seçim fonksiyonu eklendi
+
+  const _Tab3AllCards({required this.playerVersions, required this.onSelect});
+
   @override
   Widget build(BuildContext context) {
-    Map<String, List<Player>> grouped = {};
-    for (var type in cardTypes) {
-      grouped[type] = allPlayers.where((p) => p.cardType == type).toList();
-    }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(30),
-      child: Column(
-        children: grouped.entries.where((e) => e.value.isNotEmpty).map((entry) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: Text("${entry.key} KOLEKSİYONU",
-                      style: GoogleFonts.orbitron(
-                          color: _getCardTypeColor(entry.key),
-                          fontSize: 20,
-                          letterSpacing: 2))),
-              Wrap(
-                spacing: 30,
-                runSpacing: 30,
-                children: entry.value
-                    .map((p) => Transform.scale(
-                        scale: 0.7, child: FCAnimatedCard(player: p)))
-                    .toList(),
-              ),
-              const SizedBox(height: 40),
-              const Divider(color: Colors.white12),
-              const SizedBox(height: 20),
-            ],
-          );
-        }).toList(),
+      child: Center(
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 30,
+          runSpacing: 30,
+          children: playerVersions
+              .map((p) => GestureDetector(
+                    onTap: () => onSelect(p), // Tıklayınca seç
+                    child: Column(children: [
+                      Text(p.cardType,
+                          style: GoogleFonts.orbitron(
+                              color: _getCardTypeColor(p.cardType),
+                              fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 10),
+                      Transform.scale(
+                          scale: 0.8, child: FCAnimatedCard(player: p))
+                    ]),
+                  ))
+              .toList(),
+        ),
       ),
     );
   }
 }
 
 // --- YARDIMCILAR ---
-Widget _buildMatchHistory(Player p) {
+Widget _buildMatchHistory(Player p, bool showRec) {
   return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text("SON 5 MAÇ PERFORMANSI",
         style: GoogleFonts.orbitron(color: Colors.cyanAccent, fontSize: 16)),
     const SizedBox(height: 15),
-    SizedBox(
-        height: 150,
-        child: Row(
-            children: p.matches
-                .map((m) => Expanded(
-                    child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 5),
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(10)),
-                        child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(m.opponent,
-                                  style: const TextStyle(
-                                      color: Colors.white54, fontSize: 10),
-                                  overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 5),
-                              Container(
-                                  height: 50,
-                                  width: 10,
-                                  decoration: BoxDecoration(
-                                      color: Colors.black,
-                                      borderRadius: BorderRadius.circular(5)),
-                                  alignment: Alignment.bottomCenter,
-                                  child: Container(
-                                      height: (m.rating / 10) * 50,
-                                      width: 10,
-                                      decoration: BoxDecoration(
-                                          color: _getRatingColor(
-                                              (m.rating * 10).toInt()),
-                                          borderRadius:
-                                              BorderRadius.circular(5)))),
-                              Text("${m.rating}",
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold)),
-                              Text("${m.goals}G",
-                                  style: const TextStyle(
-                                      color: Colors.greenAccent, fontSize: 10))
-                            ]))))
-                .toList()))
+    ...p.matches
+        .map((m) => Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Row(
+                children: [
+                  Expanded(
+                      child: Text(m.opponent,
+                          style: const TextStyle(color: Colors.white))),
+                  Text("${m.score}",
+                      style: const TextStyle(
+                          color: Colors.cyanAccent,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 20),
+                  Container(
+                      width: 40,
+                      height: 6,
+                      decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(3)),
+                      child: FractionallySizedBox(
+                          widthFactor: m.rating / 10,
+                          child: Container(
+                              color:
+                                  _getRatingColor((m.rating * 10).toInt())))),
+                  const SizedBox(width: 10),
+                  Text("${m.rating}",
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold)),
+                  if (showRec && p.recLink.isNotEmpty) ...[
+                    const SizedBox(width: 20),
+                    ElevatedButton(
+                        onPressed: () async {
+                          final Uri url = Uri.parse(p.recLink);
+                          if (!await launchUrl(url))
+                            throw Exception('Link Hatası');
+                        },
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5)),
+                        child: const Text("REC",
+                            style:
+                                TextStyle(color: Colors.white, fontSize: 10)))
+                  ]
+                ],
+              ),
+            ))
+        .toList()
   ]);
 }
 
-Widget _buildCardMenu(BuildContext context, Player p) {
+Widget _buildCardMenu(BuildContext context, Player p, Function(Player) onSave) {
   return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert, color: Colors.white),
       color: const Color(0xFF1E1E24),
       onSelected: (val) {
-        if (val == 'edit') _showEditor(context, p);
+        if (val == 'edit') _showEditor(context, p, onSave);
         if (val == 'delete') {
           p.delete();
         }
@@ -646,7 +742,7 @@ Widget _buildCardMenu(BuildContext context, Player p) {
           ]);
 }
 
-void _createVersion(BuildContext context, Player p) {
+void _createVersion(BuildContext context, Player p, Function(Player) onSave) {
   Player newVersion = Player(
       name: p.name,
       rating: p.rating,
@@ -662,14 +758,20 @@ void _createVersion(BuildContext context, Player p) {
       recLink: p.recLink);
   showDialog(
       context: context,
-      builder: (context) =>
-          CreatePlayerDialog(playerToEdit: newVersion, isNewVersion: true));
+      builder: (context) => CreatePlayerDialog(
+          playerToEdit: newVersion,
+          isNewVersion: true,
+          onSave: () => onSave(newVersion)));
 }
 
-void _showEditor(BuildContext context, Player? p) {
+void _showEditor(BuildContext context, Player? p, Function(Player) onSave) {
   showDialog(
       context: context,
-      builder: (context) => CreatePlayerDialog(playerToEdit: p));
+      builder: (context) => CreatePlayerDialog(
+          playerToEdit: p,
+          onSave: () {
+            if (p != null) onSave(p);
+          }));
 }
 
 void _showDetailsDialog(BuildContext context, Player p) {
@@ -772,6 +874,74 @@ void _showDetailsDialog(BuildContext context, Player p) {
           }));
 }
 
+void _showAllCardsGlobal(BuildContext context) {
+  showDialog(
+      context: context,
+      builder: (_) => Dialog(
+          backgroundColor: const Color(0xFF0D0D12),
+          child: Container(
+              width: 1000,
+              height: 800,
+              padding: const EdgeInsets.all(20),
+              child: Column(children: [
+                Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("TÜM OYUNCU KARTLARI (GLOBAL)",
+                          style: GoogleFonts.orbitron(
+                              color: Colors.purpleAccent, fontSize: 24)),
+                      IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          onPressed: () => Navigator.pop(context))
+                    ]),
+                const Divider(color: Colors.white24),
+                Expanded(
+                    child: ValueListenableBuilder(
+                        valueListenable:
+                            Hive.box<Player>('palehax_players_v9').listenable(),
+                        builder: (context, Box<Player> box, _) {
+                          Map<String, List<Player>> grouped = {};
+                          for (var type in cardTypes) {
+                            grouped[type] = box.values
+                                .where((p) => p.cardType == type)
+                                .toList();
+                          }
+                          return SingleChildScrollView(
+                              child: Column(
+                                  children: grouped.entries
+                                      .where((e) => e.value.isNotEmpty)
+                                      .map((entry) => Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                            20),
+                                                    child: Text(entry.key,
+                                                        style: GoogleFonts.orbitron(
+                                                            color:
+                                                                _getCardTypeColor(
+                                                                    entry.key),
+                                                            fontSize: 20))),
+                                                Wrap(
+                                                    spacing: 20,
+                                                    runSpacing: 20,
+                                                    children: entry.value
+                                                        .map((p) =>
+                                                            Transform.scale(
+                                                                scale: 0.6,
+                                                                child:
+                                                                    FCAnimatedCard(
+                                                                        player:
+                                                                            p)))
+                                                        .toList())
+                                              ]))
+                                      .toList()));
+                        }))
+              ]))));
+}
+
 class _MiniPitchPainter extends CustomPainter {
   final Offset playerPos;
   _MiniPitchPainter({required this.playerPos});
@@ -810,7 +980,7 @@ Color _getRatingColor(int r) {
 
 Color _getCardTypeColor(String t) {
   switch (t) {
-    case "TOTY":
+    case "TOTS":
     case "STAR":
       return Colors.cyanAccent;
     case "MVP":

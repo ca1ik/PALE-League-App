@@ -43,7 +43,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
             .firstWhere((ps) => ps.isGold, orElse: () => p.playstyles.first)
         : null;
     String type = p.cardType;
-    int tierStars = p.getCardTierStars(); // Player Data'dan geliyor
+    int tierStars = p.getCardTierStars();
 
     BoxDecoration baseDecor = BoxDecoration(
         borderRadius: BorderRadius.circular(20),
@@ -107,43 +107,24 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                     padding: const EdgeInsets.all(20.0),
                     child: Stack(
                       children: [
-                        // --- KART TİPİ VE YILDIZLAR (EN ÜST ORTA - BELİRGİN) ---
+                        // KART TİPİ (EN ÜST ORTA) - Sadece özel kartlar için
                         if (type != "Temel")
                           Positioned(
                               top: 0,
                               left: 0,
                               right: 0,
-                              child: Column(
-                                children: [
-                                  Text(type.toUpperCase(),
+                              child: Center(
+                                  child: Text(type.toUpperCase(),
                                       style: GoogleFonts.orbitron(
                                           color: _getBorderColor(type),
                                           fontWeight: FontWeight.w900,
-                                          fontSize: 18,
+                                          fontSize: 16,
                                           letterSpacing: 3,
                                           shadows: [
                                             Shadow(
                                                 color: Colors.black,
                                                 blurRadius: 10)
-                                          ])),
-                                  if (tierStars > 0)
-                                    Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: List.generate(
-                                            tierStars,
-                                            (i) =>
-                                                Icon(Icons.star,
-                                                    color:
-                                                        _getBorderColor(type),
-                                                    size: 14,
-                                                    shadows: const [
-                                                      Shadow(
-                                                          color: Colors.black,
-                                                          blurRadius: 5)
-                                                    ])))
-                                ],
-                              )),
+                                          ])))),
 
                         // Logolar
                         Positioned(
@@ -180,28 +161,28 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                           fontWeight: FontWeight.bold)),
                                 ])),
 
-                        // Forma No ve Skill
+                        // Sağ Üst: Forma No ve KART YILDIZLARI (Çakışma Önlemek için buraya alındı)
                         Positioned(
                             top: 80,
-                            right: 10,
-                            child: Column(children: [
-                              Text("${p.kitNumber}",
-                                  style: GoogleFonts.russoOne(
-                                      fontSize: 80,
-                                      color: _getTextColor(type)
-                                          .withOpacity(0.1))),
-                              Row(
-                                  children: List.generate(
-                                      5,
-                                      (i) => Icon(
-                                          i < p.skillMoves
-                                              ? Icons.star
-                                              : Icons.star_border,
-                                          color: _getBorderColor(type),
-                                          size: 14))),
-                            ])),
+                            right: 5,
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text("${p.kitNumber}",
+                                      style: GoogleFonts.russoOne(
+                                          fontSize: 60,
+                                          color: _getTextColor(type)
+                                              .withOpacity(0.15))),
+                                  if (tierStars > 0)
+                                    Row(
+                                        children: List.generate(
+                                            tierStars,
+                                            (i) => Icon(Icons.star,
+                                                color: _getBorderColor(type),
+                                                size: 14))),
+                                ])),
 
-                        // İsim
+                        // İsim (Yıldızsız)
                         Positioned(
                             top: 190,
                             left: 0,
@@ -250,7 +231,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                               const Divider(color: Colors.white30),
                             ])),
 
-                        // Playstyle
+                        // Sol Kenar Playstyle+
                         if (goldPs != null)
                           Positioned(
                               left: -10,
@@ -287,7 +268,9 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                           _getTextColor(type).withOpacity(0.6),
                                       size: 14),
                                   const SizedBox(width: 5),
-                                  Text(p.chemistryStyle.toUpperCase(),
+                                  Text(
+                                      "${p.chemistryStyle} • ${p.role}"
+                                          .toUpperCase(),
                                       style: GoogleFonts.montserrat(
                                           color: _getTextColor(type)
                                               .withOpacity(0.6),

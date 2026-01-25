@@ -74,7 +74,6 @@ class PlayerAdapter extends TypeAdapter<Player> {
   }
 }
 
-// ... Diğer adapterler aynı ...
 class PlayStyleAdapter extends TypeAdapter<PlayStyle> {
   @override
   final int typeId = 2;
@@ -313,15 +312,16 @@ class Player extends HiveObject {
     }
   }
 
+  // Türkçe İstatistikler
   Map<String, String> getSimulationStats() {
     var cs = getCardStats();
     return {
-      "Kicks": "${(cs['PAS']! * 2.5).toInt()}",
-      "Passes": "${(cs['PAS']! * 1.8).toInt()}",
-      "Key Pass": "${(cs['PAS']! / 10).toStringAsFixed(1)}",
-      "Shots": "${(cs['SHO']! / 5).toInt()}",
-      "Goals": "${matches.fold(0, (sum, m) => sum + m.goals)}",
-      "Possession": "${(cs['DRI']! / 1.5).toInt()}%"
+      "Pas": "${(cs['PAS']! * 2.5).toInt()}",
+      "İsabetli Pas": "${(cs['PAS']! * 1.8).toInt()}",
+      "Kilit Pas": "${(cs['PAS']! / 10).toStringAsFixed(1)}",
+      "Şut": "${(cs['SHO']! / 5).toInt()}",
+      "Gol": "${matches.fold(0, (sum, m) => sum + m.goals)}",
+      "Topla Oynama": "${(cs['DRI']! / 1.5).toInt()}%"
     };
   }
 
@@ -346,7 +346,7 @@ final List<String> cardTypes = [
   "STAR",
   "BALLOND'OR",
   "BAD"
-]; // TOTY -> TOTS
+];
 final Map<String, Map<String, int>> chemistryBonuses = {
   "Temel": {
     "Hız": 2,
@@ -454,6 +454,7 @@ final List<String> availableTeams = [
   "Theis FC"
 ];
 final List<String> availablePlayStyles = [
+  "GameChanger",
   "Acrobatic",
   "AerialFortress",
   "Anticipate",
@@ -464,7 +465,6 @@ final List<String> availablePlayStyles = [
   "FinesseShot",
   "FirstTouch",
   "Footwork",
-  "GameChanger",
   "IncisivePass",
   "Intercept",
   "Inventive",
