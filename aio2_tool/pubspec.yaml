@@ -36,7 +36,7 @@ dependencies:
   video_player: ^2.8.1
   video_player_win: ^2.0.0
   get: ^4.7.3
-  fl_chart: ^1.1.1
+  fl_chart: ^0.66.0
 
 flutter:
   uses-material-design: true
