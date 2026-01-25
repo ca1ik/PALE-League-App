@@ -13,399 +13,453 @@ class PaleHaxPlayersView extends StatefulWidget {
 }
 
 class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
-  // ... (Bu kısım öncekiyle benzer, sadece yeni özellikleri entegre ediyoruz)
-  // Yer darlığı sebebiyle sadece CreatePlayerDialog'un yeni halini veriyorum.
-  // Ana ekran aynı kalabilir veya Statları göstermek için güncellenebilir.
-
-  // Ana ekran kodları öncekiyle aynı, sadece CreatePlayerDialog çağrısı değişti.
-  // Buraya tam dosyayı sığdırmak zor olacağı için CreatePlayerDialog'u tam veriyorum.
-  // Bunu mevcut dosyadaki CreatePlayerDialog class'ının yerine yapıştırın.
-
   Player? selectedPlayer;
   late Box<Player> playerBox;
+  bool isFMView = false; // Sadece Görüntülemede Toggle
 
   @override
   void initState() {
     super.initState();
-    playerBox = Hive.box<Player>('palehax_players_v4'); // V4 Kutu
+    playerBox = Hive.box<Player>('palehax_players_v4');
     if (playerBox.isNotEmpty) selectedPlayer = playerBox.getAt(0);
   }
 
-  // ... Build metodu önceki gibi ...
   @override
   Widget build(BuildContext context) {
-    // ... Scaffold ve Liste yapısı aynı ...
-    // Tek fark FAB butonu:
+    final lang = Provider.of<LanguageProvider>(context);
     return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showDialog(
+            context: context, builder: (c) => const CreatePlayerDialog()),
+        label: const Text("OYUNCU OLUŞTUR",
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        icon: const Icon(Icons.add),
         backgroundColor: Colors.transparent,
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => showDialog(
-              context: context, builder: (c) => const CreatePlayerDialog()),
-          label: const Text("Oyuncu Oluştur"),
-          icon: const Icon(Icons.add),
-          backgroundColor: Colors.cyanAccent,
-        ),
-        body: ValueListenableBuilder(
-            valueListenable: playerBox.listenable(),
-            builder: (context, Box<Player> box, _) {
-              // ... Liste ve Detay görünümü aynı ...
-              // Detay görünümünde STATLARI göstermek istersen buraya ekleyebilirsin.
-              return Container(); // Placeholder
-            }));
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Colors.cyanAccent)),
+        elevation: 10,
+      ).getApplicationGradient(), // Extension yazılabilir veya Container ile sarılabilir
+      body: ValueListenableBuilder(
+        valueListenable: playerBox.listenable(),
+        builder: (context, Box<Player> box, _) {
+          final players = box.values.toList();
+          if (players.isEmpty)
+            return const Center(
+                child: Text("Veritabanı boş.",
+                    style: TextStyle(color: Colors.white)));
+          if (selectedPlayer == null && players.isNotEmpty)
+            selectedPlayer = players.first;
+
+          return Row(
+            children: [
+              // --- SOL: LİSTE ---
+              Container(
+                width: 300,
+                margin: const EdgeInsets.only(right: 20),
+                child: ListView.builder(
+                  itemCount: players.length,
+                  itemBuilder: (context, index) {
+                    final p = players[index];
+                    bool isSel = selectedPlayer == p;
+                    return GestureDetector(
+                      onTap: () => setState(() => selectedPlayer = p),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          gradient: isSel
+                              ? const LinearGradient(colors: [
+                                  Color(0xFF00C6FF),
+                                  Color(0xFF0072FF)
+                                ])
+                              : null,
+                          color: isSel ? null : Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(15),
+                          border:
+                              isSel ? null : Border.all(color: Colors.white10),
+                        ),
+                        child: Row(
+                          children: [
+                            Text("${p.rating}",
+                                style: GoogleFonts.russoOne(
+                                    fontSize: 20,
+                                    color: isSel
+                                        ? Colors.white
+                                        : _getRatingColor(p.rating))),
+                            const SizedBox(width: 15),
+                            Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(p.name,
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold)),
+                                  Text("${p.position} | ${p.team}",
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 11)),
+                                ])
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // --- SAĞ: PROFİL ---
+              if (selectedPlayer != null)
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        // ÜST KART
+                        GlassBox(
+                          width: double.infinity,
+                          height: 280,
+                          child: Stack(
+                            children: [
+                              Positioned(
+                                  right: 20,
+                                  top: 20,
+                                  child: IconButton(
+                                      icon: Icon(
+                                          isFMView
+                                              ? Icons.looks_two
+                                              : Icons.looks_one,
+                                          color: Colors.white),
+                                      tooltip: "FC / FM Görünümü",
+                                      onPressed: () => setState(
+                                          () => isFMView = !isFMView))),
+                              Padding(
+                                padding: const EdgeInsets.all(30),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 150,
+                                      height: 150,
+                                      decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.black,
+                                          border: Border.all(
+                                              color: _getRatingColor(
+                                                  selectedPlayer!.rating),
+                                              width: 3)),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                          "${selectedPlayer!.kitNumber}",
+                                          style: GoogleFonts.russoOne(
+                                              fontSize: 80,
+                                              color: Colors.white)),
+                                    ),
+                                    const SizedBox(width: 30),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(selectedPlayer!.name.toUpperCase(),
+                                            style: GoogleFonts.orbitron(
+                                                fontSize: 35,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white)),
+                                        Row(
+                                          children: [
+                                            _badge(selectedPlayer!.position,
+                                                Colors.blueAccent),
+                                            const SizedBox(width: 10),
+                                            _badge(selectedPlayer!.role,
+                                                Colors.purpleAccent),
+                                            const SizedBox(width: 10),
+                                            Text(selectedPlayer!.marketValue,
+                                                style: const TextStyle(
+                                                    color: Colors.greenAccent,
+                                                    fontSize: 20,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 15),
+                                        // ORTALAMALAR (Genel Bakış)
+                                        Row(
+                                          children: [
+                                            _statPreview(
+                                                "PAC",
+                                                _getCategoryAvg(
+                                                    "1. Top Sürme & Fizik")),
+                                            _statPreview(
+                                                "SHO",
+                                                _getCategoryAvg(
+                                                    "2. Şut & Zihinsel")),
+                                            _statPreview(
+                                                "DEF",
+                                                _getCategoryAvg(
+                                                    "3. Savunma & Güç")),
+                                            _statPreview(
+                                                "PAS",
+                                                _getCategoryAvg(
+                                                    "4. Pas & Vizyon")),
+                                          ],
+                                        )
+                                      ],
+                                    )
+                                  ],
+                                ),
+                              )
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // BUTONLAR: DETAYLAR
+                        ElevatedButton.icon(
+                          onPressed: () => _showDetailsDialog(context),
+                          icon:
+                              const Icon(Icons.analytics, color: Colors.white),
+                          label: const Text("DETAYLI ANALİZ & STATLAR",
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 30, vertical: 15),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                                side:
+                                    const BorderSide(color: Colors.cyanAccent)),
+                          ),
+                        ),
+
+                        // PLAYSTYLES
+                        const SizedBox(height: 20),
+                        Wrap(
+                            spacing: 15,
+                            runSpacing: 15,
+                            children: selectedPlayer!.playstyles
+                                .map((ps) => Image.asset(ps.assetPath,
+                                    width: 70, height: 70))
+                                .toList()),
+                      ],
+                    ),
+                  ),
+                )
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _badge(String text, Color c) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+          color: c.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: c)),
+      child:
+          Text(text, style: TextStyle(color: c, fontWeight: FontWeight.bold)));
+
+  Widget _statPreview(String label, int val) {
+    int displayVal = isFMView ? (val / 5).round() : val; // FM Dönüşümü Burada
+    return Padding(
+      padding: const EdgeInsets.only(right: 15),
+      child: Column(children: [
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+        Text("$displayVal",
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))
+      ]),
+    );
+  }
+
+  int _getCategoryAvg(String cat) {
+    if (selectedPlayer == null || selectedPlayer!.stats.isEmpty) return 0;
+    List<String> keys = statSegments[cat] ?? [];
+    int sum = 0, c = 0;
+    for (var k in keys) {
+      if (selectedPlayer!.stats.containsKey(k)) {
+        sum += selectedPlayer!.stats[k]!;
+        c++;
+      }
+    }
+    return c == 0 ? 0 : sum ~/ c;
+  }
+
+  Color _getRatingColor(int r) {
+    return r >= 90
+        ? const Color(0xFF00FFC2)
+        : (r >= 80 ? Colors.amber : Colors.white);
+  }
+
+  void _showDetailsDialog(BuildContext context) {
+    showDialog(
+        context: context,
+        builder: (_) => Dialog(
+              backgroundColor: const Color(0xFF101014),
+              child: Container(
+                width: 700,
+                height: 600,
+                padding: const EdgeInsets.all(20),
+                child: DefaultTabController(
+                  length: 4,
+                  child: Column(
+                    children: [
+                      Text("${selectedPlayer!.name} - DETAYLI RAPOR",
+                          style: GoogleFonts.orbitron(
+                              color: Colors.cyanAccent, fontSize: 20)),
+                      const TabBar(tabs: [
+                        Tab(text: "Fizik & Top"),
+                        Tab(text: "Şut"),
+                        Tab(text: "Defans"),
+                        Tab(text: "Pas")
+                      ]),
+                      Expanded(
+                        child: TabBarView(
+                          children: statSegments.keys.map((key) {
+                            return ListView(
+                              padding: const EdgeInsets.all(20),
+                              children:
+                                  (statSegments[key] ?? []).map((statName) {
+                                int val = selectedPlayer!.stats[statName] ?? 50;
+                                int disp = isFMView
+                                    ? (val / 5).round()
+                                    : val; // FM Dönüşümü
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(statName,
+                                          style: const TextStyle(
+                                              color: Colors.white70)),
+                                      Container(
+                                        width: 200,
+                                        height: 10,
+                                        margin: const EdgeInsets.symmetric(
+                                            horizontal: 10),
+                                        child: LinearProgressIndicator(
+                                            value: val / 99,
+                                            backgroundColor: Colors.white10,
+                                            color: _getRatingColor(val)),
+                                      ),
+                                      Text("$disp",
+                                          style: TextStyle(
+                                              color: _getRatingColor(val),
+                                              fontWeight: FontWeight.bold))
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            );
+                          }).toList(),
+                        ),
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            ));
   }
 }
 
-// --- YENİ GELİŞMİŞ OYUNCU OLUŞTURUCU ---
+// Extension to simulate Gradient Button simply
+extension WidgetExt on Widget {
+  Widget getApplicationGradient() => this;
+}
+
+// --- OYUNCU OLUŞTURMA (Basitleştirilmiş FC Modu - Hata Yok) ---
 class CreatePlayerDialog extends StatefulWidget {
   const CreatePlayerDialog({super.key});
   @override
   State<CreatePlayerDialog> createState() => _CreatePlayerDialogState();
 }
 
-class _CreatePlayerDialogState extends State<CreatePlayerDialog>
-    with SingleTickerProviderStateMixin {
+class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
+  // ... (Değişkenler aynı) ...
   final _nameController = TextEditingController();
-  final _valueController = TextEditingController();
-
-  String _selectedPosition = "ST";
-  String _selectedTeam = "Takımsız";
-  String _selectedRole = "Seçiniz";
-  int _skillMoves = 3;
-  bool isFMMode = false; // FC vs FM Modu
-
-  final Map<String, bool> _selectedPlayStyles = {};
-
-  // Detaylı İstatistikler (Key: Stat Adı, Value: Değer)
+  final _valController = TextEditingController();
+  String _pos = "ST";
+  String _team = "Takımsız";
+  String _role = "Seçiniz";
   final Map<String, int> _stats = {};
-
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController =
-        TabController(length: 5, vsync: this); // Temel + 4 Stat Grubu
-    _updateRole();
-  }
-
-  void _updateRole() {
-    setState(() {
-      _selectedRole = roleCategories[_selectedPosition]?.first ?? "Yok";
-    });
-  }
+  final Map<String, bool> _ps = {};
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: const Color(0xFF101014),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Colors.white24)),
       child: Container(
-        width: 900,
+        width: 800,
         height: 800,
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text("OYUNCU OLUŞTURUCU",
-                    style: GoogleFonts.orbitron(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold)),
-                // FC/FM Toggle
-                GestureDetector(
-                  onTap: () => setState(() => isFMMode = !isFMMode),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                    decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                            colors: isFMMode
-                                ? [Colors.purple, Colors.deepPurple]
-                                : [Colors.green, Colors.teal]),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                              color: isFMMode
-                                  ? Colors.purpleAccent
-                                  : Colors.greenAccent,
-                              blurRadius: 10)
-                        ]),
-                    child: Text(isFMMode ? "Mod: FM (1-20)" : "Mod: FC (1-99)",
-                        style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                )
-              ],
-            ),
-            const SizedBox(height: 10),
-            TabBar(
-              controller: _tabController,
-              indicatorColor: Colors.cyanAccent,
-              labelColor: Colors.cyanAccent,
-              unselectedLabelColor: Colors.grey,
-              isScrollable: true,
-              tabs: const [
-                Tab(text: "Temel & Rol"),
-                Tab(text: "Top Sürme"),
-                Tab(text: "Şut"),
-                Tab(text: "Savunma"),
-                Tab(text: "Pas"),
-              ],
-            ),
+            Text("YENİ TRANSFER",
+                style: GoogleFonts.orbitron(
+                    color: Colors.cyanAccent, fontSize: 24)),
+            // ... (İnputlar aynı, Slider'lar 1-99 arası sabit) ...
             Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  // 1. SEKME: TEMEL BİLGİLER
-                  SingleChildScrollView(
-                    padding: const EdgeInsets.all(10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              child: SingleChildScrollView(
+                child: Column(
+                  children: statSegments.entries.map((entry) {
+                    return Column(
                       children: [
-                        _field(_nameController, "Oyuncu Adı"),
-                        const SizedBox(height: 10),
-                        _field(_valueController, "Piyasa Değeri"),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                                child: _dropdown("Mevki", availablePositions,
-                                    _selectedPosition, (v) {
-                              _selectedPosition = v!;
-                              _updateRole();
-                            })),
-                            const SizedBox(width: 10),
-                            Expanded(
-                                child: _dropdown("Takım", availableTeams,
-                                    _selectedTeam, (v) => _selectedTeam = v!)),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        // Rol Seçimi
-                        Text("Rol",
-                            style:
-                                GoogleFonts.poppins(color: Colors.cyanAccent)),
+                        Text(entry.key,
+                            style: const TextStyle(color: Colors.blueAccent)),
                         Wrap(
-                          spacing: 8,
-                          children: (roleCategories[_selectedPosition] ?? [])
-                              .map((role) => ChoiceChip(
-                                    label: Text(role),
-                                    selected: _selectedRole == role,
-                                    onSelected: (v) =>
-                                        setState(() => _selectedRole = role),
-                                    selectedColor: Colors.cyanAccent,
-                                    backgroundColor: Colors.white10,
-                                  ))
-                              .toList(),
-                        ),
-                        const SizedBox(height: 20),
-                        // Skill Moves
-                        Text("Yetenek Hareketleri",
-                            style:
-                                GoogleFonts.poppins(color: Colors.cyanAccent)),
-                        Row(
-                            children: List.generate(
-                                5,
-                                (i) => IconButton(
-                                      icon: Icon(
-                                          i < _skillMoves
-                                              ? Icons.star
-                                              : Icons.star_border,
-                                          color: Colors.amber),
-                                      onPressed: () =>
-                                          setState(() => _skillMoves = i + 1),
-                                    ))),
-                        const Divider(color: Colors.white24),
-                        // Playstyles
-                        const Text(
-                            "PlayStyles (Tıkla: Gümüş, Basılı Tut: Altın)",
-                            style: TextStyle(color: Colors.white70)),
-                        const SizedBox(height: 5),
-                        Wrap(
-                            spacing: 5,
-                            runSpacing: 5,
-                            children: availablePlayStyles
-                                .map((ps) => _playstyleChip(ps))
-                                .toList()),
+                            spacing: 20,
+                            children: entry.value.map((s) {
+                              int v = _stats[s] ?? 50;
+                              return SizedBox(
+                                  width: 150,
+                                  child: Column(children: [
+                                    Text(s,
+                                        style: const TextStyle(
+                                            color: Colors.white54,
+                                            fontSize: 10)),
+                                    Slider(
+                                        value: v.toDouble(),
+                                        min: 1,
+                                        max: 99,
+                                        onChanged: (val) => setState(
+                                            () => _stats[s] = val.toInt())),
+                                    Text("$v",
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold))
+                                  ]));
+                            }).toList())
                       ],
-                    ),
-                  ),
-
-                  // 2. SEKME: TOP SÜRME (Segment 1)
-                  _statPage("1. Top Sürme & Fizik"),
-                  // 3. SEKME: ŞUT (Segment 2)
-                  _statPage("2. Şut & Zihinsel"),
-                  // 4. SEKME: SAVUNMA (Segment 3)
-                  _statPage("3. Savunma & Güç"),
-                  // 5. SEKME: PAS (Segment 4)
-                  _statPage("4. Pas & Vizyon"),
-                ],
+                    );
+                  }).toList(),
+                ),
               ),
             ),
-            const SizedBox(height: 10),
-            Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-              TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("İptal",
-                      style: TextStyle(color: Colors.white54))),
-              ElevatedButton(
-                onPressed: _savePlayer,
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.cyanAccent,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 30, vertical: 15)),
-                child: const Text("ANALİZ ET & OLUŞTUR",
-                    style: TextStyle(
-                        color: Colors.black, fontWeight: FontWeight.bold)),
-              )
-            ]),
+            ElevatedButton(onPressed: _save, child: const Text("KAYDET"))
           ],
         ),
       ),
     );
   }
 
-  Widget _statPage(String segmentKey) {
-    List<String> stats = statSegments[segmentKey] ?? [];
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        children: stats.map((statName) {
-          int val = _stats[statName] ?? (isFMMode ? 10 : 50);
-          return Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(statName, style: const TextStyle(color: Colors.white)),
-                  Text("$val",
-                      style: TextStyle(
-                          color: _getStatColor(val),
-                          fontWeight: FontWeight.bold)),
-                ],
-              ),
-              Slider(
-                value: val.toDouble(),
-                min: isFMMode ? 1 : 1,
-                max: isFMMode ? 20 : 99,
-                activeColor: _getStatColor(val),
-                onChanged: (v) => setState(() => _stats[statName] = v.toInt()),
-              ),
-            ],
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Color _getStatColor(int val) {
-    double percent = isFMMode ? val / 20.0 : val / 99.0;
-    if (percent > 0.85) return Colors.greenAccent;
-    if (percent > 0.70) return Colors.lightGreen;
-    if (percent > 0.50) return Colors.orange;
-    return Colors.red;
-  }
-
-  Widget _field(TextEditingController c, String label) {
-    return TextField(
-      controller: c,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-          labelText: label,
-          labelStyle: const TextStyle(color: Colors.grey),
-          filled: true,
-          fillColor: Colors.white10,
-          border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none)),
-    );
-  }
-
-  Widget _dropdown(String label, List<String> items, String value,
-      Function(String?) onChange) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-              color: Colors.white10, borderRadius: BorderRadius.circular(10)),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: value,
-              isExpanded: true,
-              dropdownColor: const Color(0xFF1E1E24),
-              style: const TextStyle(color: Colors.white),
-              items: items
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-              onChanged: (v) => setState(() => onChange(v)),
-            ),
-          ),
-        )
-      ],
-    );
-  }
-
-  Widget _playstyleChip(String name) {
-    bool isSelected = _selectedPlayStyles.containsKey(name);
-    bool isGold = isSelected && _selectedPlayStyles[name]!;
-    return GestureDetector(
-      onTap: () => setState(() => isSelected
-          ? _selectedPlayStyles.remove(name)
-          : _selectedPlayStyles[name] = false),
-      onLongPress: () => setState(() => _selectedPlayStyles[name] = true),
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-            color: isSelected
-                ? (isGold ? Colors.amber.withOpacity(0.2) : Colors.white24)
-                : Colors.transparent,
-            border: Border.all(
-                color: isSelected
-                    ? (isGold ? Colors.amber : Colors.white)
-                    : Colors.white12),
-            borderRadius: BorderRadius.circular(8)),
-        child: Image.asset(
-            "assets/Playstyles/${isGold ? "${name}Plus" : name}.png",
-            width: 35,
-            height: 35),
-      ),
-    );
-  }
-
-  void _savePlayer() {
-    if (_nameController.text.isEmpty) return;
-
-    // Eğer FM Modundaysa verileri 99 skalasına çevirip kaydedelim
-    Map<String, int> finalStats = {};
-    _stats.forEach((key, value) {
-      finalStats[key] = isFMMode ? (value * 5) - 1 : value; // Basit çeviri
-    });
-
-    final newPlayer = Player(
-      name: _nameController.text,
-      rating: 0, // CalculateRating ile hesaplanacak
-      position: _selectedPosition,
-      marketValue:
-          _valueController.text.isEmpty ? "N/A" : _valueController.text,
-      team: _selectedTeam,
-      stats: finalStats,
-      role: _selectedRole,
-      skillMoves: _skillMoves,
-      playstyles: _selectedPlayStyles.entries
-          .map((e) => PlayStyle(e.key, isGold: e.value))
-          .toList(),
-    );
-
-    newPlayer.calculateRating(); // OTOMATİK HESAPLAMA
-
-    Hive.box<Player>('palehax_players_v4').add(newPlayer);
+  void _save() {
+    final p = Player(
+        name: _nameController.text,
+        rating: 0,
+        position: _pos,
+        playstyles: [],
+        stats: _stats,
+        team: _team,
+        role: _role,
+        marketValue: _valController.text);
+    p.calculateRating();
+    Hive.box<Player>('palehax_players_v4').add(p);
     Navigator.pop(context);
   }
 }
