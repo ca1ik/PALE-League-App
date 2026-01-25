@@ -15,12 +15,13 @@ class StrategyMakerModule extends StatefulWidget {
 class _StrategyMakerModuleState extends State<StrategyMakerModule> {
   bool isEditing = false;
   bool isHorizontal = true;
-  bool isStraightLine = true; // Default: Düz Ok
+  bool isStraightLine = true;
   bool showOpponent = false;
   int pitchStyle = 0;
   Color arrowColor = Colors.yellow;
   Color team1Color = Colors.red;
   Color team2Color = Colors.blue;
+  double playerSize = 40.0; // Slider ile değişen temel boyut
 
   List<StrategyPlayer> team1 = [];
   List<StrategyPlayer> team2 = [];
@@ -29,7 +30,6 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
   List<DraggableText> texts = [];
   List<String> undoStack = [];
   List<String> redoStack = [];
-
   late Box<StrategyModel> strategyBox;
 
   @override
@@ -47,12 +47,12 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
   void _resetPlayers() {
     team1 = [
       StrategyPlayer(id: "t1_1", number: 1, pos: const Offset(0.05, 0.5)),
-      StrategyPlayer(id: "t1_3", number: 3, pos: const Offset(0.25, 0.2)),
-      StrategyPlayer(id: "t1_6", number: 6, pos: const Offset(0.25, 0.8)),
-      StrategyPlayer(id: "t1_10", number: 10, pos: const Offset(0.45, 0.5)),
-      StrategyPlayer(id: "t1_7", number: 7, pos: const Offset(0.70, 0.1)),
-      StrategyPlayer(id: "t1_11", number: 11, pos: const Offset(0.70, 0.9)),
-      StrategyPlayer(id: "t1_9", number: 9, pos: const Offset(0.85, 0.5)),
+      StrategyPlayer(id: "t1_3", number: 3, pos: const Offset(0.20, 0.3)),
+      StrategyPlayer(id: "t1_6", number: 6, pos: const Offset(0.20, 0.7)),
+      StrategyPlayer(id: "t1_10", number: 10, pos: const Offset(0.40, 0.5)),
+      StrategyPlayer(id: "t1_7", number: 7, pos: const Offset(0.60, 0.2)),
+      StrategyPlayer(id: "t1_11", number: 11, pos: const Offset(0.60, 0.8)),
+      StrategyPlayer(id: "t1_9", number: 9, pos: const Offset(0.75, 0.5)),
     ];
     team2 = List.generate(
         7,
@@ -63,8 +63,8 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
   }
 
   // --- KAYIT & UNDO ---
-  void _saveStateForUndo() {
-    final state = jsonEncode({
+  String _getCurrentStateJson() {
+    return jsonEncode({
       't1': team1
           .map((e) =>
               {'id': e.id, 'n': e.number, 'dx': e.pos.dx, 'dy': e.pos.dy})
@@ -83,24 +83,13 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
           .map((e) =>
               {'id': e.id, 'txt': e.text, 'dx': e.pos.dx, 'dy': e.pos.dy})
           .toList(),
+      'opts': {
+        'opp': showOpponent,
+        'pitch': pitchStyle,
+        'hor': isHorizontal,
+        'sz': playerSize
+      }
     });
-    undoStack.add(state);
-    if (undoStack.length > 20) undoStack.removeAt(0);
-    redoStack.clear();
-  }
-
-  void _undo() {
-    if (undoStack.isNotEmpty) {
-      redoStack.add(undoStack.last);
-      _loadState(undoStack.removeLast());
-    }
-  }
-
-  void _redo() {
-    if (redoStack.isNotEmpty) {
-      undoStack.add(redoStack.last);
-      _loadState(redoStack.removeLast());
-    }
   }
 
   void _loadState(String jsonStr) {
@@ -127,9 +116,35 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
               .map((e) => DraggableText(
                   id: e['id'], text: e['txt'], pos: Offset(e['dx'], e['dy'])))
               .toList();
+        if (d['opts'] != null) {
+          showOpponent = d['opts']['opp'] ?? false;
+          pitchStyle = d['opts']['pitch'] ?? 0;
+          isHorizontal = d['opts']['hor'] ?? true;
+          playerSize = d['opts']['sz'] ?? 40.0;
+        }
       });
     } catch (e) {
       debugPrint("Load Err: $e");
+    }
+  }
+
+  void _saveStateForUndo() {
+    undoStack.add(_getCurrentStateJson());
+    if (undoStack.length > 20) undoStack.removeAt(0);
+    redoStack.clear();
+  }
+
+  void _undo() {
+    if (undoStack.isNotEmpty) {
+      redoStack.add(_getCurrentStateJson());
+      _loadState(undoStack.removeLast());
+    }
+  }
+
+  void _redo() {
+    if (redoStack.isNotEmpty) {
+      undoStack.add(_getCurrentStateJson());
+      _loadState(redoStack.removeLast());
     }
   }
 
@@ -145,7 +160,6 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
     );
   }
 
-  // --- LİSTE GÖRÜNÜMÜ ---
   Widget _buildList() {
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -216,7 +230,6 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
     );
   }
 
-  // --- EDİTÖR GÖRÜNÜMÜ ---
   Widget _buildEditor() {
     return LayoutBuilder(builder: (context, constraints) {
       return Row(children: [
@@ -349,7 +362,14 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
               _arrBtn(Colors.white),
               _arrBtn(Colors.black)
             ]),
-            const SizedBox(height: 10),
+            const SizedBox(height: 15),
+            Text("Oyuncu Boyutu", style: TextStyle(color: Colors.white54)),
+            Slider(
+                value: playerSize,
+                min: 20,
+                max: 60,
+                activeColor: Colors.cyanAccent,
+                onChanged: (v) => setState(() => playerSize = v)),
             SwitchListTile(
                 title: const Text("Yatay",
                     style: TextStyle(color: Colors.white, fontSize: 12)),
@@ -362,18 +382,27 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
     });
   }
 
+  // --- SÜRÜKLEME DÜZELTİLDİ (Lag Yok) ---
   Widget _dragItem(StrategyPlayer p, Color c, double fw, double fh) {
+    // 1 Numara (Kaleci) için %20 Büyük
+    double size = p.number == 1 ? playerSize * 1.2 : playerSize;
+
     return Positioned(
-      left: p.pos.dx * fw - 20,
-      top: p.pos.dy * fh - 20,
+      left: p.pos.dx * fw - size / 2,
+      top: p.pos.dy * fh - size / 2,
       child: GestureDetector(
         onPanStart: (_) => _saveStateForUndo(),
-        onPanUpdate: (d) => setState(() => p.pos = Offset(
-            ((p.pos.dx * fw + d.delta.dx) / fw).clamp(0.0, 1.0),
-            ((p.pos.dy * fh + d.delta.dy) / fh).clamp(0.0, 1.0))),
+        onPanUpdate: (d) {
+          setState(() {
+            // Delta'yı ekrana oranlayarak ekle, böylece fareyle 1:1 gider
+            double newDx = p.pos.dx + (d.delta.dx / fw);
+            double newDy = p.pos.dy + (d.delta.dy / fh);
+            p.pos = Offset(newDx.clamp(0.0, 1.0), newDy.clamp(0.0, 1.0));
+          });
+        },
         child: Container(
-          width: 40,
-          height: 40,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
               color: c,
               shape: BoxShape.circle,
@@ -385,7 +414,8 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
           child: Text("${p.number}",
               style: TextStyle(
                   color: c == Colors.white ? Colors.black : Colors.white,
-                  fontWeight: FontWeight.bold)),
+                  fontWeight: FontWeight.bold,
+                  fontSize: size * 0.5)),
         ),
       ),
     );
@@ -478,7 +508,6 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
   }
 }
 
-// --- YARDIMCI SINIFLAR ---
 class StrategyPlayer {
   String id;
   int number;
@@ -499,7 +528,6 @@ class DraggableText {
   DraggableText({required this.id, required this.text, required this.pos});
 }
 
-// --- SAHA RESSAMI (Gelişmiş) ---
 class PitchPainter extends CustomPainter {
   final Color color;
   PitchPainter({required this.color});
@@ -509,20 +537,15 @@ class PitchPainter extends CustomPainter {
       ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
-    c.drawRect(Rect.fromLTWH(0, 0, s.width, s.height), p); // Dış
-    c.drawLine(
-        Offset(s.width / 2, 0), Offset(s.width / 2, s.height), p); // Orta Saha
-    c.drawCircle(
-        Offset(s.width / 2, s.height / 2), s.height * 0.12, p); // Orta Yuvarlak
-    // Ceza Sahaları
+    c.drawRect(Rect.fromLTWH(0, 0, s.width, s.height), p);
+    c.drawLine(Offset(s.width / 2, 0), Offset(s.width / 2, s.height), p);
+    c.drawCircle(Offset(s.width / 2, s.height / 2), s.height * 0.12, p);
     double bh = s.height * 0.5, bw = s.width * 0.16, ty = (s.height - bh) / 2;
     c.drawRect(Rect.fromLTWH(0, ty, bw, bh), p);
     c.drawRect(Rect.fromLTWH(s.width - bw, ty, bw, bh), p);
-    // Altıpas
     double sh = s.height * 0.25, sw = s.width * 0.06, sty = (s.height - sh) / 2;
     c.drawRect(Rect.fromLTWH(0, sty, sw, sh), p);
     c.drawRect(Rect.fromLTWH(s.width - sw, sty, sw, sh), p);
-    // Kale
     p.strokeWidth = 4;
     c.drawLine(Offset(0, s.height * 0.45), Offset(0, s.height * 0.55), p);
     c.drawLine(
@@ -533,7 +556,6 @@ class PitchPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
-// --- OK RESSAMI ---
 class StrategyPainter extends CustomPainter {
   final List<DrawingPath> paths;
   final DrawingPath? currentPath;

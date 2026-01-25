@@ -1,6 +1,6 @@
-import 'dart:math'; // Random için
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart'; // Chart için eklendi (Eğer yoksa pubspec'e ekle veya custom çiz)
+// import 'package:fl_chart/fl_chart.dart'; // Eğer grafik paketi kurulu değilse bunu yorum satırı yapın
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
@@ -19,16 +19,50 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
   late Box<Player> playerBox;
   bool isFMView = false;
 
+  // Çeviri haritasını buraya taşıdık (HATA ÇÖZÜMÜ)
+  final Map<String, String> playStyleTranslations = {
+    "Acrobatic": "Akrobatik",
+    "AerialFortress": "Hava Hakimi",
+    "Anticipate": "Sezgi",
+    "Block": "Blok",
+    "Bruiser": "Sert",
+    "CrossClaimer": "Orta Kesici",
+    "FarReach": "Uzak Erişim",
+    "FinesseShot": "Plase",
+    "FirstTouch": "İlk Dokunuş",
+    "Footwork": "Ayak Oyunu",
+    "GameChanger": "Oyun Kurucu",
+    "IncisivePass": "Ara Pası",
+    "Intercept": "Pas Arası",
+    "Inventive": "Yaratıcı",
+    "Jockey": "Markaj",
+    "LongBallPass": "Uzun Top",
+    "PingedPass": "Adrese Teslim",
+    "PowerShot": "Sert Şut",
+    "PressProven": "Baskı Yemez",
+    "QuickStep": "Seri Adım",
+    "Rapid": "Süratli",
+    "RushOut": "Kalesini Terk",
+    "SlideTackle": "Kayarak Müdahale",
+    "Technical": "Teknik",
+    "TikiTaka": "Tiki Taka",
+    "Trickster": "Cambaz",
+    "WhippedPass": "Kavisli Pas"
+  };
+
   @override
   void initState() {
     super.initState();
+    // V4 Kutusunu açıyoruz
     playerBox = Hive.box<Player>('palehax_players_v4');
     if (playerBox.isNotEmpty) selectedPlayer = playerBox.getAt(0);
   }
 
   @override
   Widget build(BuildContext context) {
-    final lang = Provider.of<LanguageProvider>(context);
+    // Dil sağlayıcısı (kullanılmıyorsa kaldırılabilir ama yapıda vardı)
+    // final lang = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
@@ -42,12 +76,21 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
         valueListenable: playerBox.listenable(),
         builder: (context, Box<Player> box, _) {
           final players = box.values.toList();
-          if (selectedPlayer == null && players.isNotEmpty)
-            selectedPlayer = players.first;
+
+          // Veritabanı boşsa uyarı göster
+          if (players.isEmpty)
+            return const Center(
+                child: Text("Veritabanı boş. Yeni oyuncu oluşturun.",
+                    style: TextStyle(color: Colors.white)));
+
+          // Seçili oyuncu yoksa veya silindiyse ilkini seç
+          if (selectedPlayer == null || !players.contains(selectedPlayer)) {
+            if (players.isNotEmpty) selectedPlayer = players.first;
+          }
 
           return Row(
             children: [
-              // --- SOL LİSTE ---
+              // --- SOL LİSTE (OYUNCULAR) ---
               Container(
                 width: 280,
                 margin: const EdgeInsets.only(right: 20),
@@ -70,7 +113,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                           style: const TextStyle(
                               color: Colors.white, fontWeight: FontWeight.bold),
                           overflow: TextOverflow.ellipsis),
-                      subtitle: Text(p.position,
+                      subtitle: Text("${p.position} | ${p.team}",
                           style: const TextStyle(
                               color: Colors.white54, fontSize: 10)),
                     );
@@ -78,7 +121,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                 ),
               ),
 
-              // --- SAĞ PROFİL ---
+              // --- SAĞ PROFİL (DETAYLAR) ---
               if (selectedPlayer != null)
                 Expanded(
                   child: SingleChildScrollView(
@@ -90,7 +133,8 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                             alignment: Alignment.topRight,
                             children: [
                               _buildFCCard(selectedPlayer!),
-                              // Düzenle / Sil Menüsü
+
+                              // Düzenle / Sil Menüsü (Kartın sağ üstünde)
                               Padding(
                                 padding: const EdgeInsets.all(10.0),
                                 child: PopupMenuButton<String>(
@@ -101,8 +145,8 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                     if (val == 'edit')
                                       _showEditor(selectedPlayer);
                                     if (val == 'delete') {
-                                      playerBox.delete(selectedPlayer!
-                                          .key); // Hive key ile sil
+                                      // Silme işlemi
+                                      selectedPlayer!.delete();
                                       setState(() => selectedPlayer = null);
                                     }
                                   },
@@ -129,11 +173,12 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                         // --- DETAYLI ANALİZ BUTONU ---
                         ElevatedButton.icon(
                           onPressed: () => _showDetailsDialog(context),
-                          icon: const Icon(Icons.analytics_outlined),
-                          label: const Text("DETAYLI RAPOR & STATLAR"),
+                          icon: const Icon(Icons.analytics_outlined,
+                              color: Colors.white),
+                          label: const Text("DETAYLI RAPOR & STATLAR",
+                              style: TextStyle(color: Colors.white)),
                           style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white10,
-                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 40, vertical: 20),
                               shape: RoundedRectangleBorder(
@@ -219,16 +264,17 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
   // --- FC 24 TARZI KART TASARIMI ---
   Widget _buildFCCard(Player p) {
     Map<String, int> cs = p.getCardStats();
-    PlayStyle? goldPs = p.playstyles.firstWhere((ps) => ps.isGold,
-        orElse: () => PlayStyle("", isGold: false));
+    // Playstyle kontrolü (Varsa ilk gold, yoksa ilki, hiç yoksa boş)
+    PlayStyle? goldPs;
+    if (p.playstyles.isNotEmpty) {
+      goldPs = p.playstyles
+          .firstWhere((ps) => ps.isGold, orElse: () => p.playstyles.first);
+    }
 
     return Container(
       width: 320, height: 480, // Kart Boyutu
       decoration: const BoxDecoration(
-          image: DecorationImage(
-              image: AssetImage("assets/card_bg.png"),
-              fit: BoxFit.cover), // Arka plan resmi varsa
-          // Yoksa Gradient:
+          // Arka plan gradient (Kart Resmi yoksa)
           gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -262,11 +308,10 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                     style: GoogleFonts.oswald(
                         fontSize: 20, color: Colors.white70)),
                 const SizedBox(height: 5),
-                const Icon(Icons.flag,
-                    color: Colors.redAccent, size: 30), // Bayrak (Placeholder)
+                // Bayrak ve Takım (Statik ikonlar yerine dinamik yapılabilir)
+                const Icon(Icons.flag, color: Colors.redAccent, size: 30),
                 const SizedBox(height: 5),
-                const Icon(Icons.shield,
-                    color: Colors.blueAccent, size: 30), // Takım (Placeholder)
+                const Icon(Icons.shield, color: Colors.blueAccent, size: 30),
               ],
             ),
           ),
@@ -276,9 +321,9 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
             top: 30,
             right: 20,
             child: Container(
-              width: 140, height: 140,
+              width: 140,
+              height: 140,
               alignment: Alignment.center,
-              // decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.3)), // İsteğe bağlı
               child: Text("${p.kitNumber}",
                   style: GoogleFonts.russoOne(
                       fontSize: 100, color: Colors.white.withOpacity(0.8))),
@@ -307,29 +352,27 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
               children: [
                 const Divider(color: Color(0xFFD4AF37), thickness: 1),
                 const SizedBox(height: 10),
+                // Stat Satırları
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _cardStat("PAC", cs["PAC"]!),
-                    _cardStat("DRI", cs["DRI"]!),
-                  ],
-                ),
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _cardStat("PAC", cs["PAC"]!),
+                      _cardStat("DRI", cs["DRI"]!)
+                    ]),
                 const SizedBox(height: 5),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _cardStat("SHO", cs["SHO"]!),
-                    _cardStat("DEF", cs["DEF"]!),
-                  ],
-                ),
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _cardStat("SHO", cs["SHO"]!),
+                      _cardStat("DEF", cs["DEF"]!)
+                    ]),
                 const SizedBox(height: 5),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _cardStat("PAS", cs["PAS"]!),
-                    _cardStat("PHY", cs["PHY"]!),
-                  ],
-                ),
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _cardStat("PAS", cs["PAS"]!),
+                      _cardStat("PHY", cs["PHY"]!)
+                    ]),
                 const SizedBox(height: 15),
                 const Divider(color: Color(0xFFD4AF37), thickness: 1),
               ],
@@ -342,7 +385,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
             left: 20,
             child: Row(
               children: [
-                if (goldPs.name.isNotEmpty)
+                if (goldPs != null)
                   Image.asset(goldPs.assetPath,
                       width: 40,
                       height: 40,
@@ -414,19 +457,26 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                               style: GoogleFonts.orbitron(
                                   color: Colors.cyanAccent, fontSize: 24)),
                           // FM/FC Toggle
-                          SwitchListTile(
-                            title: Text(isFMView ? "FM (1-20)" : "FC (1-99)",
-                                style: const TextStyle(color: Colors.white)),
-                            value: isFMView,
-                            onChanged: (v) => setSt(() => isFMView = v),
-                          ).getApplicationGradient(), // Küçük bir hile, aşağıda extension yoksa Container ile sar
+                          Row(
+                            children: [
+                              Text(
+                                  isFMView
+                                      ? "Mod: FM (1-20)"
+                                      : "Mod: FC (1-99)",
+                                  style: const TextStyle(color: Colors.white)),
+                              Switch(
+                                  value: isFMView,
+                                  onChanged: (v) => setSt(() => isFMView = v),
+                                  activeColor: Colors.cyanAccent),
+                            ],
+                          )
                         ],
                       ),
                       const Divider(color: Colors.white24),
                       Expanded(
                         child: Row(
                           children: [
-                            // Sol: Statlar
+                            // Sol: Statlar (Kategorik)
                             Expanded(
                               child: ListView(
                                 children: statSegments.entries.map((entry) {
@@ -446,8 +496,12 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                         int val =
                                             selectedPlayer!.stats[statName] ??
                                                 50;
-                                        int displayVal =
-                                            isFMView ? (val / 5).round() : val;
+                                        // FM Dönüşümü (99 üzerinden 20'ye)
+                                        int displayVal = isFMView
+                                            ? (val / 99 * 20)
+                                                .round()
+                                                .clamp(1, 20)
+                                            : val;
                                         return Row(
                                           children: [
                                             Expanded(
@@ -500,7 +554,11 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                                       return Column(
                                         children: [
                                           Image.asset(ps.assetPath,
-                                              width: 50, height: 50),
+                                              width: 50,
+                                              height: 50,
+                                              errorBuilder: (c, e, s) =>
+                                                  const Icon(Icons.star,
+                                                      color: Colors.white)),
                                           Text(
                                               playStyleTranslations[ps.name] ??
                                                   ps.name,
@@ -542,11 +600,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
   }
 }
 
-extension Ext on Widget {
-  Widget getApplicationGradient() => SizedBox(width: 150, child: this);
-} // Basit wrapper
-
-// --- OYUNCU OLUŞTURMA / DÜZENLEME ---
+// --- OYUNCU OLUŞTURMA / DÜZENLEME FORMU ---
 class CreatePlayerDialog extends StatefulWidget {
   final Player? playerToEdit;
   const CreatePlayerDialog({super.key, this.playerToEdit});
@@ -571,7 +625,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
     if (widget.playerToEdit != null) {
-      // Düzenleme Modu: Verileri Doldur
+      // Düzenleme: Verileri Çek
       var p = widget.playerToEdit!;
       _nameController.text = p.name;
       _valueController.text = p.marketValue;
@@ -582,7 +636,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
       _stats.addAll(p.stats);
       for (var style in p.playstyles) _ps[style.name] = style.isGold;
     } else {
-      // Yeni Oyuncu: Varsayılan Statlar
+      // Yeni: Varsayılan
       for (var list in statSegments.values) for (var s in list) _stats[s] = 50;
     }
   }
@@ -624,7 +678,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  // 1. KİMLİK
+                  // 1. KİMLİK TABI
                   SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -648,13 +702,14 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                                   _pos,
                                   (v) => setState(() {
                                         _pos = v!;
-                                        _role = roleCategories[_pos]!.first;
+                                        _role = roleCategories[_pos]?.first ??
+                                            "Yok";
                                       }))),
                           const SizedBox(width: 10),
                           Expanded(
                               child: _dropdown(
                                   "Rol",
-                                  roleCategories[_pos] ?? [],
+                                  roleCategories[_pos] ?? ["Yok"],
                                   _role,
                                   (v) => _role = v!))
                         ]),
@@ -686,7 +741,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                       ],
                     ),
                   ),
-                  // 2-5 STATLAR
+                  // 2-5 STAT TABLARI
                   _statPage("1. Top Sürme & Fizik"),
                   _statPage("2. Şut & Zihinsel"),
                   _statPage("3. Savunma & Güç"),
@@ -716,7 +771,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
       child: Wrap(
         spacing: 30,
         runSpacing: 20,
-        children: statSegments[key]!.map((s) {
+        children: (statSegments[key] ?? []).map((s) {
           return SizedBox(
               width: 200,
               child: Column(children: [

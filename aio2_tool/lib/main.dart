@@ -37,39 +37,31 @@ import 'modules/extras_module.dart';
 import 'modules/keyboard_module.dart';
 import 'modules/turkey_map_module.dart';
 import 'modules/palehax_players_view.dart';
-import 'modules/strategy_maker_module.dart'; // YENİ EKLENDİ
+import 'modules/strategy_maker_module.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    // 1. Hive Başlatma
     await Hive.initFlutter();
 
-    // 2. Adapterleri Kaydet (Sıralama önemli)
+    // Adapter Kayıtları
     Hive.registerAdapter(PlayerAdapter());
     Hive.registerAdapter(PlayStyleAdapter());
     Hive.registerAdapter(MatchStatAdapter());
-    Hive.registerAdapter(StrategyAdapter()); // YENİ: Strateji Adapteri
+    Hive.registerAdapter(StrategyAdapter());
 
-    // 3. Kutuları Aç
     await Hive.openBox('natroff_memory');
-    await Hive.openBox<StrategyModel>(
-        'palehax_strategies'); // YENİ: Taktik Kutusu
-
-    // Veri Modeli V4'e geçtiği için kutu ismini güncelledik (Eski hatalı verilerden kaçış)
+    await Hive.openBox<StrategyModel>('palehax_strategies');
     var playerBox = await Hive.openBox<Player>('palehax_players_v4');
 
-    // 4. Varsayılan Veri Kontrolü
     if (playerBox.isEmpty) {
       await playerBox.addAll(defaultPlayers);
-      debugPrint("Varsayılan oyuncu verileri (V4) yüklendi.");
     }
   } catch (e) {
     debugPrint("Veritabanı Başlatma Hatası: $e");
   }
 
-  // Pencere Ayarları
   await windowManager.ensureInitialized();
   WindowOptions windowOptions = const WindowOptions(
     size: Size(1280, 850),
@@ -217,7 +209,6 @@ class _MainWindowState extends State<MainWindow> {
 
     int activeIdx = _history[_historyIndex];
 
-    // --- SAYFA LİSTESİ ---
     final List<Widget> pages = [
       // UPGRADE (0-13)
       const ResolutionModule(), // 0
@@ -237,9 +228,8 @@ class _MainWindowState extends State<MainWindow> {
 
       // PALEHAX (14-22)
       const WebviewModule(url: "https://palehaxball.com/"), // 14
-      const PaleHaxPlayersView(), // 15: OYUNCULAR
+      const PaleHaxPlayersView(), // 15
       const WebviewModule(url: "https://palehaxball.com/teams"), // 16
-
       const Center(
           child: Text("Maçlar Yakında",
               style: TextStyle(color: Colors.white, fontSize: 24))), // 17
@@ -249,12 +239,9 @@ class _MainWindowState extends State<MainWindow> {
       const Center(
           child: Text("İstatistikler",
               style: TextStyle(color: Colors.white, fontSize: 24))), // 19
-
-      // 20: Transferler
       DefaultTabController(
-        length: 2,
-        child: Column(
-          children: [
+          length: 2,
+          child: Column(children: [
             TabBar(
                 labelColor: Colors.cyanAccent,
                 unselectedLabelColor: Colors.grey,
@@ -270,22 +257,16 @@ class _MainWindowState extends State<MainWindow> {
                       style: TextStyle(color: Colors.white))),
               Center(
                   child: Text("Transfer Listesi",
-                      style: TextStyle(color: Colors.white))),
+                      style: TextStyle(color: Colors.white)))
             ]))
-          ],
-        ),
-      ),
-
-      // 21: CHALLENGE / STRATEJİ (GÜNCELLENDİ)
-      const StrategyMakerModule(),
-
-      // 22: Hall of Fame
+          ])), // 20
+      const StrategyMakerModule(), // 21: CHALLENGE / STRATEJİ
       const Center(
           child: Text("Hall of Fame 🏆",
               style: TextStyle(
                   color: Colors.amber,
                   fontSize: 32,
-                  fontWeight: FontWeight.bold))),
+                  fontWeight: FontWeight.bold))), // 22
     ];
 
     Widget activeModule = pages[activeIdx < pages.length ? activeIdx : 0];
@@ -298,8 +279,6 @@ class _MainWindowState extends State<MainWindow> {
             const Positioned.fill(child: ParticleBackground()),
           if (!uiProv.isSpatialMode && !isDark)
             Positioned.fill(child: Container(color: Colors.grey[200])),
-
-          // --- NORMAL MOD ---
           if (!uiProv.isSpatialMode)
             Column(
               children: [
@@ -317,27 +296,28 @@ class _MainWindowState extends State<MainWindow> {
                             child: Row(
                               children: [
                                 IconButton(
-                                  icon: Icon(Icons.arrow_back_ios_new_rounded,
-                                      size: 16,
-                                      color: _historyIndex > 0
-                                          ? (isDark
-                                              ? Colors.white
-                                              : Colors.black)
-                                          : Colors.grey.withOpacity(0.3)),
-                                  onPressed: _historyIndex > 0 ? _goBack : null,
-                                ),
+                                    icon: Icon(Icons.arrow_back_ios_new_rounded,
+                                        size: 16,
+                                        color: _historyIndex > 0
+                                            ? (isDark
+                                                ? Colors.white
+                                                : Colors.black)
+                                            : Colors.grey.withOpacity(0.3)),
+                                    onPressed:
+                                        _historyIndex > 0 ? _goBack : null),
                                 IconButton(
-                                  icon: Icon(Icons.arrow_forward_ios_rounded,
-                                      size: 16,
-                                      color: _historyIndex < _history.length - 1
-                                          ? (isDark
-                                              ? Colors.white
-                                              : Colors.black)
-                                          : Colors.grey.withOpacity(0.3)),
-                                  onPressed: _historyIndex < _history.length - 1
-                                      ? _goForward
-                                      : null,
-                                ),
+                                    icon: Icon(Icons.arrow_forward_ios_rounded,
+                                        size: 16,
+                                        color:
+                                            _historyIndex < _history.length - 1
+                                                ? (isDark
+                                                    ? Colors.white
+                                                    : Colors.black)
+                                                : Colors.grey.withOpacity(0.3)),
+                                    onPressed:
+                                        _historyIndex < _history.length - 1
+                                            ? _goForward
+                                            : null),
                                 const SizedBox(width: 15),
                                 Text(langProv.translate('app_title'),
                                     style: TextStyle(
@@ -351,11 +331,10 @@ class _MainWindowState extends State<MainWindow> {
                         ),
                       ),
                       IconButton(
-                        icon: Icon(Icons.settings,
-                            color: isDark ? Colors.white70 : Colors.black54,
-                            size: 20),
-                        onPressed: () => _navigateTo(13),
-                      ),
+                          icon: Icon(Icons.settings,
+                              color: isDark ? Colors.white70 : Colors.black54,
+                              size: 20),
+                          onPressed: () => _navigateTo(13)),
                       const WindowButtons(),
                     ],
                   ),
@@ -387,8 +366,6 @@ class _MainWindowState extends State<MainWindow> {
                 ),
               ],
             ),
-
-          // --- SPATIAL MOD ---
           if (uiProv.isSpatialMode) ...[
             Positioned(
                 top: 0,
@@ -399,27 +376,23 @@ class _MainWindowState extends State<MainWindow> {
                     onPanStart: (_) => windowManager.startDragging(),
                     child: Container(color: Colors.transparent))),
             MovableWindow(
-              initialX: 20,
-              initialY: 100,
-              child: SpatialSidebar(
-                  selectedIndex: activeIdx,
-                  onIndexChanged: (i) => _navigateTo(i)),
-            ),
+                initialX: 20,
+                initialY: 100,
+                child: SpatialSidebar(
+                    selectedIndex: activeIdx,
+                    onIndexChanged: (i) => _navigateTo(i))),
             MovableWindow(
-              initialX: 140,
-              initialY: 80,
-              child: GlassBox(
-                width: 900,
-                height: 650,
-                child: ClipRRect(
-                    borderRadius: BorderRadius.circular(30),
-                    child: activeModule),
-              ),
-            ),
+                initialX: 140,
+                initialY: 80,
+                child: GlassBox(
+                    width: 900,
+                    height: 650,
+                    child: ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: activeModule))),
             const Positioned(
                 top: 10, right: 10, child: WindowButtons(isSpatial: true)),
           ],
-
           uiProv.isSpatialMode
               ? MovableWindow(
                   initialX: 1000,
