@@ -4,7 +4,6 @@ import 'package:hive/hive.dart';
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
   final int typeId = 1;
-
   @override
   Player read(BinaryReader reader) {
     return Player(
@@ -14,7 +13,10 @@ class PlayerAdapter extends TypeAdapter<Player> {
       playstyles: (reader.read() as List).cast<PlayStyle>(),
       marketValue: reader.read(),
       matches: (reader.read() as List).cast<MatchStat>(),
-      team: reader.read(), // YENİ: Takım okuma
+      team: reader.read(),
+      stats: (reader.read() as Map?)?.cast<String, int>() ?? {}, // YENİ
+      role: reader.read() ?? "Yok", // YENİ
+      skillMoves: reader.read() ?? 3, // YENİ
     );
   }
 
@@ -26,7 +28,10 @@ class PlayerAdapter extends TypeAdapter<Player> {
     writer.write(obj.playstyles);
     writer.write(obj.marketValue);
     writer.write(obj.matches);
-    writer.write(obj.team); // YENİ: Takım yazma
+    writer.write(obj.team);
+    writer.write(obj.stats);
+    writer.write(obj.role);
+    writer.write(obj.skillMoves);
   }
 }
 
@@ -58,7 +63,20 @@ class MatchStatAdapter extends TypeAdapter<MatchStat> {
   }
 }
 
-// --- VERİ MODELLERİ ---
+class StrategyAdapter extends TypeAdapter<StrategyModel> {
+  @override
+  final int typeId = 4;
+  @override
+  StrategyModel read(BinaryReader reader) =>
+      StrategyModel(name: reader.read(), jsonData: reader.read());
+  @override
+  void write(BinaryWriter writer, StrategyModel obj) {
+    writer.write(obj.name);
+    writer.write(obj.jsonData);
+  }
+}
+
+// --- MODELLER ---
 class PlayStyle {
   final String name;
   final bool isGold;
@@ -75,14 +93,24 @@ class MatchStat {
   MatchStat(this.opponent, this.score, this.goals, this.assists);
 }
 
+class StrategyModel {
+  final String name;
+  final String
+      jsonData; // Oyuncu pozisyonları ve okları JSON string olarak tutacağız
+  StrategyModel({required this.name, required this.jsonData});
+}
+
 class Player {
   final String name;
-  final int rating;
+  int rating; // Artık hesaplanabilir olduğu için final değil
   final String position;
   final List<PlayStyle> playstyles;
   final String marketValue;
   final List<MatchStat> matches;
-  final String team; // YENİ ALAN
+  final String team;
+  final Map<String, int> stats; // Detaylı İstatistikler (0-99)
+  final String role; // Seçilen Rol
+  final int skillMoves; // 1-5 Yıldız
 
   Player({
     required this.name,
@@ -91,7 +119,10 @@ class Player {
     required this.playstyles,
     this.marketValue = "N/A",
     this.matches = const [],
-    this.team = "Takımsız", // Varsayılan
+    this.team = "Takımsız",
+    this.stats = const {},
+    this.role = "Yok",
+    this.skillMoves = 3,
   });
 
   int get kitNumber {
@@ -114,9 +145,131 @@ class Player {
         return 99;
     }
   }
+
+  // --- REYTİNG HESAPLAMA ALGORİTMASI ---
+  void calculateRating() {
+    if (stats.isEmpty) return;
+
+    // Ağırlıklar (Mevkiye göre)
+    double wPace = 1.0, wShoot = 1.0, wPass = 1.0, wDrib = 1.0, wDef = 1.0;
+
+    if (position == "GK") {
+      // Kaleci algoritması (Basitleştirilmiş: Refleksler vs stats içinde olmadığı için genel ortalama)
+      rating = stats.values.reduce((a, b) => a + b) ~/ stats.length;
+      return;
+    } else if (["CB", "LB", "RB", "CDM"].contains(position)) {
+      wDef = 2.0;
+      wPace = 1.2;
+      wPass = 1.1;
+      wShoot = 0.5;
+      wDrib = 0.8;
+    } else if (["CM", "CAM"].contains(position)) {
+      wPass = 2.0;
+      wDrib = 1.5;
+      wShoot = 1.2;
+      wPace = 1.0;
+      wDef = 0.8;
+    } else if (["LW", "RW", "ST"].contains(position)) {
+      wShoot = 2.0;
+      wPace = 1.5;
+      wDrib = 1.5;
+      wPass = 1.0;
+      wDef = 0.2;
+    }
+
+    // Kategorik Ortalamalar
+    double avgPace = _getAvg(["Hız", "Hızlanma", "Çeviklik", "Denge"]);
+    double avgShoot =
+        _getAvg(["Bitiricilik", "Şut Gücü", "Pozisyon Alma", "Uzaktan Şut"]);
+    double avgPass = _getAvg(["Pas", "Ara Pas", "Görüş", "Orta Yapma"]);
+    double avgDrib =
+        _getAvg(["Top Sürme", "Top Kontrolü", "Teknik", "Soğukkanlılık"]);
+    double avgDef = _getAvg(["Top Kapma", "Markaj", "Güç", "Saldırganlık"]);
+
+    double totalScore = (avgPace * wPace) +
+        (avgShoot * wShoot) +
+        (avgPass * wPass) +
+        (avgDrib * wDrib) +
+        (avgDef * wDef);
+    double totalWeight = wPace + wShoot + wPass + wDrib + wDef;
+
+    rating = (totalScore / totalWeight).round().clamp(1, 99);
+  }
+
+  double _getAvg(List<String> keys) {
+    int sum = 0;
+    int count = 0;
+    for (var key in keys) {
+      if (stats.containsKey(key)) {
+        sum += stats[key]!;
+        count++;
+      }
+    }
+    return count == 0 ? 50 : sum / count;
+  }
 }
 
-// --- TAKIM LİSTESİ (Resimden alındı) ---
+// --- STATİK VERİLER ---
+final Map<String, List<String>> roleCategories = {
+  "GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
+  "CB": ["Çok Yönlü", "Oyun Kurucu Stoper", "Savunmatik"],
+  "LB": ["Kanat Bek", "Hücum Bek", "Çok Yönlü"],
+  "RB": ["Kanat Bek", "Hücum Bek", "Çok Yönlü"],
+  "CDM": ["Tutucu", "Derin Oyun Kurucu", "Savaşçı"],
+  "CM": ["Box to Box", "Oyun Kurucu", "Mezzala"],
+  "CAM": ["Oyun Kurucu", "Gölge Forvet", "Enganche"],
+  "LW": ["İç Forvet", "Kanat Oyuncusu", "Yırtıcı Kanat"],
+  "RW": ["İç Forvet", "Kanat Oyuncusu", "Yırtıcı Kanat"],
+  "ST": [
+    "Hedef Forvet",
+    "Gizli Forvet",
+    "Avcı Forvet",
+    "Yanlış 9",
+    "Yırtıcı Forvet"
+  ],
+};
+
+final Map<String, List<String>> statSegments = {
+  "1. Top Sürme & Fizik": [
+    "Hız",
+    "Hızlanma",
+    "Çeviklik",
+    "Denge",
+    "Top Sürme",
+    "Duvar Kabiliyeti"
+  ],
+  "2. Şut & Zihinsel": [
+    "Şut Gücü",
+    "Pozisyon Alma",
+    "Bitiricilik",
+    "Uzaktan Şut",
+    "Soğukkanlılık"
+  ],
+  "3. Savunma & Güç": [
+    "Top Kapma",
+    "Savunma Farkındalığı",
+    "Sert Duruş",
+    "Güç",
+    "Saldırganlık",
+    "Markaj"
+  ],
+  "4. Pas & Vizyon": [
+    "Pas",
+    "Ara Pas",
+    "Takım Oyunu",
+    "Görüş",
+    "Topsuz Alan",
+    "Karar Alma",
+    "Orta Yapma",
+    "Top Kontrolü"
+  ],
+};
+
+// Varsayılan oyuncular (Eski liste korundu)
+final List<Player> defaultPlayers = [
+  // ... Eski oyuncu listesi (stats boş olarak gelir, sorun değil) ...
+];
+
 final List<String> availableTeams = [
   "Takımsız",
   "Livorno",
@@ -135,114 +288,35 @@ final List<String> availableTeams = [
   "Juventus",
   "Theis FC"
 ];
-
-// --- VARSAYILAN OYUNCULAR ---
-final List<Player> defaultPlayers = [
-  Player(
-    name: "Ronaldo Иazário de Lima",
-    rating: 94,
-    position: "LW",
-    marketValue: "120M €",
-    team: "Takımsız", // İSTEK
-    matches: [
-      MatchStat("Barcelona", "3-1", 1, 2),
-      MatchStat("Real Madrid", "2-2", 0, 2),
-      MatchStat("Juventus", "2-0", 2, 0),
-      MatchStat("Milan", "4-3", 1, 2),
-      MatchStat("Inter", "2-1", 1, 1)
-    ],
-    playstyles: [
-      PlayStyle("Trickster", isGold: true),
-      PlayStyle("Technical"), PlayStyle("Rapid"), PlayStyle("QuickStep"),
-      PlayStyle("FirstTouch"), PlayStyle("FinesseShot"),
-      PlayStyle("PowerShot"), // DÜZELTİLDİ
-      PlayStyle("Acrobatic"), PlayStyle("GameChanger"), PlayStyle("PingedPass"),
-    ],
-  ),
-  Player(
-    name: "Restes",
-    rating: 83,
-    position: "GK",
-    marketValue: "45M €",
-    team: "Toulouse", // İSTEK
-    matches: [MatchStat("Lyon", "1-0", 0, 0), MatchStat("PSG", "0-3", 0, 0)],
-    playstyles: [
-      PlayStyle("FarReach", isGold: true),
-      PlayStyle("RushOut"),
-      PlayStyle("Jockey"),
-      PlayStyle("LongBallPass")
-    ],
-  ),
-  Player(
-    name: "Sung",
-    rating: 94,
-    position: "ST",
-    marketValue: "110M €",
-    team: "Toulouse", // İSTEK
-    matches: [
-      MatchStat("Bayern", "1-1", 1, 0),
-      MatchStat("Dortmund", "3-0", 2, 1)
-    ],
-    playstyles: [
-      PlayStyle("GameChanger", isGold: true),
-      PlayStyle("Technical"),
-      PlayStyle("FirstTouch"),
-      PlayStyle("TikiTaka"),
-      PlayStyle("FinesseShot"),
-      PlayStyle("PingedPass"),
-      PlayStyle("IncisivePass"),
-      PlayStyle("PressProven"),
-      PlayStyle("AerialFortress")
-    ],
-  ),
-  Player(
-    name: "Sauron",
-    rating: 89,
-    position: "CB",
-    marketValue: "85M €",
-    team: "Fenerbahçe", // İSTEK
-    playstyles: [
-      PlayStyle("Jockey", isGold: true),
-      PlayStyle("PingedPass"),
-      PlayStyle("TikiTaka"),
-      PlayStyle("Intercept"),
-      PlayStyle("Anticipate"),
-      PlayStyle("Bruiser")
-    ],
-  ),
-  Player(
-    name: "MADRICHAA",
-    rating: 95,
-    position: "RW",
-    marketValue: "150M €",
-    team: "Maximilian", // İSTEK
-    playstyles: [
-      PlayStyle("Rapid", isGold: true),
-      PlayStyle("Technical"),
-      PlayStyle("QuickStep"),
-      PlayStyle("Trickster"),
-      PlayStyle("FirstTouch"),
-      PlayStyle("FinesseShot"),
-      PlayStyle("PowerShot"),
-      PlayStyle("Acrobatic"),
-      PlayStyle("GameChanger"),
-      PlayStyle("PingedPass"),
-      PlayStyle("AerialFortress")
-    ],
-  ),
-];
-
-// Playstyle isimleri (DÜZELTİLDİ: PowerShot)
 final List<String> availablePlayStyles = [
-  "Acrobatic", "AerialFortress", "Anticipate", "Block", "Bruiser",
-  "CrossClaimer", "FarReach", "FinesseShot", "FirstTouch", "Footwork",
-  "GameChanger", "IncisivePass", "Intercept", "Inventive", "Jockey",
-  "LongBallPass", "PingedPass", "PowerShot", "PressProven",
-  "QuickStep", // PowerShot düzeltildi
-  "Rapid", "RushOut", "SlideTackle", "Technical", "TikiTaka",
-  "Trickster", "WhippedPass"
+  "Acrobatic",
+  "AerialFortress",
+  "Anticipate",
+  "Block",
+  "Bruiser",
+  "CrossClaimer",
+  "FarReach",
+  "FinesseShot",
+  "FirstTouch",
+  "Footwork",
+  "GameChanger",
+  "IncisivePass",
+  "Intercept",
+  "Inventive",
+  "Jockey",
+  "LongBallPass",
+  "PingedPass",
+  "PowerShot",
+  "PressProven",
+  "QuickStep",
+  "Rapid",
+  "RushOut",
+  "SlideTackle",
+  "Technical",
+  "TikiTaka",
+  "Trickster",
+  "WhippedPass"
 ];
-
 final List<String> availablePositions = [
   "GK",
   "CB",
