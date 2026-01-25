@@ -6,7 +6,7 @@ import '../data/player_data.dart';
 class CreatePlayerDialog extends StatefulWidget {
   final Player? playerToEdit;
   final bool isNewVersion;
-  final Function? onSave; // UI yenilemek için
+  final Function? onSave;
 
   const CreatePlayerDialog(
       {super.key, this.playerToEdit, this.isNewVersion = false, this.onSave});
@@ -18,6 +18,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
     with SingleTickerProviderStateMixin {
   final _nameController = TextEditingController();
   final _valueController = TextEditingController();
+  final _recLinkController = TextEditingController(); // YENİ: REC LINK
   String _pos = "ST",
       _team = "Takımsız",
       _role = "Seçiniz",
@@ -36,6 +37,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
       var p = widget.playerToEdit!;
       _nameController.text = p.name;
       _valueController.text = p.marketValue;
+      _recLinkController.text = p.recLink;
       _pos = p.position;
       _team = p.team;
       _role = p.role;
@@ -130,6 +132,9 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                             child: _dropdown("Kart Tipi", cardTypes, _type,
                                 (v) => _type = v!))
                       ]),
+                      const SizedBox(height: 20),
+                      _field(
+                          _recLinkController, "Maç Kaydı Linki (İsteğe Bağlı)"),
                       const SizedBox(height: 20),
                       const Text("YETENEK YILDIZI",
                           style: TextStyle(color: Colors.amber)),
@@ -258,17 +263,18 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
     p.skillMoves = _skillMoves;
     p.chemistryStyle = _chem;
     p.cardType = _type;
+    p.recLink = _recLinkController.text;
     p.stats = Map.from(_stats);
     p.playstyles = ps;
     p.calculateRating();
     if (widget.playerToEdit == null || widget.isNewVersion)
       p.generateRandomMatchesAndSeasons();
-    var box = Hive.box<Player>('palehax_players_v8');
+    var box = Hive.box<Player>('palehax_players_v9');
     if (widget.playerToEdit == null || widget.isNewVersion)
       box.add(p);
     else
       p.save();
-    if (widget.onSave != null) widget.onSave!(); // Trigger update
+    if (widget.onSave != null) widget.onSave!();
     Navigator.pop(context);
   }
 }

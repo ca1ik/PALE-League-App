@@ -56,7 +56,7 @@ void main() async {
     await Hive.openBox<StrategyModel>('palehax_strategies');
 
     // V8 KUTUSU (Yeni özellikler için)
-    await Hive.openBox<Player>('palehax_players_v8');
+    await Hive.openBox<Player>('palehax_players_v9');
   } catch (e) {
     debugPrint("Veritabanı Başlatma Hatası: $e");
   }

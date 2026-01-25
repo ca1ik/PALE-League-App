@@ -1,6 +1,8 @@
 import 'dart:math';
+import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
+// --- ÇEVİRİLER ---
 final Map<String, String> playStyleTranslations = {
   "Acrobatic": "Akrobatik",
   "AerialFortress": "Hava Hakimi",
@@ -31,6 +33,7 @@ final Map<String, String> playStyleTranslations = {
   "WhippedPass": "Kavisli Pas"
 };
 
+// --- HIVE ADAPTERLERİ ---
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
   final int typeId = 1;
@@ -49,7 +52,8 @@ class PlayerAdapter extends TypeAdapter<Player> {
       country: reader.read() ?? "Türkiye",
       chemistryStyle: reader.read() ?? "Temel",
       cardType: reader.read() ?? "Temel",
-      seasons: (reader.read() as List?)?.cast<SeasonStat>() ?? []);
+      seasons: (reader.read() as List?)?.cast<SeasonStat>() ?? [],
+      recLink: reader.read() ?? "");
   @override
   void write(BinaryWriter writer, Player obj) {
     writer.write(obj.name);
@@ -66,10 +70,11 @@ class PlayerAdapter extends TypeAdapter<Player> {
     writer.write(obj.chemistryStyle);
     writer.write(obj.cardType);
     writer.write(obj.seasons);
+    writer.write(obj.recLink);
   }
 }
 
-// ... Diğer adapterler aynı kalsın (PlayStyleAdapter, MatchStatAdapter, SeasonStatAdapter, StrategyAdapter) ...
+// ... Diğer adapterler aynı ...
 class PlayStyleAdapter extends TypeAdapter<PlayStyle> {
   @override
   final int typeId = 2;
@@ -174,7 +179,9 @@ class Player extends HiveObject {
   String country;
   String chemistryStyle;
   String cardType;
+  String recLink;
   List<SeasonStat> seasons;
+
   Player(
       {required this.name,
       required this.rating,
@@ -189,7 +196,8 @@ class Player extends HiveObject {
       this.country = "Türkiye",
       this.chemistryStyle = "Temel",
       this.cardType = "Temel",
-      this.seasons = const []});
+      this.seasons = const [],
+      this.recLink = ""});
 
   int get kitNumber {
     switch (position.toUpperCase()) {
@@ -209,6 +217,24 @@ class Player extends HiveObject {
         return 9;
       default:
         return 99;
+    }
+  }
+
+  // Kart Rütbesi (Yıldız Sayısı)
+  int getCardTierStars() {
+    switch (cardType) {
+      case "TOTS":
+        return 5;
+      case "BALLOND'OR":
+      case "STAR":
+        return 4;
+      case "MVP":
+        return 3;
+      case "TOTW":
+      case "TOTM":
+        return 1;
+      default:
+        return 0;
     }
   }
 
@@ -233,7 +259,7 @@ class Player extends HiveObject {
         cs["DEF"]! * 0.2 +
         cs["PHY"]! * 0.8);
     rating = (total / 5.9).round().clamp(1, 99);
-    if (cardType == "TOTY" || cardType == "BALLOND'OR")
+    if (cardType == "TOTS" || cardType == "BALLOND'OR")
       rating = (rating + 3).clamp(1, 99);
     if (cardType == "BAD") rating = (rating - 10).clamp(1, 99);
   }
@@ -260,6 +286,45 @@ class Player extends HiveObject {
     });
   }
 
+  Offset getPitchPosition() {
+    switch (position) {
+      case "GK":
+        return const Offset(0.5, 0.9);
+      case "CB":
+        return const Offset(0.5, 0.75);
+      case "LB":
+        return const Offset(0.2, 0.7);
+      case "RB":
+        return const Offset(0.8, 0.7);
+      case "CDM":
+        return const Offset(0.5, 0.6);
+      case "CM":
+        return const Offset(0.5, 0.5);
+      case "CAM":
+        return const Offset(0.5, 0.35);
+      case "LW":
+        return const Offset(0.2, 0.25);
+      case "RW":
+        return const Offset(0.8, 0.25);
+      case "ST":
+        return const Offset(0.5, 0.15);
+      default:
+        return const Offset(0.5, 0.5);
+    }
+  }
+
+  Map<String, String> getSimulationStats() {
+    var cs = getCardStats();
+    return {
+      "Kicks": "${(cs['PAS']! * 2.5).toInt()}",
+      "Passes": "${(cs['PAS']! * 1.8).toInt()}",
+      "Key Pass": "${(cs['PAS']! / 10).toStringAsFixed(1)}",
+      "Shots": "${(cs['SHO']! / 5).toInt()}",
+      "Goals": "${matches.fold(0, (sum, m) => sum + m.goals)}",
+      "Possession": "${(cs['DRI']! / 1.5).toInt()}%"
+    };
+  }
+
   int _getAvg(List<String> keys) {
     int s = 0, c = 0;
     for (var k in keys) {
@@ -272,17 +337,16 @@ class Player extends HiveObject {
   }
 }
 
-// --- STATİK VERİLER ---
 final List<String> cardTypes = [
   "Temel",
   "TOTW",
   "TOTM",
-  "TOTY",
+  "TOTS",
   "MVP",
   "STAR",
   "BALLOND'OR",
   "BAD"
-];
+]; // TOTY -> TOTS
 final Map<String, Map<String, int>> chemistryBonuses = {
   "Temel": {
     "Hız": 2,
