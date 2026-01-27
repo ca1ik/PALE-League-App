@@ -65,9 +65,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
             .firstWhere((ps) => ps.isGold, orElse: () => p.playstyles.first)
         : null;
     Color borderColor = _getBorderColor(type);
-
-    // Takım Logosu
-    String? teamLogoPath = teamLogos[p.team];
+    String? logo = teamLogos[p.team];
 
     return MouseRegion(
       onEnter: (_) => _handleHover(true),
@@ -105,7 +103,11 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                         children: [
                           if (_hasVideoEffect(type))
                             Positioned.fill(
-                                child: _CardVideoLayer(cardType: type)),
+                                child: _CardVideoLayer(
+                                    cardType: type,
+                                    isHovered: widget.animateOnHover
+                                        ? (_loopController.isAnimating)
+                                        : true)),
                           if (!_hasVideoEffect(type) && !isBasic)
                             _buildCodeEffects(type),
                           if (!isBasic &&
@@ -162,38 +164,26 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                                       0.8),
                                                               blurRadius: 5)
                                                         ])))),
-
-                                // TAKIM LOGOSU (SOL)
                                 Positioned(
                                     top: 40,
                                     left: 0,
-                                    child: (teamLogoPath != null &&
-                                            teamLogoPath.isNotEmpty)
-                                        ? Image.asset(teamLogoPath,
+                                    child: (logo != null && logo.isNotEmpty)
+                                        ? Image.asset(logo,
                                             width: 35,
                                             height: 35,
                                             errorBuilder: (c, e, s) => Icon(
                                                 Icons.sports_soccer,
-                                                color: _getTextColor(type)
-                                                    .withOpacity(0.7),
+                                                color: Colors.white70,
                                                 size: 30))
-                                        : Icon(
-                                            isBad
-                                                ? Icons.broken_image
-                                                : Icons.sports_soccer,
-                                            color: _getTextColor(type)
-                                                .withOpacity(0.7),
-                                            size: 30)),
-                                // Kalkan (SAĞ)
+                                        : Icon(Icons.sports_soccer,
+                                            color: Colors.white70, size: 30)),
                                 Positioned(
                                     top: 40,
                                     right: 0,
                                     child: Icon(
                                         isBad ? Icons.thumb_down : Icons.shield,
-                                        color: _getTextColor(type)
-                                            .withOpacity(0.7),
+                                        color: Colors.white70,
                                         size: 30)),
-
                                 Positioned(
                                     top: 80,
                                     left: 0,
@@ -202,32 +192,18 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text("${p.rating}",
-                                              style: isBad
-                                                  ? GoogleFonts.comicNeue(
-                                                      fontSize: 45,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      color: Colors.white)
-                                                  : GoogleFonts.orbitron(
-                                                      fontSize: 45,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      color:
-                                                          _getTextColor(type),
-                                                      height: 1)),
+                                              style: GoogleFonts.orbitron(
+                                                  fontSize: 45,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                  height: 1)),
                                           Text(
                                               p.position.replaceAll(
                                                   RegExp(r'[^A-Z]'), ''),
-                                              style: isBad
-                                                  ? GoogleFonts.comicNeue(
-                                                      fontSize: 20,
-                                                      color: Colors.white70)
-                                                  : GoogleFonts.montserrat(
-                                                      fontSize: 20,
-                                                      color: _getTextColor(type)
-                                                          .withOpacity(0.8),
-                                                      fontWeight:
-                                                          FontWeight.bold))
+                                              style: GoogleFonts.montserrat(
+                                                  fontSize: 20,
+                                                  color: Colors.white70,
+                                                  fontWeight: FontWeight.bold))
                                         ])),
                                 Positioned(
                                     top: 80,
@@ -239,8 +215,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                           Text("${p.kitNumber}",
                                               style: GoogleFonts.russoOne(
                                                   fontSize: 60,
-                                                  color: _getTextColor(type)
-                                                      .withOpacity(0.15))),
+                                                  color: Colors.white12)),
                                           if (!isBad && !isBasic)
                                             Row(
                                                 children: List.generate(
@@ -255,26 +230,18 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                     right: 0,
                                     child: Center(
                                         child: Text(p.name.toUpperCase(),
-                                            style: isBad
-                                                ? GoogleFonts.comicNeue(
-                                                    fontSize: 26,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white)
-                                                : GoogleFonts.orbitron(
-                                                    fontSize: 26,
-                                                    color: _getTextColor(type),
-                                                    fontWeight: FontWeight.bold,
-                                                    letterSpacing: 1.2),
+                                            style: GoogleFonts.orbitron(
+                                                fontSize: 26,
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                letterSpacing: 1.2),
                                             overflow: TextOverflow.ellipsis))),
                                 Positioned(
                                     top: 250,
                                     left: 10,
                                     right: 10,
                                     child: Column(children: [
-                                      Divider(
-                                          color: isBad
-                                              ? Colors.white30
-                                              : Colors.white30),
+                                      const Divider(color: Colors.white30),
                                       const SizedBox(height: 10),
                                       Row(
                                           mainAxisAlignment:
@@ -306,10 +273,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                 "PHY", cs["PHY"]!, type, isBad)
                                           ]),
                                       const SizedBox(height: 15),
-                                      Divider(
-                                          color: isBad
-                                              ? Colors.white30
-                                              : Colors.white30)
+                                      const Divider(color: Colors.white30)
                                     ])),
                                 Positioned(
                                     bottom: 10,
@@ -319,20 +283,14 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,
                                         children: [
-                                          Icon(
-                                              isBad
-                                                  ? Icons.mood_bad
-                                                  : Icons.science,
-                                              color: _getTextColor(type)
-                                                  .withOpacity(0.6),
-                                              size: 14),
+                                          Icon(Icons.science,
+                                              color: Colors.white60, size: 14),
                                           const SizedBox(width: 5),
                                           Text(
                                               "${p.chemistryStyle} • ${p.role}"
                                                   .toUpperCase(),
                                               style: GoogleFonts.montserrat(
-                                                  color: _getTextColor(type)
-                                                      .withOpacity(0.6),
+                                                  color: Colors.white60,
                                                   letterSpacing: 1,
                                                   fontSize: 10))
                                         ]))
@@ -391,6 +349,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                 : GoogleFonts.montserrat(
                     fontSize: 16, color: _getTextColor(t).withOpacity(0.7)))
       ]);
+
   bool _hasVideoEffect(String type) =>
       ["TOTS", "BALLOND'OR", "MVP", "TOTM", "STAR"].contains(type);
 
@@ -528,32 +487,45 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
 
 class _CardVideoLayer extends StatefulWidget {
   final String cardType;
-  const _CardVideoLayer({required this.cardType});
+  final bool isHovered;
+  const _CardVideoLayer({required this.cardType, required this.isHovered});
   @override
   State<_CardVideoLayer> createState() => _CardVideoLayerState();
 }
 
 class _CardVideoLayerState extends State<_CardVideoLayer> {
-  late VideoPlayerController _controller;
-  bool _isInitialized = false;
+  VideoPlayerController? _controller;
+  bool _isInit = false;
   @override
   void initState() {
     super.initState();
-    String asset = _getVideoAsset(widget.cardType);
-    if (asset.isNotEmpty) {
-      _controller = VideoPlayerController.asset(asset)
-        ..initialize().then((_) {
-          _controller.setLooping(true);
-          _controller.setVolume(0);
-          _controller.play();
-          if (mounted) setState(() => _isInitialized = true);
-        }).catchError((e) {
-          debugPrint("Video hata: $e");
-        });
-    }
+    _setup();
   }
 
-  String _getVideoAsset(String t) {
+  void _setup() {
+    String path = _getPath(widget.cardType);
+    if (path.isEmpty) return;
+    _controller = VideoPlayerController.asset(path)
+      ..initialize().then((_) {
+        _controller!.setLooping(true);
+        _controller!.setVolume(0);
+        if (widget.isHovered) _controller!.play();
+        if (mounted) setState(() => _isInit = true);
+      }).catchError((e) {
+        debugPrint("Video hata: $e");
+      });
+  }
+
+  @override
+  void didUpdateWidget(covariant _CardVideoLayer old) {
+    super.didUpdateWidget(old);
+    if (widget.isHovered)
+      _controller?.play();
+    else
+      _controller?.pause();
+  }
+
+  String _getPath(String t) {
     switch (t) {
       case "TOTS":
         return "assets/videos/tots_effect.mp4";
@@ -561,8 +533,6 @@ class _CardVideoLayerState extends State<_CardVideoLayer> {
         return "assets/videos/ballondor_effect.mp4";
       case "MVP":
         return "assets/videos/mvp_effect.mp4";
-      case "TOTW":
-        return "assets/videos/totw_effect.mp4";
       case "STAR":
         return "assets/videos/star_effect.mp4";
       case "TOTM":
@@ -574,28 +544,25 @@ class _CardVideoLayerState extends State<_CardVideoLayer> {
 
   @override
   void dispose() {
-    if (_isInitialized) _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isInitialized) return const SizedBox.shrink();
+    if (!_isInit) return const SizedBox.shrink();
     return ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: ShaderMask(
-            shaderCallback: (Rect bounds) {
-              return const LinearGradient(
-                      colors: [Colors.transparent, Colors.transparent])
-                  .createShader(bounds);
-            },
+            shaderCallback: (r) =>
+                const LinearGradient(colors: [Colors.white, Colors.white])
+                    .createShader(r),
             blendMode: BlendMode.screen,
-            child: SizedBox.expand(
-                child: FittedBox(
-                    fit: BoxFit.cover,
-                    child: SizedBox(
-                        width: _controller.value.size.width,
-                        height: _controller.value.size.height,
-                        child: VideoPlayer(_controller))))));
+            child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                    width: _controller!.value.size.width,
+                    height: _controller!.value.size.height,
+                    child: VideoPlayer(_controller!)))));
   }
 }

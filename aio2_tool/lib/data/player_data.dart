@@ -200,7 +200,8 @@ class Player extends HiveObject {
     if (position.contains("GK")) return 1;
     if (position.contains("CDM")) return 6;
     if (position.contains("CAM")) return 10;
-    if (position.contains("RW") || position.contains("LW")) return 7;
+    if (position.contains("(7) RW")) return 7;
+    if (position.contains("(11) LW")) return 11;
     if (position.contains("ST")) return 9;
     return 99;
   }
@@ -297,6 +298,7 @@ class Player extends HiveObject {
   }
 }
 
+// --- WIKI VERİLERİ ---
 final Map<String, List<Map<String, String>>> playStyleCategories = {
   "Bitirici": [
     {
@@ -412,7 +414,7 @@ final Map<String, List<Map<String, String>>> playStyleCategories = {
     {
       "name": "FarReach",
       "label": "Uzak Erişim/Atış",
-      "desc": "Uzaktan paslarla hedefleme."
+      "desc": "Uzak köşelere uzanabilir."
     },
     {
       "name": "Footwork",
@@ -449,7 +451,12 @@ final List<Map<String, dynamic>> metaPlaystyles = [
         "Keskin Pas - Tiki Taka - Adrese Teslim - Oyun Kurucu/Yaratıcı - Yaratıcı - Sert Şut - Teknik"
   },
   {
-    "role": "(7-11) RW/LW Metas",
+    "role": "(7) RW Metas",
+    "styles":
+        "Hilebaz/Sanatçı - Oyun Kurucu/Yaratıcı - Hızlı Adım - Ani - Teknik - Sert Şut - Plase Şut - Yaratıcı"
+  },
+  {
+    "role": "(11) LW Metas",
     "styles":
         "Hilebaz/Sanatçı - Oyun Kurucu/Yaratıcı - Hızlı Adım - Ani - Teknik - Sert Şut - Plase Şut - Yaratıcı"
   },
@@ -617,7 +624,7 @@ final Map<String, List<String>> statSegments = {
   ]
 };
 
-// Takım İsimleri ve Logo Dosya Eşleştirmesi
+// --- TAKIM LOGOLARI ---
 final Map<String, String> teamLogos = {
   "Bursa Spor": "assets/takimlar/bursaspor.png",
   "Chelsea": "assets/takimlar/chelsea.png",
@@ -632,9 +639,6 @@ final Map<String, String> teamLogos = {
   "Tiyatro FC": "assets/takimlar/tiyatro.png",
   "Toulouse": "assets/takimlar/toulouse.png",
   "Werder Weremem": "assets/takimlar/werderweremem.png",
-  "Takımsız": "", // Logo yok
-  "La Mama de Nico": "",
-  "Theis FC": ""
+  "Takımsız": ""
 };
-
 final List<String> availableTeams = teamLogos.keys.toList();
