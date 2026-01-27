@@ -7,7 +7,6 @@ class CreatePlayerDialog extends StatefulWidget {
   final Player? playerToEdit;
   final bool isNewVersion;
   final Function? onSave;
-
   const CreatePlayerDialog(
       {super.key, this.playerToEdit, this.isNewVersion = false, this.onSave});
   @override
@@ -19,15 +18,10 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
   final _nameController = TextEditingController();
   final _valueController = TextEditingController();
   final _recLinkController = TextEditingController();
-  String _pos = "ST",
-      _team = "Takımsız",
-      _role = "Seçiniz",
-      _chem = "Temel",
-      _type = "Temel";
+  late String _pos, _team, _role, _chem, _type;
   int _skillMoves = 3;
   int _mGoals = 0, _mAssists = 0, _mMatches = 0;
   int _mPasses = 0, _mKeyPasses = 0, _mShots = 0, _mPossession = 50;
-
   late TabController _tabController;
   final Map<String, int> _stats = {};
   final Map<String, bool> _ps = {};
@@ -57,12 +51,42 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
       _stats.addAll(p.stats);
       for (var s in p.playstyles) _ps[s.name] = s.isGold;
     } else {
-      for (var l in statSegments.values) for (var s in l) _stats[s] = 50;
-      _role = roleCategories["ST"]!.first;
+      _pos = availablePositions.first;
+      _team = availableTeams.first;
+      _role = roleCategories[_pos]!.first;
       _chem = chemistryBonuses.keys.first;
       _type = cardTypes.first;
-      _team = availableTeams.first;
+      for (var l in statSegments.values) for (var s in l) _stats[s] = 50;
     }
+  }
+
+  void _save() {
+    if (_nameController.text.isEmpty) return;
+    List<PlayStyle> ps =
+        _ps.entries.map((e) => PlayStyle(e.key, isGold: e.value)).toList();
+    Player p = Player(
+        name: _nameController.text,
+        rating: 0,
+        position: _pos,
+        playstyles: ps,
+        team: _team,
+        role: _role,
+        skillMoves: _skillMoves,
+        chemistryStyle: _chem,
+        cardType: _type,
+        marketValue: _valueController.text,
+        recLink: _recLinkController.text,
+        stats: Map.from(_stats),
+        manualGoals: _mGoals,
+        manualAssists: _mAssists,
+        manualMatches: _mMatches,
+        manualPasses: _mPasses,
+        manualKeyPasses: _mKeyPasses,
+        manualShots: _mShots,
+        manualPossession: _mPossession);
+    p.calculateRating();
+    if (widget.onSave != null) widget.onSave!(p);
+    Navigator.pop(context);
   }
 
   @override
@@ -121,8 +145,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                                 _pos,
                                 (v) => setState(() {
                                       _pos = v!;
-                                      _role =
-                                          roleCategories[_pos]?.first ?? "Yok";
+                                      _role = roleCategories[_pos]!.first;
                                     }))),
                         const SizedBox(width: 10),
                         Expanded(
@@ -174,13 +197,13 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                 SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
                     child: Column(children: [
-                      const Text("SEZON PERFORMANSI (MANUEL GİRİŞ)",
+                      const Text("PERFORMANS VERİLERİ",
                           style: TextStyle(
                               color: Colors.cyanAccent, fontSize: 18)),
                       const SizedBox(height: 20),
                       Row(children: [
                         Expanded(
-                            child: _counterRow("MAÇ SAYISI", _mMatches,
+                            child: _counterRow("MAÇ", _mMatches,
                                 (v) => setState(() => _mMatches = v))),
                         const SizedBox(width: 10),
                         Expanded(
@@ -189,7 +212,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                         const SizedBox(width: 10),
                         Expanded(
                             child: _counterRow("ASİST", _mAssists,
-                                (v) => setState(() => _mAssists = v))),
+                                (v) => setState(() => _mAssists = v)))
                       ]),
                       Row(children: [
                         Expanded(
@@ -199,19 +222,16 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                         Expanded(
                             child: _counterRow("KİLİT PAS", _mKeyPasses,
                                 (v) => setState(() => _mKeyPasses = v))),
-                      ]),
-                      Row(children: [
-                        Expanded(
-                            child: _counterRow("ŞUT", _mShots,
-                                (v) => setState(() => _mShots = v))),
                         const SizedBox(width: 10),
                         Expanded(
-                            child: _counterRow(
-                                "TOPLA OYNAMA %",
-                                _mPossession,
-                                (v) => setState(
-                                    () => _mPossession = v.clamp(0, 100)))),
+                            child: _counterRow("ŞUT", _mShots,
+                                (v) => setState(() => _mShots = v)))
                       ]),
+                      _counterRow(
+                          "TOPLA OYNAMA %",
+                          _mPossession,
+                          (v) =>
+                              setState(() => _mPossession = v.clamp(0, 100))),
                     ])),
                 _statPage("1. Top Sürme & Fizik"),
                 _statPage("2. Şut & Zihinsel"),
@@ -230,39 +250,31 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
             ])));
   }
 
-  Widget _counterRow(String label, int value, Function(int) onChanged) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-          color: Colors.white10, borderRadius: BorderRadius.circular(10)),
-      child: Column(children: [
-        Text(label,
-            style: const TextStyle(color: Colors.white70, fontSize: 10)),
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              onPressed: () => value > 0 ? onChanged(value - 1) : null,
-              icon:
-                  const Icon(Icons.remove, color: Colors.redAccent, size: 20)),
-          const SizedBox(width: 10),
-          Text("$value",
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold)),
-          const SizedBox(width: 10),
-          IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              onPressed: () => onChanged(value + 1),
-              icon: const Icon(Icons.add, color: Colors.greenAccent, size: 20)),
-        ])
-      ]),
-    );
-  }
-
+  Widget _counterRow(String label, int value, Function(int) onChanged) =>
+      Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+              color: Colors.white10, borderRadius: BorderRadius.circular(10)),
+          child: Column(children: [
+            Text(label,
+                style: const TextStyle(color: Colors.white70, fontSize: 10)),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              IconButton(
+                  onPressed: () => value > 0 ? onChanged(value - 1) : null,
+                  icon: const Icon(Icons.remove,
+                      color: Colors.redAccent, size: 20)),
+              Text("$value",
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold)),
+              IconButton(
+                  onPressed: () => onChanged(value + 1),
+                  icon: const Icon(Icons.add,
+                      color: Colors.greenAccent, size: 20))
+            ])
+          ]));
   Widget _statPage(String k) => SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Wrap(
@@ -286,7 +298,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                         value: _stats[s]!.toDouble(),
                         min: 1,
                         max: 99,
-                        activeColor: _getColor(_stats[s]!),
+                        activeColor: Colors.cyanAccent,
                         onChanged: (v) => setState(() => _stats[s] = v.toInt()))
                   ])))
               .toList()));
@@ -326,46 +338,5 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                 height: 30,
                 errorBuilder: (c, e, x) =>
                     const Icon(Icons.help, size: 30, color: Colors.white54))));
-  }
-
-  Color _getColor(int v) {
-    return v > 85
-        ? Colors.greenAccent
-        : (v > 70 ? Colors.lightGreen : Colors.orange);
-  }
-
-  void _save() {
-    if (_nameController.text.isEmpty) return;
-    List<PlayStyle> ps =
-        _ps.entries.map((e) => PlayStyle(e.key, isGold: e.value)).toList();
-    Player p = (widget.isNewVersion || widget.playerToEdit == null)
-        ? Player(name: "", rating: 0, position: "", playstyles: [])
-        : widget.playerToEdit!;
-    p.name = _nameController.text;
-    p.marketValue = _valueController.text;
-    p.position = _pos;
-    p.team = _team;
-    p.role = _role;
-    p.skillMoves = _skillMoves;
-    p.chemistryStyle = _chem;
-    p.cardType = _type;
-    p.recLink = _recLinkController.text;
-    p.stats = Map.from(_stats);
-    p.playstyles = ps;
-    p.manualGoals = _mGoals;
-    p.manualAssists = _mAssists;
-    p.manualMatches = _mMatches;
-    p.manualPasses = _mPasses;
-    p.manualKeyPasses = _mKeyPasses;
-    p.manualShots = _mShots;
-    p.manualPossession = _mPossession;
-    p.calculateRating();
-    var box = Hive.box<Player>('palehax_manager_db');
-    if (widget.playerToEdit == null || widget.isNewVersion)
-      box.add(p);
-    else
-      p.save();
-    if (widget.onSave != null) widget.onSave!();
-    Navigator.pop(context);
   }
 }

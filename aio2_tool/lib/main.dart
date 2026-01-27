@@ -4,9 +4,9 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'services/database_service.dart';
 import 'providers/music_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/language_provider.dart';
@@ -45,17 +45,11 @@ void main() async {
     Hive.registerAdapter(SeasonStatAdapter());
     Hive.registerAdapter(StrategyAdapter());
 
+    // --- TÜM KUTULARI EKSİKSİZ AÇIYORUZ (HATA ÇÖZÜMÜ) ---
     await Hive.openBox('natroff_memory');
     await Hive.openBox<StrategyModel>('palehax_strategies');
-
-    // --- VERİTABANI HATALARINI (RangeError) GİDERME ---
-    try {
-      await Hive.openBox<Player>('palehax_manager_db');
-    } catch (e) {
-      debugPrint("Veritabanı bozuk, sıfırlanıyor: $e");
-      await Hive.deleteBoxFromDisk('palehax_manager_db');
-      await Hive.openBox<Player>('palehax_manager_db');
-    }
+    await Hive.openBox<Player>('palehax_manager_db');
+    await Hive.openBox<Player>('palehax_players_v9');
   } catch (e) {
     debugPrint("Genel Veritabanı Hatası: $e");
   }
@@ -76,6 +70,10 @@ void main() async {
   });
 
   runApp(MultiProvider(providers: [
+    Provider<AppDatabase>(
+      create: (context) => AppDatabase(),
+      dispose: (context, db) => db.close(),
+    ),
     ChangeNotifierProvider(create: (_) => ThemeProvider()),
     ChangeNotifierProvider(create: (_) => MusicProvider()),
     ChangeNotifierProvider(create: (_) => LanguageProvider()),
@@ -156,7 +154,6 @@ class _MainWindowState extends State<MainWindow> {
       const ChartsModule(),
       const TurkeyMapModule(),
       const SettingsScreen(),
-
       const PaleWebView(
           url: "https://palehaxball.com/", key: ValueKey("ph_home")), // 14
       const PaleHaxPlayersView(), // 15
@@ -175,7 +172,6 @@ class _MainWindowState extends State<MainWindow> {
       const PaleWebView(
           url: "https://palehaxball.com/transferler",
           key: ValueKey("ph_transfers")), // 20
-
       const ChallengeHub(), const SquadBuilderModule(isTOTWMode: true),
     ];
     Widget activeModule = pages[activeIdx < pages.length ? activeIdx : 0];
