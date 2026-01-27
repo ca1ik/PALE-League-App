@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
-// --- HIVE ADAPTERLERİ ---
+// --- HIVE ADAPTERLERİ (AYNEN KALIYOR) ---
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
   final int typeId = 1;
@@ -339,7 +339,7 @@ class Player extends HiveObject {
   }
 }
 
-// --- WIKI & STATİK VERİLER ---
+// --- WIKI VERİLERİ ---
 final Map<String, List<Map<String, String>>> playStyleCategories = {
   "Bitirici": [
     {
@@ -511,7 +511,7 @@ final List<Map<String, dynamic>> metaPlaystyles = [
     "styles": "Ayak Hareketleri - Çapraz Muhafız - Dışarı Terk - Uzak Erişim"
   },
   {
-    "role": "(3-6) CB-CDM Metas",
+    "role": "(3-6) CB/CDM Metas",
     "styles":
         "Sezgici - Kavgacı - Engelleyici - Jokey - Adrese Teslim - Top Kesici"
   },
@@ -545,7 +545,6 @@ final Map<String, String> cardTypeDescriptions = {
   "TOTM": "Ayın Takımı oyuncusu."
 };
 
-// EKSİK OLAN KISIM EKLENDİ
 final Map<String, String> roleDescriptions = {
   "Çizgi Kalecisi": "Çizgide kalarak refleksleriyle kurtarış yapar.",
   "Süpürücü Kaleci": "Defans arkasına atılan toplara çıkar.",
@@ -575,7 +574,9 @@ final Map<String, String> roleDescriptions = {
 final List<String> availablePlayStyles = playStyleCategories.values
     .expand((element) => element.map((e) => e["name"]!))
     .toList();
-// playStyleTranslations view tarafında kullanılıyor, burası doğru.
+final Map<String, String> playStyleTranslations = playStyleCategories.values
+    .expand((e) => e)
+    .fold({}, (map, e) => map..[e["name"]!] = e["label"]!);
 final Map<String, String> playStyleTranslationsReverse = playStyleCategories
     .values
     .expand((e) => e)
@@ -666,17 +667,27 @@ final Map<String, List<String>> statSegments = {
     "Top Kontrolü"
   ]
 };
+// ROL GRUPLAMALARI (GÜNCEL)
 final Map<String, List<String>> roleCategories = {
-  "GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
-  "CB": ["Çok Yönlü", "Oyun Kurucu Stoper", "Savunmatik", "Libero"],
-  "LB": ["Kanat Bek", "Hücum Bek", "Çok Yönlü"],
-  "RB": ["Kanat Bek", "Hücum Bek", "Çok Yönlü"],
-  "CDM": ["Tutucu", "Derin Oyun Kurucu", "Savaşçı"],
-  "CM": ["Box to Box", "Oyun Kurucu", "Mezzala"],
-  "CAM": ["Oyun Kurucu", "Gölge Forvet", "Enganche"],
-  "LW": ["İç Forvet", "Kanat Oyuncusu"],
-  "RW": ["İç Forvet", "Kanat Oyuncusu"],
-  "ST": ["Hedef Forvet", "Gizli Forvet", "Avcı Forvet", "Yanlış 9"]
+  "(1) GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
+  "(3-6) CB/CDM": [
+    "Çok Yönlü",
+    "Oyun Kurucu Stoper",
+    "Savunmatik",
+    "Libero",
+    "Tutucu",
+    "Derin Oyun Kurucu",
+    "Savaşçı"
+  ],
+  "(10) CAM": [
+    "Oyun Kurucu",
+    "Gölge Forvet",
+    "Enganche",
+    "Mezzala",
+    "Box to Box"
+  ],
+  "(7-11) RW/LW": ["İç Forvet", "Kanat Oyuncusu"],
+  "(9) ST": ["Hedef Forvet", "Gizli Forvet", "Avcı Forvet", "Yanlış 9"]
 };
 final List<Player> defaultPlayers = [];
 final List<String> availableTeams = [
