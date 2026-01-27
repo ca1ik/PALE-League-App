@@ -1,11 +1,11 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:video_player/video_player.dart';
 import '../data/player_data.dart';
 
 class FCAnimatedCard extends StatefulWidget {
   final Player player;
-  // Hover ile tetiklemek için opsiyonel parametre
   final bool animateOnHover;
   const FCAnimatedCard(
       {super.key, required this.player, this.animateOnHover = false});
@@ -18,21 +18,17 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
   late AnimationController _loopController;
   late AnimationController _pulseController;
   final List<double> _randomX = List.generate(50, (i) => Random().nextDouble());
-  final List<double> _randomY = List.generate(50, (i) => Random().nextDouble());
   final List<double> _randomSpeed =
       List.generate(50, (i) => 0.5 + Random().nextDouble() * 0.5);
-  bool _isHovering = false;
 
   @override
   void initState() {
     super.initState();
-    // Sonsuz döngü (Linear)
     _loopController =
         AnimationController(vsync: this, duration: const Duration(seconds: 10));
     _pulseController =
         AnimationController(vsync: this, duration: const Duration(seconds: 2));
 
-    // Eğer animateOnHover false ise (büyük kart) veya Temel kart değilse sürekli çalıştır
     if (!widget.animateOnHover && widget.player.cardType != "Temel") {
       _loopController.repeat();
       _pulseController.repeat(reverse: true);
@@ -48,7 +44,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
 
   void _handleHover(bool hover) {
     if (!widget.animateOnHover || widget.player.cardType == "Temel") return;
-    setState(() => _isHovering = hover);
     if (hover) {
       _loopController.repeat();
       _pulseController.repeat(reverse: true);
@@ -70,6 +65,9 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
             .firstWhere((ps) => ps.isGold, orElse: () => p.playstyles.first)
         : null;
     Color borderColor = _getBorderColor(type);
+
+    // Takım Logosu
+    String? teamLogoPath = teamLogos[p.team];
 
     return MouseRegion(
       onEnter: (_) => _handleHover(true),
@@ -105,7 +103,11 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                       borderRadius: BorderRadius.circular(20),
                       child: Stack(
                         children: [
-                          if (!isBasic) _buildSpecialEffects(type),
+                          if (_hasVideoEffect(type))
+                            Positioned.fill(
+                                child: _CardVideoLayer(cardType: type)),
+                          if (!_hasVideoEffect(type) && !isBasic)
+                            _buildCodeEffects(type),
                           if (!isBasic &&
                               !isBad &&
                               (type == "TOTS" ||
@@ -160,16 +162,29 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                                       0.8),
                                                               blurRadius: 5)
                                                         ])))),
+
+                                // TAKIM LOGOSU (SOL)
                                 Positioned(
                                     top: 40,
                                     left: 0,
-                                    child: Icon(
-                                        isBad
-                                            ? Icons.broken_image
-                                            : Icons.sports_soccer,
-                                        color: _getTextColor(type)
-                                            .withOpacity(0.7),
-                                        size: 30)),
+                                    child: (teamLogoPath != null &&
+                                            teamLogoPath.isNotEmpty)
+                                        ? Image.asset(teamLogoPath,
+                                            width: 35,
+                                            height: 35,
+                                            errorBuilder: (c, e, s) => Icon(
+                                                Icons.sports_soccer,
+                                                color: _getTextColor(type)
+                                                    .withOpacity(0.7),
+                                                size: 30))
+                                        : Icon(
+                                            isBad
+                                                ? Icons.broken_image
+                                                : Icons.sports_soccer,
+                                            color: _getTextColor(type)
+                                                .withOpacity(0.7),
+                                            size: 30)),
+                                // Kalkan (SAĞ)
                                 Positioned(
                                     top: 40,
                                     right: 0,
@@ -178,6 +193,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                         color: _getTextColor(type)
                                             .withOpacity(0.7),
                                         size: 30)),
+
                                 Positioned(
                                     top: 80,
                                     left: 0,
@@ -327,7 +343,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                       ),
                     ),
                   ),
-                  // Playstyle İkonu
                   if (goldPs != null && !isBad && !isBasic)
                     Positioned(
                         left: -5,
@@ -376,93 +391,26 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                 : GoogleFonts.montserrat(
                     fontSize: 16, color: _getTextColor(t).withOpacity(0.7)))
       ]);
+  bool _hasVideoEffect(String type) =>
+      ["TOTS", "BALLOND'OR", "MVP", "TOTM", "STAR"].contains(type);
 
-  Widget _buildSpecialEffects(String type) {
-    if (type == "BAD") {
-      return Stack(
-        children: [
-          Positioned(
-              left: (_loopController.value * 400) - 50,
-              top: 0,
-              bottom: 0,
-              child: Container(
+  Widget _buildCodeEffects(String type) {
+    if (type == "BAD")
+      return Stack(children: [
+        Positioned(
+            left: (_loopController.value * 400) - 50,
+            top: 0,
+            bottom: 0,
+            child: Container(
                 width: 30,
                 decoration: BoxDecoration(
                     gradient: LinearGradient(colors: [
                   Colors.transparent,
                   Colors.red.withOpacity(0.3),
                   Colors.transparent
-                ], begin: Alignment.centerLeft, end: Alignment.centerRight)),
-              ))
-        ],
-      );
-    } else if (type == "MVP") {
-      return Stack(
-          children: List.generate(15, (i) {
-        double startX = _randomX[i] * 320;
-        double progress =
-            (_loopController.value * (1.5 + _randomSpeed[i])) % 1.0;
-        return Positioned(
-            top: progress * 550 - 50,
-            left: startX - (progress * 100),
-            child: Transform.rotate(
-                angle: 0.5,
-                child: Container(
-                    width: 2,
-                    height: 40 + _randomY[i] * 40,
-                    color:
-                        Colors.redAccent.withOpacity(0.4 * (1 - progress)))));
-      }));
-    } else if (type == "TOTM") {
-      return Stack(
-          children: List.generate(20, (i) {
-        double flicker = sin(
-                (_loopController.value * 2 * pi * _randomSpeed[i]) +
-                    _randomX[i] * 10)
-            .abs();
-        return Positioned(
-            top: _randomY[i] * 480,
-            left: _randomX[i] * 320,
-            child: Opacity(
-                opacity: flicker * 0.6,
-                child: Container(
-                    width: 2,
-                    height: 20 + _randomSpeed[i] * 30,
-                    decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                            colors: [
-                          Colors.transparent,
-                          Colors.pinkAccent,
-                          Colors.transparent
-                        ],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter)))));
-      }));
-    } else if (type == "TOTS") {
-      return Stack(
-          children: List.generate(25, (i) {
-        double progress = (_loopController.value * _randomSpeed[i]) % 1.0;
-        return Positioned(
-            top: (progress * 480),
-            left: _randomX[i] * 320,
-            child: Opacity(
-                opacity: 1.0 - progress,
-                child: const Icon(Icons.bolt,
-                    color: Colors.cyanAccent, size: 14)));
-      }));
-    } else if (type == "BALLOND'OR") {
-      return Stack(
-          children: List.generate(20, (i) {
-        double progress = (_loopController.value * 0.3 * _randomSpeed[i]) % 1.0;
-        return Positioned(
-            bottom: progress * 500,
-            left: _randomX[i] * 320,
-            child: Opacity(
-                opacity: sin(progress * pi),
-                child: Icon(Icons.auto_awesome,
-                    color: Colors.amber, size: 10 + _randomY[i] * 15)));
-      }));
-    } else if (type == "TOTW") {
+                ], begin: Alignment.centerLeft, end: Alignment.centerRight))))
+      ]);
+    else if (type == "TOTW")
       return Stack(
           children: List.generate(30, (i) {
         double progress = (_loopController.value * _randomSpeed[i]) % 1.0;
@@ -475,17 +423,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                 decoration: const BoxDecoration(
                     color: Colors.amber, shape: BoxShape.circle)));
       }));
-    }
-    return Stack(
-        children: List.generate(30, (i) {
-      double progress = (_loopController.value * _randomSpeed[i]) % 1.0;
-      return Positioned(
-          top: progress * 480,
-          left: _randomX[i] * 320,
-          child: Opacity(
-              opacity: 1 - progress,
-              child: Icon(Icons.star, color: Colors.cyan, size: 8)));
-    }));
+    return const SizedBox.shrink();
   }
 
   Color _getBorderColor(String t) {
@@ -538,7 +476,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
   }
 
   Color _getTextColor(String t) => Colors.white;
-
   LinearGradient _getBgGradient(String t) {
     switch (t) {
       case "TOTW":
@@ -566,7 +503,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
             end: Alignment.bottomRight);
       case "TOTS":
         return const LinearGradient(
-            colors: [Colors.black, Color(0xFF311B92)],
+            colors: [Color(0xFF000000), Color(0xFF311B92)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter);
       case "STAR":
@@ -586,5 +523,79 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     if (t == "TOTS") return [Colors.blue, Colors.cyanAccent, Colors.blue];
     if (t == "STAR") return [Colors.cyan, Colors.white, Colors.cyan];
     return [Colors.white, Colors.grey, Colors.white];
+  }
+}
+
+class _CardVideoLayer extends StatefulWidget {
+  final String cardType;
+  const _CardVideoLayer({required this.cardType});
+  @override
+  State<_CardVideoLayer> createState() => _CardVideoLayerState();
+}
+
+class _CardVideoLayerState extends State<_CardVideoLayer> {
+  late VideoPlayerController _controller;
+  bool _isInitialized = false;
+  @override
+  void initState() {
+    super.initState();
+    String asset = _getVideoAsset(widget.cardType);
+    if (asset.isNotEmpty) {
+      _controller = VideoPlayerController.asset(asset)
+        ..initialize().then((_) {
+          _controller.setLooping(true);
+          _controller.setVolume(0);
+          _controller.play();
+          if (mounted) setState(() => _isInitialized = true);
+        }).catchError((e) {
+          debugPrint("Video hata: $e");
+        });
+    }
+  }
+
+  String _getVideoAsset(String t) {
+    switch (t) {
+      case "TOTS":
+        return "assets/videos/tots_effect.mp4";
+      case "BALLOND'OR":
+        return "assets/videos/ballondor_effect.mp4";
+      case "MVP":
+        return "assets/videos/mvp_effect.mp4";
+      case "TOTW":
+        return "assets/videos/totw_effect.mp4";
+      case "STAR":
+        return "assets/videos/star_effect.mp4";
+      case "TOTM":
+        return "assets/videos/totm_effect.mp4";
+      default:
+        return "";
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_isInitialized) _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isInitialized) return const SizedBox.shrink();
+    return ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: ShaderMask(
+            shaderCallback: (Rect bounds) {
+              return const LinearGradient(
+                      colors: [Colors.transparent, Colors.transparent])
+                  .createShader(bounds);
+            },
+            blendMode: BlendMode.screen,
+            child: SizedBox.expand(
+                child: FittedBox(
+                    fit: BoxFit.cover,
+                    child: SizedBox(
+                        width: _controller.value.size.width,
+                        height: _controller.value.size.height,
+                        child: VideoPlayer(_controller))))));
   }
 }

@@ -50,17 +50,11 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
       _stats.addAll(p.stats);
       for (var s in p.playstyles) _ps[s.name] = s.isGold;
     } else {
-      // GÜVENLİ VARSAYILANLAR
-      _pos =
-          availablePositions.isNotEmpty ? availablePositions.first : "(9) ST";
-      _team = availableTeams.isNotEmpty ? availableTeams.first : "Takımsız";
-      var validRoles = roleCategories[_pos] ?? ["Yok"];
-      _role = validRoles.isNotEmpty ? validRoles.first : "Yok";
-      _chem = chemistryBonuses.keys.isNotEmpty
-          ? chemistryBonuses.keys.first
-          : "Temel";
-      _type = cardTypes.isNotEmpty ? cardTypes.first : "Temel";
-
+      _pos = availablePositions.first;
+      _team = availableTeams.first;
+      _role = roleCategories[_pos]!.first;
+      _chem = chemistryBonuses.keys.first;
+      _type = cardTypes.first;
       for (var l in statSegments.values) for (var s in l) _stats[s] = 50;
     }
   }
@@ -133,10 +127,31 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                     child: Column(children: [
                       _field(_nameController, "Ad Soyad"),
                       const SizedBox(height: 10),
+                      // Takım Seçimi Logolu
                       Row(children: [
                         Expanded(
-                            child: _dropdown("Takım", availableTeams, _team,
-                                (v) => _team = v!)),
+                            child: DropdownButtonFormField<String>(
+                                value: _team,
+                                items: availableTeams
+                                    .map((e) => DropdownMenuItem(
+                                        value: e,
+                                        child: Row(children: [
+                                          if (teamLogos[e] != null &&
+                                              teamLogos[e]!.isNotEmpty)
+                                            Image.asset(teamLogos[e]!,
+                                                width: 24, height: 24),
+                                          const SizedBox(width: 8),
+                                          Text(e,
+                                              overflow: TextOverflow.ellipsis)
+                                        ])))
+                                    .toList(),
+                                onChanged: (v) => _team = v!,
+                                dropdownColor: const Color(0xFF1E1E24),
+                                style: const TextStyle(color: Colors.white),
+                                decoration: const InputDecoration(
+                                    labelText: "Takım",
+                                    filled: true,
+                                    fillColor: Colors.white10))),
                         const SizedBox(width: 10),
                         Expanded(
                             child: _field(_valueController, "Piyasa Değeri"))
@@ -150,10 +165,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                                 _pos,
                                 (v) => setState(() {
                                       _pos = v!;
-                                      var r = roleCategories[_pos];
-                                      _role = (r != null && r.isNotEmpty)
-                                          ? r.first
-                                          : "Yok";
+                                      _role = roleCategories[_pos]!.first;
                                     }))),
                         const SizedBox(width: 10),
                         Expanded(
@@ -202,6 +214,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                               .map((ps) => _psChip(ps))
                               .toList())
                     ])),
+                // ... (Diğer sekme içerikleri aynı) ...
                 SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
                     child: Column(children: [
@@ -235,11 +248,8 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                             child: _counterRow("ŞUT", _mShots,
                                 (v) => setState(() => _mShots = v)))
                       ]),
-                      _counterRow(
-                          "TOPLA OYNAMA %",
-                          _mPossession,
-                          (v) =>
-                              setState(() => _mPossession = v.clamp(0, 100))),
+                      _counterRow("TOPLA OYNAMA %", _mPossession,
+                          (v) => setState(() => _mPossession = v.clamp(0, 100)))
                     ])),
                 _statPage("1. Top Sürme & Fizik"),
                 _statPage("2. Şut & Zihinsel"),
@@ -258,6 +268,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
             ])));
   }
 
+  // ... (Yardımcı widgetlar aynı) ...
   Widget _counterRow(String label, int value, Function(int) onChanged) =>
       Container(
           margin: const EdgeInsets.only(bottom: 10),

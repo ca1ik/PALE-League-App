@@ -74,6 +74,7 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
     with SingleTickerProviderStateMixin {
   Player? selectedPlayer;
   int currentCardIndex = 0;
+  // İç sekmeler (Profil / Ultimate Analiz) için bağımsız controller
   late TabController _innerTabController;
 
   @override
@@ -102,6 +103,10 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
     try {
       var psList = jsonDecode(t.playStylesJson) as List;
       // İsim listesi olarak geliyorsa PlayStyle objesine çeviriyoruz
+      // NOT: Gerçek gold verisini burada DB'den çekmek gerekir, şimdilik isimden üretiyoruz.
+      // PlayerData'daki logic, ismi "Plus" ile bitiyorsa gold kabul edebilir veya
+      // Editor kaydederken objeyi tam JSON yapmalıdır.
+      // Basit çözüm: İsim listesi.
       ps = psList.map((e) => PlayStyle(e.toString())).toList();
     } catch (e) {
       debugPrint("Playstyle parse hatası: $e");
@@ -121,6 +126,7 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
       manualGoals: t.manualGoals,
       manualAssists: t.manualAssists,
       manualMatches: t.manualMatches,
+      // Diğer manuel istatistikler eklenebilir...
     );
   }
 
@@ -174,7 +180,7 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
 
         return Row(
           children: [
-            // --- SOL TARA (LİSTE) ---
+            // --- SOL TARAF (LİSTE) ---
             Container(
               width: 260,
               decoration: const BoxDecoration(
@@ -508,7 +514,7 @@ class SubTabPlayStyles extends StatelessWidget {
                                     Text(ps['desc']!,
                                         style: const TextStyle(
                                             color: Colors.white70,
-                                            fontSize: 13), // Yazı büyüdü
+                                            fontSize: 13),
                                         maxLines: 3,
                                         overflow: TextOverflow.ellipsis)
                                   ],
@@ -919,7 +925,8 @@ class _ViewProfile extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                FCAnimatedCard(player: player),
+                // Kart üzerine gelince animasyon oynasın
+                FCAnimatedCard(player: player, animateOnHover: true),
                 const SizedBox(width: 40),
                 Expanded(
                     child: Column(
@@ -1114,7 +1121,7 @@ class _ViewUltimate extends StatelessWidget {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10))))),
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  // Mini Harita Düzeltmesi (İki Nokta Sorunu Çözüldü)
+                  // Mini Harita Düzeltmesi (Tek Kırmızı Nokta)
                   Container(
                       width: 160,
                       height: 220,
@@ -1305,7 +1312,6 @@ Widget _buildCardMenu(BuildContext context, Player p, Function(Player) onSave) {
       color: const Color(0xFF1E1E24),
       onSelected: (val) {
         if (val == 'edit') _showEditor(context, p, onSave);
-        // Delete işlemi database servisi üzerinden yapılmalı
       },
       itemBuilder: (context) => [
             const PopupMenuItem(
@@ -1365,19 +1371,18 @@ class _MiniPitchPainter extends CustomPainter {
       ..color = Colors.white24
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
-    // Saha Çizgileri (Hollow)
     c.drawRect(Rect.fromLTWH(0, 0, s.width, s.height), linePaint);
     c.drawLine(
         Offset(0, s.height / 2), Offset(s.width, s.height / 2), linePaint);
-    c.drawCircle(Offset(s.width / 2, s.height / 2), 15, linePaint); // Orta Saha
+    c.drawCircle(
+        Offset(s.width / 2, s.height / 2), 15, linePaint); // Orta Saha İçi Boş
     c.drawRect(Rect.fromLTWH(s.width * 0.25, 0, s.width * 0.5, s.height * 0.15),
         linePaint);
     c.drawRect(
         Rect.fromLTWH(
             s.width * 0.25, s.height * 0.85, s.width * 0.5, s.height * 0.15),
         linePaint);
-
-    // Oyuncu Noktası (Filled) - İki nokta sorunu çözüldü
+    // Oyuncu Konumu (Dolu Kırmızı Nokta)
     c.drawCircle(
         Offset(playerPos.dx * s.width, playerPos.dy * s.height),
         6,

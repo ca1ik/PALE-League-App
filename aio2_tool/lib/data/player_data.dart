@@ -120,7 +120,6 @@ class PlayStyle {
   final String name;
   final bool isGold;
   PlayStyle(this.name, {this.isGold = false});
-  // Varlık yolu: Gold ise "NamePlus.png", değilse "Name.png"
   String get assetPath =>
       "assets/Playstyles/${isGold ? "${name}Plus" : name}.png";
 }
@@ -201,8 +200,7 @@ class Player extends HiveObject {
     if (position.contains("GK")) return 1;
     if (position.contains("CDM")) return 6;
     if (position.contains("CAM")) return 10;
-    if (position.contains("RW")) return 7; // Sağ Kanat
-    if (position.contains("LW")) return 11; // Sol Kanat
+    if (position.contains("RW") || position.contains("LW")) return 7;
     if (position.contains("ST")) return 9;
     return 99;
   }
@@ -256,12 +254,11 @@ class Player extends HiveObject {
   }
 
   Offset getPitchPosition() {
-    // Mevki stringine göre harita konumu
     if (position.contains("GK")) return const Offset(0.5, 0.9);
     if (position.contains("CDM")) return const Offset(0.5, 0.65);
     if (position.contains("CAM")) return const Offset(0.5, 0.45);
-    if (position.contains("LW")) return const Offset(0.2, 0.25); // Sol
-    if (position.contains("RW")) return const Offset(0.8, 0.25); // Sağ
+    if (position.contains("LW")) return const Offset(0.2, 0.25);
+    if (position.contains("RW")) return const Offset(0.8, 0.25);
     if (position.contains("ST")) return const Offset(0.5, 0.15);
     return const Offset(0.5, 0.5);
   }
@@ -300,7 +297,6 @@ class Player extends HiveObject {
   }
 }
 
-// --- WIKI VERİLERİ (GÜNCEL) ---
 final Map<String, List<Map<String, String>>> playStyleCategories = {
   "Bitirici": [
     {
@@ -518,7 +514,6 @@ final List<String> cardTypes = [
   "BAD"
 ];
 
-// --- ROL GRUPLAMALARI (RW ve LW Ayrıldı) ---
 final Map<String, List<String>> roleCategories = {
   "(1) GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
   "(3-6) CDM": [
@@ -540,7 +535,6 @@ final Map<String, List<String>> roleCategories = {
   "(11) LW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
   "(9) ST": ["Hedef Forvet", "Avcı Forvet", "Yanlış 9", "Gölge Forvet"]
 };
-// Editor'ün çökmemesi için bu liste ile üstteki map keyleri aynı olmalı
 final List<String> availablePositions = roleCategories.keys.toList();
 
 final Map<String, Map<String, int>> chemistryBonuses = {
@@ -622,21 +616,25 @@ final Map<String, List<String>> statSegments = {
     "Top Kontrolü"
   ]
 };
-final List<String> availableTeams = [
-  "Takımsız",
-  "Livorno",
-  "Toulouse",
-  "Invicta",
-  "Maximilian",
-  "Werder Weremem",
-  "Bursa Spor",
-  "CA RIVER PLATE",
-  "Fenerbahçe",
-  "Shamrock Rovers",
-  "Chelsea",
-  "It Spor",
-  "Tiyatro FC",
-  "La Mama de Nico",
-  "Juventus",
-  "Theis FC"
-];
+
+// Takım İsimleri ve Logo Dosya Eşleştirmesi
+final Map<String, String> teamLogos = {
+  "Bursa Spor": "assets/takimlar/bursaspor.png",
+  "Chelsea": "assets/takimlar/chelsea.png",
+  "Fenerbahçe": "assets/takimlar/fenerbahçe.png",
+  "Invicta": "assets/takimlar/invicta.png",
+  "It Spor": "assets/takimlar/itspor.png",
+  "Juventus": "assets/takimlar/juventus.png",
+  "Livorno": "assets/takimlar/livorno.png",
+  "Maximilian": "assets/takimlar/maximilian.png",
+  "CA RIVER PLATE": "assets/takimlar/riverplate.png",
+  "Shamrock Rovers": "assets/takimlar/shamrock.png",
+  "Tiyatro FC": "assets/takimlar/tiyatro.png",
+  "Toulouse": "assets/takimlar/toulouse.png",
+  "Werder Weremem": "assets/takimlar/werderweremem.png",
+  "Takımsız": "", // Logo yok
+  "La Mama de Nico": "",
+  "Theis FC": ""
+};
+
+final List<String> availableTeams = teamLogos.keys.toList();
