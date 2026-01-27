@@ -25,9 +25,8 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
       _chem = "Temel",
       _type = "Temel";
   int _skillMoves = 3;
-  int _mGoals = 0;
-  int _mAssists = 0;
-  int _mMatches = 0;
+  int _mGoals = 0, _mAssists = 0, _mMatches = 0;
+  int _mPasses = 0, _mKeyPasses = 0, _mShots = 0, _mPossession = 50;
 
   late TabController _tabController;
   final Map<String, int> _stats = {};
@@ -51,6 +50,10 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
       _mGoals = p.manualGoals;
       _mAssists = p.manualAssists;
       _mMatches = p.manualMatches;
+      _mPasses = p.manualPasses;
+      _mKeyPasses = p.manualKeyPasses;
+      _mShots = p.manualShots;
+      _mPossession = p.manualPossession;
       _stats.addAll(p.stats);
       for (var s in p.playstyles) _ps[s.name] = s.isGold;
     } else {
@@ -175,12 +178,40 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                           style: TextStyle(
                               color: Colors.cyanAccent, fontSize: 18)),
                       const SizedBox(height: 20),
-                      _counterRow("MAÇ SAYISI", _mMatches,
-                          (v) => setState(() => _mMatches = v)),
-                      _counterRow(
-                          "GOL", _mGoals, (v) => setState(() => _mGoals = v)),
-                      _counterRow("ASİST", _mAssists,
-                          (v) => setState(() => _mAssists = v)),
+                      Row(children: [
+                        Expanded(
+                            child: _counterRow("MAÇ SAYISI", _mMatches,
+                                (v) => setState(() => _mMatches = v))),
+                        const SizedBox(width: 10),
+                        Expanded(
+                            child: _counterRow("GOL", _mGoals,
+                                (v) => setState(() => _mGoals = v))),
+                        const SizedBox(width: 10),
+                        Expanded(
+                            child: _counterRow("ASİST", _mAssists,
+                                (v) => setState(() => _mAssists = v))),
+                      ]),
+                      Row(children: [
+                        Expanded(
+                            child: _counterRow("PAS", _mPasses,
+                                (v) => setState(() => _mPasses = v))),
+                        const SizedBox(width: 10),
+                        Expanded(
+                            child: _counterRow("KİLİT PAS", _mKeyPasses,
+                                (v) => setState(() => _mKeyPasses = v))),
+                      ]),
+                      Row(children: [
+                        Expanded(
+                            child: _counterRow("ŞUT", _mShots,
+                                (v) => setState(() => _mShots = v))),
+                        const SizedBox(width: 10),
+                        Expanded(
+                            child: _counterRow(
+                                "TOPLA OYNAMA %",
+                                _mPossession,
+                                (v) => setState(
+                                    () => _mPossession = v.clamp(0, 100)))),
+                      ]),
                     ])),
                 _statPage("1. Top Sürme & Fizik"),
                 _statPage("2. Şut & Zihinsel"),
@@ -201,29 +232,32 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
 
   Widget _counterRow(String label, int value, Function(int) onChanged) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 15),
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
           color: Colors.white10, borderRadius: BorderRadius.circular(10)),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      child: Column(children: [
         Text(label,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold)),
-        Row(children: [
+            style: const TextStyle(color: Colors.white70, fontSize: 10)),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
               onPressed: () => value > 0 ? onChanged(value - 1) : null,
-              icon: const Icon(Icons.remove, color: Colors.redAccent)),
-          SizedBox(
-              width: 40,
-              child: Center(
-                  child: Text("$value",
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold)))),
+              icon:
+                  const Icon(Icons.remove, color: Colors.redAccent, size: 20)),
+          const SizedBox(width: 10),
+          Text("$value",
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(width: 10),
           IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
               onPressed: () => onChanged(value + 1),
-              icon: const Icon(Icons.add, color: Colors.greenAccent)),
+              icon: const Icon(Icons.add, color: Colors.greenAccent, size: 20)),
         ])
       ]),
     );
@@ -321,9 +355,11 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
     p.manualGoals = _mGoals;
     p.manualAssists = _mAssists;
     p.manualMatches = _mMatches;
+    p.manualPasses = _mPasses;
+    p.manualKeyPasses = _mKeyPasses;
+    p.manualShots = _mShots;
+    p.manualPossession = _mPossession;
     p.calculateRating();
-
-    // YENİ KUTUYA KAYIT (DÜZELTİLDİ)
     var box = Hive.box<Player>('palehax_manager_db');
     if (widget.playerToEdit == null || widget.isNewVersion)
       box.add(p);

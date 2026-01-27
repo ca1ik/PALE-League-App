@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
-// --- ADAPTERLER ---
+// --- HIVE ADAPTERLERİ ---
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
   final int typeId = 1;
@@ -339,7 +339,7 @@ class Player extends HiveObject {
   }
 }
 
-// --- WIKI VERİLERİ (SENİN YOLLADIĞIN METİNLER) ---
+// --- WIKI & STATİK VERİLER ---
 final Map<String, List<Map<String, String>>> playStyleCategories = {
   "Bitirici": [
     {
@@ -545,13 +545,37 @@ final Map<String, String> cardTypeDescriptions = {
   "TOTM": "Ayın Takımı oyuncusu."
 };
 
-// Çeviri haritaları
+// EKSİK OLAN KISIM EKLENDİ
+final Map<String, String> roleDescriptions = {
+  "Çizgi Kalecisi": "Çizgide kalarak refleksleriyle kurtarış yapar.",
+  "Süpürücü Kaleci": "Defans arkasına atılan toplara çıkar.",
+  "Oyun Kurucu Kaleci": "Ayaklarını iyi kullanır, oyunu geriden kurar.",
+  "Libero": "Defansın en arkasında serbest oynar.",
+  "Çok Yönlü": "Hem savunma hem hücum özelliklerini dengeli kullanır.",
+  "Savunmatik": "Önceliği defans güvenliğidir.",
+  "Oyun Kurucu Stoper": "Topu oyuna sokmada becerilidir.",
+  "Kanat Bek": "Hücuma sıkça katılır.",
+  "Hücum Bek": "Kanat forvet gibi oynar.",
+  "Tutucu": "Defans önünü süpürür.",
+  "Derin Oyun Kurucu": "Geriden oyun kurar.",
+  "Savaşçı": "Fiziksel gücüyle rakibi yıpratır.",
+  "Oyun Kurucu": "Takımın beyni, pas dağıtımını yönetir.",
+  "Box to Box": "İki ceza sahası arasında mekik dokur.",
+  "Mezzala": "Yarı kanat, yarı merkez oyuncusu.",
+  "Gölge Forvet": "Forvet arkasında gol arar.",
+  "Enganche": "Klasik 10 numara, az koşar çok pas atar.",
+  "Kanat Oyuncusu": "Çizgiye inip orta yapar.",
+  "İç Forvet": "Kanattan içeri kat edip şut arar.",
+  "Hedef Forvet": "Fiziksel gücüyle top saklar, kafa toplarına hakimdir.",
+  "Avcı Forvet": "Ceza sahası içinde bitiriciliğe odaklanır.",
+  "Gizli Forvet": "Arkadan gelip sürpriz goller atar.",
+  "Yanlış 9": "Forvet gibi görünür ama derine gelir.",
+};
+
 final List<String> availablePlayStyles = playStyleCategories.values
     .expand((element) => element.map((e) => e["name"]!))
     .toList();
-final Map<String, String> playStyleTranslations = playStyleCategories.values
-    .expand((e) => e)
-    .fold({}, (map, e) => map..[e["name"]!] = e["label"]!);
+// playStyleTranslations view tarafında kullanılıyor, burası doğru.
 final Map<String, String> playStyleTranslationsReverse = playStyleCategories
     .values
     .expand((e) => e)
