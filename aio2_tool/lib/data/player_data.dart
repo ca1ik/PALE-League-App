@@ -339,7 +339,7 @@ class Player extends HiveObject {
   }
 }
 
-// --- WIKI & STATİK VERİLER ---
+// --- WIKI VERİLERİ (GÜNCEL) ---
 final Map<String, List<Map<String, String>>> playStyleCategories = {
   "Bitirici": [
     {
@@ -511,7 +511,7 @@ final List<Map<String, dynamic>> metaPlaystyles = [
     "styles": "Ayak Hareketleri - Çapraz Muhafız - Dışarı Terk - Uzak Erişim"
   },
   {
-    "role": "(3-6) CB/CDM Metas",
+    "role": "(3-6) CB-CDM Metas",
     "styles":
         "Sezgici - Kavgacı - Engelleyici - Jokey - Adrese Teslim - Top Kesici"
   },
@@ -667,6 +667,7 @@ final Map<String, List<String>> statSegments = {
     "Top Kontrolü"
   ]
 };
+// ROL GRUPLAMALARI (GÜNCEL)
 final Map<String, List<String>> roleCategories = {
   "(1) GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
   "(3-6) CB/CDM": [
