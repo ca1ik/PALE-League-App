@@ -8,7 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/player_data.dart';
 import '../services/database_service.dart';
 import '../ui/fc_animated_card.dart';
-import '../player_editor.dart';
+import '../modules/player_editor.dart';
 
 class PaleHaxPlayersView extends StatefulWidget {
   const PaleHaxPlayersView({super.key});
@@ -20,6 +20,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
   @override
   Widget build(BuildContext context) {
     final database = Provider.of<AppDatabase>(context);
+    // TAM EKRAN DÜZELTMESİ: Sınırlamalar kaldırıldı, direkt DefaultTabController dönüyor
     return DefaultTabController(
         length: 4,
         child: Scaffold(
@@ -236,7 +237,9 @@ class SubTabPlayStyles extends StatelessWidget {
     return SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(children: [
-          Container(
+          Center(
+              child: Container(
+            width: 800, // Ortalanmış genişlik
             margin: const EdgeInsets.only(bottom: 40),
             padding: const EdgeInsets.all(25),
             decoration: BoxDecoration(
@@ -249,7 +252,7 @@ class SubTabPlayStyles extends StatelessWidget {
                     color: Colors.cyanAccent.withOpacity(0.5), width: 2),
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.cyanAccent.withOpacity(0.3),
+                      color: Colors.cyanAccent.withOpacity(0.4),
                       blurRadius: 20,
                       spreadRadius: 2)
                 ]),
@@ -270,7 +273,7 @@ class SubTabPlayStyles extends StatelessWidget {
                           context: context,
                           builder: (_) => AlertDialog(
                               backgroundColor: const Color(0xFF1E1E24),
-                              title: const Text("V7 META",
+                              title: const Text("Bilgi",
                                   style: TextStyle(color: Colors.cyanAccent)),
                               content: const Text(
                                   "V7 modu için mevkilerine göre meta analizi önem sırasıyla verilmiştir.")));
@@ -297,7 +300,7 @@ class SubTabPlayStyles extends StatelessWidget {
                                 children: _buildIcons(m['styles'])))
                       ])))
             ]),
-          ),
+          )),
           ...playStyleCategories.entries.map((entry) =>
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Padding(
@@ -308,52 +311,50 @@ class SubTabPlayStyles extends StatelessWidget {
                                 color: Colors.greenAccent,
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold)))),
-                GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            childAspectRatio: 2.5,
-                            crossAxisSpacing: 15,
-                            mainAxisSpacing: 15),
-                    itemCount: entry.value.length,
-                    itemBuilder: (c, i) {
-                      var ps = entry.value[i];
-                      return Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white12)),
-                          child: Row(children: [
-                            Image.asset("assets/Playstyles/${ps['name']}.png",
-                                width: 40,
-                                height: 40,
-                                errorBuilder: (c, e, s) => const Icon(
-                                    Icons.help,
-                                    color: Colors.white54,
-                                    size: 20)),
-                            const SizedBox(width: 12),
-                            Expanded(
-                                child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                  Text(ps['label']!,
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 16)),
-                                  Text(ps['desc']!,
-                                      style: const TextStyle(
-                                          color: Colors.white70, fontSize: 13),
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis)
-                                ]))
-                          ]));
-                    }),
+                Center(
+                    child: Wrap(
+                        spacing: 15,
+                        runSpacing: 15,
+                        alignment: WrapAlignment.center,
+                        children: entry.value.map((ps) {
+                          // Kutular küçültüldü (Width 320 -> 280), Açıklama fontu büyütüldü
+                          return Container(
+                              width: 280,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.white12)),
+                              child: Row(children: [
+                                Image.asset(
+                                    "assets/Playstyles/${ps['name']}.png",
+                                    width: 40,
+                                    height: 40,
+                                    errorBuilder: (c, e, s) => const Icon(
+                                        Icons.help,
+                                        color: Colors.white54)),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                    child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                      Text(ps['label']!,
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 16)),
+                                      Text(ps['desc']!,
+                                          style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 13),
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis)
+                                    ]))
+                              ]));
+                        }).toList())),
                 const SizedBox(height: 30)
               ]))
         ]));
@@ -417,25 +418,11 @@ class SubTabCardTypes extends StatelessWidget {
               child: MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: Column(children: [
-                    Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(15),
-                            border: Border.all(color: clr.withOpacity(0.8))),
-                        child: Text(t,
-                            style: GoogleFonts.orbitron(
-                                color: clr,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                shadows: [
-                                  Shadow(color: clr, blurRadius: 10)
-                                ]))),
-                    const SizedBox(height: 5),
+                    // Kart ismi kartın üzerinde (FCAnimatedCard içinde) olduğu için buradaki external ismi kaldırabilir veya çok yakınlaştırabiliriz.
+                    // Kullanıcı "isimle kartvizit boşluk çok azalsın" dediği için burada sadece kartı gösteriyoruz, isim kartın içinde zaten var.
                     Expanded(
                         child: Transform.scale(
-                            scale: 0.95,
+                            scale: 1.0,
                             child: FCAnimatedCard(
                                 player: Player(
                                     name: "ÖRNEK",
@@ -451,6 +438,10 @@ class SubTabCardTypes extends StatelessWidget {
   }
 
   void _showCardDetail(BuildContext context, String t, Player p) {
+    // Ballon d'Or açıklaması düzeltildi
+    String desc = t == "BALLOND'OR"
+        ? "Sezonun Oyuncusu"
+        : (cardTypeDescriptions[t] ?? "");
     showDialog(
         context: context,
         builder: (_) => Dialog(
@@ -479,12 +470,12 @@ class SubTabCardTypes extends StatelessWidget {
                                 Shadow(
                                     color: _getCardTypeColor(t), blurRadius: 20)
                               ])),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 5),
                       SizedBox(
                           height: 480,
                           child: Transform.scale(
-                              scale: 1.0, child: FCAnimatedCard(player: p))),
-                      Text(cardTypeDescriptions[t] ?? "",
+                              scale: 0.9, child: FCAnimatedCard(player: p))),
+                      Text(desc,
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                               color: Colors.white, fontSize: 16)),
@@ -526,7 +517,7 @@ class SubTabRoles extends StatelessWidget {
                 ]),
                 const SizedBox(height: 15),
                 ...e.value.map((r) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0, left: 10),
+                    padding: const EdgeInsets.only(bottom: 12.0, left: 10),
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -534,7 +525,7 @@ class SubTabRoles extends StatelessWidget {
                               style: const TextStyle(
                                   color: Colors.cyanAccent,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 16)),
+                                  fontSize: 17)),
                           Text(roleDescriptions[r] ?? "Bilgi yok.",
                               style: const TextStyle(
                                   color: Colors.white60, fontSize: 14)),
@@ -546,7 +537,6 @@ class SubTabRoles extends StatelessWidget {
   }
 }
 
-// --- YARDIMCILAR (TAM KOD) ---
 void _showGlobal(BuildContext c, AppDatabase db, Function(PlayerTable) onS) {
   String srt = "Reyting";
   String flt = "Tümü";
@@ -622,8 +612,11 @@ void _showGlobal(BuildContext c, AppDatabase db, Function(PlayerTable) onS) {
                                   itemCount: sn.data!.length,
                                   itemBuilder: (c, i) {
                                     final t = sn.data![i];
-                                    Map<String, int> st = Map<String, int>.from(
-                                        jsonDecode(t.statsJson));
+                                    Map<String, int> st = {};
+                                    try {
+                                      st = Map<String, int>.from(
+                                          jsonDecode(t.statsJson));
+                                    } catch (_) {}
                                     return GestureDetector(
                                         onTap: () {
                                           onS(t);
@@ -895,14 +888,26 @@ Color _getRatingColor(int r) =>
 Color _getCardTypeColor(String t) {
   switch (t) {
     case "TOTS":
-      return Colors.purpleAccent;
+      return Colors.cyanAccent;
     case "BALLOND'OR":
       return Colors.amber;
     case "MVP":
       return Colors.redAccent;
     case "BAD":
       return Colors.pinkAccent;
+    case "TOTW":
+      return Colors.amber;
+    case "TOTM":
+      return const Color(0xFFE91E63);
+    case "STAR":
+      return Colors.cyan;
     default:
       return Colors.white;
   }
+}
+
+void _showEditor(BuildContext c, Player? p, Function(Player) onS) {
+  showDialog(
+      context: c,
+      builder: (c) => CreatePlayerDialog(playerToEdit: p, onSave: onS));
 }

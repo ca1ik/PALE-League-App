@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import '../data/player_data.dart';
 
 class CreatePlayerDialog extends StatefulWidget {
@@ -197,7 +196,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                 SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
                     child: Column(children: [
-                      const Text("PERFORMANS VERİLERİ",
+                      const Text("VERİ GİRİŞİ",
                           style: TextStyle(
                               color: Colors.cyanAccent, fontSize: 18)),
                       const SizedBox(height: 20),

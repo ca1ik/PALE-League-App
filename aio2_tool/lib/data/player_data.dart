@@ -223,6 +223,10 @@ class Player extends HiveObject {
   }
 
   Map<String, int> getCardStats() {
+    // Stats haritası boşsa veya null ise varsayılan 50 döndür (Çökme önleyici)
+    if (stats.isEmpty) {
+      return {"PAC": 50, "SHO": 50, "PAS": 50, "DRI": 50, "DEF": 50, "PHY": 50};
+    }
     return {
       "PAC": _getAvg(statSegments["1. Top Sürme & Fizik"]!.sublist(0, 4)),
       "SHO": _getAvg(statSegments["2. Şut & Zihinsel"]!),
@@ -234,7 +238,10 @@ class Player extends HiveObject {
   }
 
   void calculateRating() {
-    if (stats.isEmpty) return;
+    if (stats.isEmpty) {
+      rating = 50;
+      return;
+    } // Stats yoksa varsayılan reyting
     var cs = getCardStats();
     double total = (cs["PAC"]! * 1.2 +
         cs["SHO"]! * 1.5 +
@@ -259,23 +266,32 @@ class Player extends HiveObject {
   }
 
   Map<String, String> getSimulationStats() {
+    // Manuel veriler 0 ise kart istatistiklerinden tahmini veri üret
     var cs = getCardStats();
+    int passes = manualPasses > 0 ? manualPasses : (cs['PAS']! * 1.5).toInt();
+    int shots = manualShots > 0 ? manualShots : (cs['SHO']! / 4).toInt();
+    int possession = manualPossession > 0
+        ? manualPossession
+        : (cs['DRI']! / 1.8).toInt().clamp(30, 70);
     return {
-      "Pas": "$manualPasses",
-      "İsabetli Pas": "${(manualPasses * 0.8).toInt()}",
-      "Kilit Pas": "$manualKeyPasses",
-      "Şut": "$manualShots",
+      "Pas": "$passes",
+      "İsabetli Pas": "${(passes * 0.8).toInt()}",
+      "Kilit Pas": manualKeyPasses > 0
+          ? "$manualKeyPasses"
+          : "${(cs['PAS']! / 15).toStringAsFixed(1)}",
+      "Şut": "$shots",
       "Gol": "$manualGoals",
       "Asist": "$manualAssists",
       "Maç": "$manualMatches",
-      "Topla Oynama": "$manualPossession%"
+      "Topla Oynama": "$possession%"
     };
   }
 
   int _getAvg(List<String> keys) {
+    if (stats.isEmpty) return 50;
     int s = 0, c = 0;
     for (var k in keys) {
-      if (stats.containsKey(k)) {
+      if (stats.containsKey(k) && stats[k] != null) {
         s += stats[k]!;
         c++;
       }
@@ -399,7 +415,7 @@ final Map<String, List<Map<String, String>>> playStyleCategories = {
     {
       "name": "FarReach",
       "label": "Uzak Erişim/Atış",
-      "desc": "Uzaktan paslarla hedefleme."
+      "desc": "Uzak köşelere uzanabilir."
     },
     {
       "name": "Footwork",
@@ -468,19 +484,19 @@ final Map<String, String> roleDescriptions = {
   "Tutucu": "Defans önünü süpürür.",
   "Derin Oyun Kurucu": "Geriden oyun kurar.",
   "Savaşçı": "Rakibi yıpratır.",
-  "Oyun Kurucu": "Takımın beynidir.",
-  "Box to Box": "İki ceza sahası arası koşar.",
-  "Mezzala": "Yarı kanat oyuncusu.",
-  "Gölge Forvet": "Gol arar.",
-  "Enganche": "Klasik 10 numara.",
-  "İç Forvet": "Kanattan içeri kat eder.",
-  "Kanat Oyuncusu": "Orta yapar.",
-  "Gizli Forvet": "Arkadan gol arar.",
-  "Avcı Forvet": "Bitiricilik odaklıdır.",
-  "Hedef Forvet": "Top saklar.",
-  "Yanlış 9": "Derine gelir.",
-  "Kanat Bek": "Hücuma katılır.",
-  "Hücum Bek": "Kanat forvet gibidir.",
+  "Oyun Kurucu": "Takımın beyni konumu.",
+  "Box to Box": "İki ceza sahası arası mekik dokur.",
+  "Mezzala": "Yarı kanat, yaratıcı merkez oyuncusu.",
+  "Gölge Forvet": "Forvet arkasından gol arayan oyuncu.",
+  "Enganche": "Klasik 10 numara tarzı oyun kurucu.",
+  "İç Forvet": "Kanattan içeri kat edip şut çeker.",
+  "Kanat Oyuncusu": "Çizgiye inip orta yapmaya odaklanır.",
+  "Gizli Forvet": "Geri planda kalıp sürpriz goller arar.",
+  "Avcı Forvet": "Ceza sahası içi bitiriciliğe odaklanır.",
+  "Hedef Forvet": "Top saklayıp arkadaşlarına servis yapar.",
+  "Yanlış 9": "Forvet görünüp orta sahaya yardıma gelir.",
+  "Kanat Bek": "Hücuma katkı veren savunma oyuncusu.",
+  "Hücum Bek": "Neredeyse kanat gibi oynayan bek."
 };
 
 final List<String> availablePlayStyles = playStyleCategories.values
