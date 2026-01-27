@@ -48,10 +48,16 @@ void main() async {
     await Hive.openBox('natroff_memory');
     await Hive.openBox<StrategyModel>('palehax_strategies');
 
-    // --- SABİT KUTU İSMİ ---
-    await Hive.openBox<Player>('palehax_manager_db');
+    // --- VERİTABANI HATALARINI (RangeError) GİDERME ---
+    try {
+      await Hive.openBox<Player>('palehax_manager_db');
+    } catch (e) {
+      debugPrint("Veritabanı bozuk, sıfırlanıyor: $e");
+      await Hive.deleteBoxFromDisk('palehax_manager_db');
+      await Hive.openBox<Player>('palehax_manager_db');
+    }
   } catch (e) {
-    debugPrint("Veritabanı Başlatma Hatası: $e");
+    debugPrint("Genel Veritabanı Hatası: $e");
   }
 
   await windowManager.ensureInitialized();
@@ -69,17 +75,12 @@ void main() async {
     await windowManager.setBackgroundColor(Colors.transparent);
   });
 
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => MusicProvider()),
-        ChangeNotifierProvider(create: (_) => LanguageProvider()),
-        ChangeNotifierProvider(create: (_) => UIProvider()),
-      ],
-      child: const AioApp(),
-    ),
-  );
+  runApp(MultiProvider(providers: [
+    ChangeNotifierProvider(create: (_) => ThemeProvider()),
+    ChangeNotifierProvider(create: (_) => MusicProvider()),
+    ChangeNotifierProvider(create: (_) => LanguageProvider()),
+    ChangeNotifierProvider(create: (_) => UIProvider())
+  ], child: const AioApp()));
 }
 
 class AioApp extends StatelessWidget {
@@ -101,60 +102,6 @@ class AioApp extends StatelessWidget {
           textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme)),
       home: const MainWindow(),
     );
-  }
-}
-
-class VideoIntroScreen extends StatefulWidget {
-  const VideoIntroScreen({super.key});
-  @override
-  State<VideoIntroScreen> createState() => _VideoIntroScreenState();
-}
-
-class _VideoIntroScreenState extends State<VideoIntroScreen> {
-  late VideoPlayerController _controller;
-  bool _isNavigated = false;
-  @override
-  void initState() {
-    super.initState();
-    _initVideo();
-  }
-
-  void _initVideo() {
-    _controller = VideoPlayerController.asset('assets/x.mp4')
-      ..initialize().then((_) {
-        setState(() {});
-        _controller.play();
-        _controller.setVolume(1.0);
-      }).catchError((e) {
-        _goToMain();
-      });
-    _controller.addListener(() {
-      if (!_isNavigated &&
-          _controller.value.position >= _controller.value.duration) {
-        _goToMain();
-      }
-    });
-    Future.delayed(const Duration(seconds: 5), _goToMain);
-  }
-
-  void _goToMain() {
-    if (_isNavigated) return;
-    _isNavigated = true;
-    _controller.dispose();
-    if (mounted)
-      Get.offAll(() => const MainWindow(), transition: Transition.fadeIn);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(
-            child: _controller.value.isInitialized
-                ? AspectRatio(
-                    aspectRatio: _controller.value.aspectRatio,
-                    child: VideoPlayer(_controller))
-                : const CircularProgressIndicator(color: Colors.white24)));
   }
 }
 
@@ -209,22 +156,33 @@ class _MainWindowState extends State<MainWindow> {
       const ChartsModule(),
       const TurkeyMapModule(),
       const SettingsScreen(),
-      const PaleWebView(url: "https://palehaxball.com/"),
-      const PaleHaxPlayersView(),
-      const PaleWebView(url: "https://palehaxball.com/takimlar"),
-      const PaleWebView(url: "https://palehaxball.com/maclar"),
-      const PaleWebView(url: "https://palehaxball.com/puan-durumu"),
-      const PaleWebView(url: "https://palehaxball.com/istatistikler"),
-      const PaleWebView(url: "https://palehaxball.com/transferler"),
-      const ChallengeHub(),
-      const SquadBuilderModule(isTOTWMode: true),
+
+      const PaleWebView(
+          url: "https://palehaxball.com/", key: ValueKey("ph_home")), // 14
+      const PaleHaxPlayersView(), // 15
+      const PaleWebView(
+          url: "https://palehaxball.com/takimlar",
+          key: ValueKey("ph_teams")), // 16
+      const PaleWebView(
+          url: "https://palehaxball.com/maclar",
+          key: ValueKey("ph_matches")), // 17
+      const PaleWebView(
+          url: "https://palehaxball.com/puan-durumu",
+          key: ValueKey("ph_table")), // 18
+      const PaleWebView(
+          url: "https://palehaxball.com/istatistikler",
+          key: ValueKey("ph_stats")), // 19
+      const PaleWebView(
+          url: "https://palehaxball.com/transferler",
+          key: ValueKey("ph_transfers")), // 20
+
+      const ChallengeHub(), const SquadBuilderModule(isTOTWMode: true),
     ];
     Widget activeModule = pages[activeIdx < pages.length ? activeIdx : 0];
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
+        backgroundColor: Colors.transparent,
+        body: Stack(children: [
           if (!uiProv.isSpatialMode && isDark)
             const Positioned.fill(child: ParticleBackground()),
           if (!uiProv.isSpatialMode && !isDark)
@@ -336,35 +294,14 @@ class _MainWindowState extends State<MainWindow> {
                   initialY: 600,
                   child: FloatingChatbot(
                       currentLang: langProv.currentLocale.languageCode,
-                      onSystemControl: (c, v) =>
-                          _handleChatCommand(c, v, themeProv, uiProv)))
+                      onSystemControl: (c, v) => {}))
               : Positioned(
                   bottom: 20,
                   right: 20,
                   child: FloatingChatbot(
                       currentLang: langProv.currentLocale.languageCode,
-                      onSystemControl: (c, v) =>
-                          _handleChatCommand(c, v, themeProv, uiProv))),
-        ],
-      ),
-    );
-  }
-
-  void _handleChatCommand(
-      String command, dynamic value, ThemeProvider theme, UIProvider ui) {
-    if (command == "THEME")
-      theme.setTheme(value.toString().toLowerCase() == "dark");
-    if (command == "NAVIGATE") {
-      int? t;
-      switch (value) {
-        case "palehax":
-          t = 14;
-          break;
-        default:
-          t = 0;
-      } // Basitleştirildi
-      if (t != null) _navigateTo(t);
-    }
+                      onSystemControl: (c, v) => {})),
+        ]));
   }
 }
 

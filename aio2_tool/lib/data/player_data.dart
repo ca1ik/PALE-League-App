@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
-// --- HIVE ADAPTERLERİ (AYNEN KALIYOR) ---
+// --- ADAPTERLER ---
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
   final int typeId = 1;
@@ -339,7 +339,7 @@ class Player extends HiveObject {
   }
 }
 
-// --- WIKI VERİLERİ ---
+// --- WIKI & STATİK VERİLER ---
 final Map<String, List<Map<String, String>>> playStyleCategories = {
   "Bitirici": [
     {
@@ -667,7 +667,6 @@ final Map<String, List<String>> statSegments = {
     "Top Kontrolü"
   ]
 };
-// ROL GRUPLAMALARI (GÜNCEL)
 final Map<String, List<String>> roleCategories = {
   "(1) GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
   "(3-6) CB/CDM": [
