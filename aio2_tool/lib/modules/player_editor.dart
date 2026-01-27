@@ -50,11 +50,17 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
       _stats.addAll(p.stats);
       for (var s in p.playstyles) _ps[s.name] = s.isGold;
     } else {
-      _pos = availablePositions.first;
-      _team = availableTeams.first;
-      _role = roleCategories[_pos]!.first;
-      _chem = chemistryBonuses.keys.first;
-      _type = cardTypes.first;
+      // GÜVENLİ VARSAYILANLAR
+      _pos =
+          availablePositions.isNotEmpty ? availablePositions.first : "(9) ST";
+      _team = availableTeams.isNotEmpty ? availableTeams.first : "Takımsız";
+      var validRoles = roleCategories[_pos] ?? ["Yok"];
+      _role = validRoles.isNotEmpty ? validRoles.first : "Yok";
+      _chem = chemistryBonuses.keys.isNotEmpty
+          ? chemistryBonuses.keys.first
+          : "Temel";
+      _type = cardTypes.isNotEmpty ? cardTypes.first : "Temel";
+
       for (var l in statSegments.values) for (var s in l) _stats[s] = 50;
     }
   }
@@ -144,7 +150,10 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                                 _pos,
                                 (v) => setState(() {
                                       _pos = v!;
-                                      _role = roleCategories[_pos]!.first;
+                                      var r = roleCategories[_pos];
+                                      _role = (r != null && r.isNotEmpty)
+                                          ? r.first
+                                          : "Yok";
                                     }))),
                         const SizedBox(width: 10),
                         Expanded(

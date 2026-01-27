@@ -12,10 +12,8 @@ class FCAnimatedCard extends StatefulWidget {
 
 class _FCAnimatedCardState extends State<FCAnimatedCard>
     with TickerProviderStateMixin {
-  late AnimationController _loopController; // Sonsuz döngü için (Partiküller)
-  late AnimationController _pulseController; // Nefes alma efekti için (Glow)
-
-  // Rastgelelik için sabit listeler (Performans için build dışında üretilir)
+  late AnimationController _loopController;
+  late AnimationController _pulseController;
   final List<double> _randomX = List.generate(50, (i) => Random().nextDouble());
   final List<double> _randomY = List.generate(50, (i) => Random().nextDouble());
   final List<double> _randomSpeed =
@@ -24,11 +22,11 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
   @override
   void initState() {
     super.initState();
-    // Sonsuz lineer döngü (Takılmadan akması için)
+    // Sonsuz döngü (Linear)
     _loopController =
         AnimationController(vsync: this, duration: const Duration(seconds: 10))
           ..repeat();
-    // Glow efekti için nefes alma
+    // Nefes alma (Glow)
     _pulseController =
         AnimationController(vsync: this, duration: const Duration(seconds: 2))
           ..repeat(reverse: true);
@@ -78,19 +76,17 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                               BoxShadow(
                                   color: _getGlowColor(type).withOpacity(
                                       _pulseController.value * 0.3 + 0.1),
-                                  blurRadius: isBad
-                                      ? 5
-                                      : 25, // BAD kartının glowu az olsun
+                                  blurRadius: isBad ? 5 : 25,
                                   spreadRadius: isBad ? 0 : 3)
                             ]),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: Stack(
                       children: [
-                        // --- ÖZEL EFEKTLER KATMANI ---
+                        // Efektler
                         if (!isBasic) _buildSpecialEffects(type),
 
-                        // --- SHADER (Sadece Parlak Kartlar) ---
+                        // Shader (Parlaklık)
                         if (!isBasic &&
                             !isBad &&
                             (type == "TOTS" ||
@@ -100,9 +96,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                               child: ShaderMask(
                                   shaderCallback: (bounds) => SweepGradient(
                                           transform: GradientRotation(
-                                              _loopController.value *
-                                                  4 *
-                                                  pi), // Yavaşça dönsün
+                                              _loopController.value * 4 * pi),
                                           colors: _getShaderColors(type))
                                       .createShader(bounds),
                                   child: Container(
@@ -111,15 +105,12 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                               BorderRadius.circular(20),
                                           border: Border.all(
                                               width: 3,
-                                              color: Colors.white
-                                                  .withOpacity(0.15)))))),
+                                              color: Colors.white.withOpacity(0.15)))))),
 
-                        // --- İÇERİK KATMANI ---
                         Padding(
                           padding: const EdgeInsets.all(20.0),
                           child: Stack(
                             children: [
-                              // Kart Tipi Başlığı
                               if (!isBasic)
                                 Positioned(
                                     top: 0,
@@ -127,10 +118,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                     right: 0,
                                     child: Center(
                                         child: Text(
-                                            isBad
-                                                ? "BAD"
-                                                : type
-                                                    .toUpperCase(), // SAKAR yerine BAD
+                                            isBad ? "BAD" : type.toUpperCase(),
                                             style: isBad
                                                 ? GoogleFonts.comicNeue(
                                                     fontSize: 24,
@@ -138,7 +126,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                     color: Colors.white)
                                                 : GoogleFonts.orbitron(
                                                     color: _getTitleColor(
-                                                        type), // İstenen özel renk
+                                                        type), // Kartına uygun renk
                                                     fontWeight: FontWeight.w900,
                                                     fontSize: 16,
                                                     letterSpacing: 3,
@@ -149,8 +137,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                                     0.8),
                                                             blurRadius: 5)
                                                       ])))),
-
-                              // Takım / Ülke Placeholder
                               Positioned(
                                   top: 40,
                                   left: 0,
@@ -169,8 +155,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                       color:
                                           _getTextColor(type).withOpacity(0.7),
                                       size: 30)),
-
-                              // Reyting & Pozisyon
                               Positioned(
                                   top: 80,
                                   left: 0,
@@ -203,8 +187,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                     fontWeight:
                                                         FontWeight.bold))
                                       ])),
-
-                              // Forma No & Yıldızlar
                               Positioned(
                                   top: 80,
                                   right: 5,
@@ -225,8 +207,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                       color: borderColor,
                                                       size: 14)))
                                       ])),
-
-                              // Oyuncu İsmi
                               Positioned(
                                   top: 190,
                                   left: 0,
@@ -244,8 +224,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                   fontWeight: FontWeight.bold,
                                                   letterSpacing: 1.2),
                                           overflow: TextOverflow.ellipsis))),
-
-                              // Stats
                               Positioned(
                                   top: 250,
                                   left: 10,
@@ -288,8 +266,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                             ? Colors.white30
                                             : Colors.white30)
                                   ])),
-
-                              // Alt Bilgi
                               Positioned(
                                   bottom: 10,
                                   left: 0,
@@ -322,7 +298,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                     ),
                   ),
                 ),
-                // Playstyle İkonu
+                // Playstyle İkonu (Sarı Arka Plan)
                 if (goldPs != null && !isBad && !isBasic)
                   Positioned(
                       left: -5,
@@ -330,19 +306,19 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                       child: Container(
                           padding: const EdgeInsets.all(5),
                           decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: Colors.amber,
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.amber, width: 3),
+                              border: Border.all(color: Colors.white, width: 2),
                               boxShadow: [
                                 BoxShadow(
-                                    color: Colors.amber.withOpacity(0.5),
+                                    color: Colors.amber.withOpacity(0.6),
                                     blurRadius: 15)
                               ]),
                           child: Image.asset(goldPs.assetPath,
                               width: 30,
                               height: 30,
                               errorBuilder: (c, e, s) => const Icon(Icons.star,
-                                  color: Colors.amber, size: 30)))),
+                                  color: Colors.white, size: 30)))),
               ],
             ),
           );
@@ -368,58 +344,45 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                     fontSize: 16, color: _getTextColor(t).withOpacity(0.7)))
       ]);
 
-  // --- EFEKT YÖNETİCİSİ ---
   Widget _buildSpecialEffects(String type) {
     if (type == "BAD") {
-      // BAD: Soldan sağa tarayan kırmızı çizgi (Block gibi)
-      return Stack(
-        children: [
-          Positioned(
-              // 320 genişlik, 2 saniyede bir tur. -50'den 350'ye
-              left: (_loopController.value * 400) - 50,
-              top: 0,
-              bottom: 0,
-              child: Container(
+      // BAD: Kırmızı tarayıcı çizgi
+      return Stack(children: [
+        Positioned(
+            left: (_loopController.value * 400) - 50,
+            top: 0,
+            bottom: 0,
+            child: Container(
                 width: 30,
                 decoration: BoxDecoration(
                     gradient: LinearGradient(colors: [
                   Colors.transparent,
                   Colors.red.withOpacity(0.3),
                   Colors.transparent
-                ], begin: Alignment.centerLeft, end: Alignment.centerRight)),
-              ))
-        ],
-      );
+                ], begin: Alignment.centerLeft, end: Alignment.centerRight))))
+      ]);
     } else if (type == "MVP") {
-      // MVP: Çapraz düşen çizgiler (Yağmur gibi ama agresif)
+      // MVP: Çapraz kırmızı çizgiler
       return Stack(
           children: List.generate(15, (i) {
-        // Her çizgi farklı hızda ve konumda
         double startX = _randomX[i] * 320;
         double progress =
             (_loopController.value * (1.5 + _randomSpeed[i])) % 1.0;
-        double top = progress * 550 - 50; // Yukarıdan aşağı
-        double left =
-            startX - (progress * 100); // Hafif sola kayarak düşüş (Çapraz)
-
         return Positioned(
-          top: top,
-          left: left,
-          child: Transform.rotate(
-            angle: 0.5, // Çapraz açı
-            child: Container(
-              width: 2, height: 40 + _randomY[i] * 40,
-              color: Colors.redAccent
-                  .withOpacity(0.4 * (1 - progress)), // Aşağı indikçe sön
-            ),
-          ),
-        );
+            top: progress * 550 - 50,
+            left: startX - (progress * 100),
+            child: Transform.rotate(
+                angle: 0.5,
+                child: Container(
+                    width: 2,
+                    height: 40 + _randomY[i] * 40,
+                    color:
+                        Colors.redAccent.withOpacity(0.4 * (1 - progress)))));
       }));
     } else if (type == "TOTM") {
-      // TOTM: Rastgele beliren çizgiler (Glitch/Matrix vari ama pembe)
+      // TOTM: Rastgele pembe kod blokları
       return Stack(
           children: List.generate(20, (i) {
-        // Opaklık zamanla değişsin (Yanıp sönme)
         double flicker = sin(
                 (_loopController.value * 2 * pi * _randomSpeed[i]) +
                     _randomX[i] * 10)
@@ -428,26 +391,27 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
             top: _randomY[i] * 480,
             left: _randomX[i] * 320,
             child: Opacity(
-              opacity: flicker * 0.6,
-              child: Container(
-                width: 2,
-                height: 20 + _randomSpeed[i] * 30,
-                decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [
-                  Colors.transparent,
-                  Colors.pinkAccent,
-                  Colors.transparent
-                ], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
-              ),
-            ));
+                opacity: flicker * 0.6,
+                child: Container(
+                    width: 2,
+                    height: 20 + _randomSpeed[i] * 30,
+                    decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                            colors: [
+                          Colors.transparent,
+                          Colors.pinkAccent,
+                          Colors.transparent
+                        ],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter)))));
       }));
     } else if (type == "TOTS") {
-      // TOTS: Mavi Partiküller (Şimşek/Enerji)
+      // TOTS: Mavi şimşekler (daha yavaş)
       return Stack(
           children: List.generate(25, (i) {
         double progress = (_loopController.value * _randomSpeed[i]) % 1.0;
         return Positioned(
-            top: (progress * 480), // Aşağı akış
+            top: (progress * 480),
             left: _randomX[i] * 320,
             child: Opacity(
                 opacity: 1.0 - progress,
@@ -455,22 +419,21 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                     color: Colors.cyanAccent, size: 14)));
       }));
     } else if (type == "BALLOND'OR") {
-      // Ballon d'Or: Modern, aşağıdan yukarı süzülen altın ışıltılar
+      // Ballon d'Or: Aşağıdan yukarı süzülen altın parçacıklar (yavaş)
       return Stack(
           children: List.generate(20, (i) {
         double progress =
-            (_loopController.value * 0.5 * _randomSpeed[i]) % 1.0; // Yavaş
+            (_loopController.value * 0.3 * _randomSpeed[i]) % 1.0; // Çok yavaş
         return Positioned(
-            bottom: progress * 500, // Aşağıdan yukarı
+            bottom: progress * 500,
             left: _randomX[i] * 320,
             child: Opacity(
-                opacity: sin(
-                    progress * pi), // Başta sönük, ortada parlak, sonda sönük
+                opacity: sin(progress * pi),
                 child: Icon(Icons.auto_awesome,
                     color: Colors.amber, size: 10 + _randomY[i] * 15)));
       }));
     } else if (type == "TOTW") {
-      // TOTW: Çok küçük toz zerresi efekti
+      // TOTW: Minik tozlar
       return Stack(
           children: List.generate(30, (i) {
         double progress = (_loopController.value * _randomSpeed[i]) % 1.0;
@@ -478,14 +441,13 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
             top: progress * 480,
             left: _randomX[i] * 320,
             child: Container(
-              width: 2, height: 2, // Çok küçük
-              decoration: const BoxDecoration(
-                  color: Colors.amber, shape: BoxShape.circle),
-            ));
+                width: 2,
+                height: 2,
+                decoration: const BoxDecoration(
+                    color: Colors.amber, shape: BoxShape.circle)));
       }));
     }
-
-    // Diğerleri (STAR vb.) için standart yıldız
+    // STAR vb.
     return Stack(
         children: List.generate(30, (i) {
       double progress = (_loopController.value * _randomSpeed[i]) % 1.0;
@@ -509,9 +471,9 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
       case "BALLOND'OR":
         return Colors.amberAccent;
       case "BAD":
-        return Colors.pinkAccent; // Kırmızı/Pembe
+        return Colors.pinkAccent;
       case "TOTS":
-        return Colors.cyanAccent; // Mavi
+        return Colors.cyanAccent;
       case "STAR":
         return Colors.cyan;
       default:
@@ -522,20 +484,20 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
   Color _getGlowColor(String t) {
     if (t == "BAD") return Colors.red;
     if (t == "MVP") return Colors.deepOrange;
+    if (t == "STAR") return Colors.cyan;
     return _getBorderColor(t);
   }
 
   Color _getTitleColor(String t) {
-    // KART İSMİNİN RENGİ (Karta uygun)
     switch (t) {
       case "TOTW":
         return Colors.amber;
       case "TOTM":
-        return const Color(0xFFF48FB1); // Açık pembe
+        return const Color(0xFFF48FB1);
       case "TOTS":
-        return Colors.cyanAccent; // Mavi
+        return Colors.cyanAccent;
       case "BAD":
-        return Colors.white; // BAD için beyaz istendi
+        return Colors.white;
       case "MVP":
         return Colors.redAccent;
       case "STAR":
@@ -547,10 +509,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     }
   }
 
-  Color _getTextColor(String t) {
-    // İçerik yazıları her zaman beyaz/açık olsun ki okunsun
-    return Colors.white;
-  }
+  Color _getTextColor(String t) => Colors.white;
 
   LinearGradient _getBgGradient(String t) {
     switch (t) {
@@ -561,7 +520,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
       case "TOTM":
         return const LinearGradient(
             colors: [Color(0xFF2E001F), Color(0xFFC2185B)],
-            begin: Alignment.topLeft); // Koyu Pembe
+            begin: Alignment.topLeft);
       case "MVP":
         return const LinearGradient(
             colors: [Colors.black, Color(0xFFB71C1C)],
@@ -574,14 +533,14 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
             end: Alignment.bottomRight);
       case "BAD":
         return const LinearGradient(
-            colors: [Color(0xFFF48FB1), Color(0xFFB71C1C)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter); // Pembe -> Kırmızı
+            colors: [Color(0xFFF48FB1), Color(0xFFD32F2F)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight);
       case "TOTS":
         return const LinearGradient(
-            colors: [Colors.black, Color(0xFF1A237E)],
+            colors: [Color(0xFF000000), Color(0xFF311B92)],
             begin: Alignment.topCenter,
-            end: Alignment.bottomCenter); // Siyah -> Lacivert/Morumsu Mavi
+            end: Alignment.bottomCenter);
       case "STAR":
         return const LinearGradient(
             colors: [Color(0xFF000046), Color(0xFF1CB5E0)],

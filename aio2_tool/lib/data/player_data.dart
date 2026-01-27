@@ -120,6 +120,7 @@ class PlayStyle {
   final String name;
   final bool isGold;
   PlayStyle(this.name, {this.isGold = false});
+  // Varlık yolu: Gold ise "NamePlus.png", değilse "Name.png"
   String get assetPath =>
       "assets/Playstyles/${isGold ? "${name}Plus" : name}.png";
 }
@@ -200,7 +201,8 @@ class Player extends HiveObject {
     if (position.contains("GK")) return 1;
     if (position.contains("CDM")) return 6;
     if (position.contains("CAM")) return 10;
-    if (position.contains("RW") || position.contains("LW")) return 7;
+    if (position.contains("RW")) return 7; // Sağ Kanat
+    if (position.contains("LW")) return 11; // Sol Kanat
     if (position.contains("ST")) return 9;
     return 99;
   }
@@ -223,10 +225,8 @@ class Player extends HiveObject {
   }
 
   Map<String, int> getCardStats() {
-    // Stats haritası boşsa veya null ise varsayılan 50 döndür (Çökme önleyici)
-    if (stats.isEmpty) {
+    if (stats.isEmpty)
       return {"PAC": 50, "SHO": 50, "PAS": 50, "DRI": 50, "DEF": 50, "PHY": 50};
-    }
     return {
       "PAC": _getAvg(statSegments["1. Top Sürme & Fizik"]!.sublist(0, 4)),
       "SHO": _getAvg(statSegments["2. Şut & Zihinsel"]!),
@@ -241,7 +241,7 @@ class Player extends HiveObject {
     if (stats.isEmpty) {
       rating = 50;
       return;
-    } // Stats yoksa varsayılan reyting
+    }
     var cs = getCardStats();
     double total = (cs["PAC"]! * 1.2 +
         cs["SHO"]! * 1.5 +
@@ -256,17 +256,17 @@ class Player extends HiveObject {
   }
 
   Offset getPitchPosition() {
+    // Mevki stringine göre harita konumu
     if (position.contains("GK")) return const Offset(0.5, 0.9);
     if (position.contains("CDM")) return const Offset(0.5, 0.65);
     if (position.contains("CAM")) return const Offset(0.5, 0.45);
-    if (position.contains("LW")) return const Offset(0.2, 0.25);
-    if (position.contains("RW")) return const Offset(0.8, 0.25);
+    if (position.contains("LW")) return const Offset(0.2, 0.25); // Sol
+    if (position.contains("RW")) return const Offset(0.8, 0.25); // Sağ
     if (position.contains("ST")) return const Offset(0.5, 0.15);
     return const Offset(0.5, 0.5);
   }
 
   Map<String, String> getSimulationStats() {
-    // Manuel veriler 0 ise kart istatistiklerinden tahmini veri üret
     var cs = getCardStats();
     int passes = manualPasses > 0 ? manualPasses : (cs['PAS']! * 1.5).toInt();
     int shots = manualShots > 0 ? manualShots : (cs['SHO']! / 4).toInt();
@@ -300,6 +300,7 @@ class Player extends HiveObject {
   }
 }
 
+// --- WIKI VERİLERİ (GÜNCEL) ---
 final Map<String, List<Map<String, String>>> playStyleCategories = {
   "Bitirici": [
     {
@@ -415,7 +416,7 @@ final Map<String, List<Map<String, String>>> playStyleCategories = {
     {
       "name": "FarReach",
       "label": "Uzak Erişim/Atış",
-      "desc": "Uzak köşelere uzanabilir."
+      "desc": "Uzaktan paslarla hedefleme."
     },
     {
       "name": "Footwork",
@@ -469,7 +470,7 @@ final Map<String, String> cardTypeDescriptions = {
   "TOTS": "Sezonun Takımı.",
   "MVP": "En Değerli Oyuncu.",
   "STAR": "Yıldız Oyuncu.",
-  "BALLOND'OR": "Yılın Futbolcusu.",
+  "BALLOND'OR": "Sezonun Oyuncusu.",
   "BAD": "Facia Performans.",
   "TOTM": "Ayın Takımı."
 };
@@ -517,6 +518,7 @@ final List<String> cardTypes = [
   "BAD"
 ];
 
+// --- ROL GRUPLAMALARI (RW ve LW Ayrıldı) ---
 final Map<String, List<String>> roleCategories = {
   "(1) GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
   "(3-6) CDM": [
@@ -534,14 +536,11 @@ final Map<String, List<String>> roleCategories = {
     "Gölge Forvet",
     "Enganche"
   ],
-  "(7-11) RW/LW": [
-    "İç Forvet",
-    "Kanat Oyuncusu",
-    "Gizli Forvet",
-    "Avcı Forvet"
-  ],
+  "(7) RW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
+  "(11) LW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
   "(9) ST": ["Hedef Forvet", "Avcı Forvet", "Yanlış 9", "Gölge Forvet"]
 };
+// Editor'ün çökmemesi için bu liste ile üstteki map keyleri aynı olmalı
 final List<String> availablePositions = roleCategories.keys.toList();
 
 final Map<String, Map<String, int>> chemistryBonuses = {
