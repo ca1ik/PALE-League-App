@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
 
 // --- PROVIDERS ---
@@ -25,7 +24,7 @@ import 'ui/spatial_sidebar.dart';
 import 'ui/movable_window.dart';
 import 'screens/settings_screen.dart';
 
-// --- MODÜLLER (SİSTEM) ---
+// --- MODÜLLER ---
 import 'modules/wifi_module.dart';
 import 'modules/optimization_module.dart';
 import 'modules/charts_module.dart';
@@ -36,12 +35,10 @@ import 'modules/ai_photo_module.dart';
 import 'modules/extras_module.dart';
 import 'modules/keyboard_module.dart';
 import 'modules/turkey_map_module.dart';
-
-// --- MODÜLLER (PALEHAX) ---
-import 'modules/palehax_players_view.dart'; // Oyuncu Veritabanı
-import 'modules/pale_webview.dart'; // Web Site Gömme
-import 'modules/challenge_hub.dart'; // Strateji & Kadro Kurma
-import 'modules/squad_builder_module.dart'; // TOTW için direct import
+import 'modules/palehax_players_view.dart';
+import 'modules/pale_webview.dart';
+import 'modules/challenge_hub.dart';
+import 'modules/squad_builder_module.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,8 +56,8 @@ void main() async {
     await Hive.openBox('natroff_memory');
     await Hive.openBox<StrategyModel>('palehax_strategies');
 
-    // V9 KUTUSU (Yeni Veritabanı)
-    await Hive.openBox<Player>('palehax_players_v9');
+    // --- SABİT VERİTABANI İSMİ ---
+    await Hive.openBox<Player>('palehax_manager_db');
   } catch (e) {
     debugPrint("Veritabanı Başlatma Hatası: $e");
   }
@@ -114,63 +111,8 @@ class AioApp extends StatelessWidget {
         scaffoldBackgroundColor: Colors.transparent,
         textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
       ),
-      home: const VideoIntroScreen(),
+      home: const MainWindow(),
     );
-  }
-}
-
-class VideoIntroScreen extends StatefulWidget {
-  const VideoIntroScreen({super.key});
-  @override
-  State<VideoIntroScreen> createState() => _VideoIntroScreenState();
-}
-
-class _VideoIntroScreenState extends State<VideoIntroScreen> {
-  late VideoPlayerController _controller;
-  bool _isNavigated = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _initVideo();
-  }
-
-  void _initVideo() {
-    _controller = VideoPlayerController.asset('assets/x.mp4')
-      ..initialize().then((_) {
-        setState(() {});
-        _controller.play();
-        _controller.setVolume(1.0);
-      }).catchError((e) {
-        _goToMain();
-      });
-    _controller.addListener(() {
-      if (!_isNavigated &&
-          _controller.value.position >= _controller.value.duration) {
-        _goToMain();
-      }
-    });
-    Future.delayed(const Duration(seconds: 5), _goToMain);
-  }
-
-  void _goToMain() {
-    if (_isNavigated) return;
-    _isNavigated = true;
-    _controller.dispose();
-    if (mounted)
-      Get.offAll(() => const MainWindow(), transition: Transition.fadeIn);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(
-            child: _controller.value.isInitialized
-                ? AspectRatio(
-                    aspectRatio: _controller.value.aspectRatio,
-                    child: VideoPlayer(_controller))
-                : const CircularProgressIndicator(color: Colors.white24)));
   }
 }
 
@@ -212,9 +154,7 @@ class _MainWindowState extends State<MainWindow> {
 
     int activeIdx = _history[_historyIndex];
 
-    // --- SAYFA LİSTESİ ---
     final List<Widget> pages = [
-      // UPGRADE (0-13)
       const ResolutionModule(), // 0
       const CleaningModule(), // 1
       const DnsModule(), // 2
@@ -229,34 +169,15 @@ class _MainWindowState extends State<MainWindow> {
       const ChartsModule(), // 11
       const TurkeyMapModule(), // 12
       const SettingsScreen(), // 13
-
-      // PALEHAX MENÜSÜ (14-22)
-      // 14: Anasayfa (Site)
-      const PaleWebView(url: "https://palehaxball.com/"),
-
-      // 15: Oyuncular (Bizim DB)
-      const PaleHaxPlayersView(),
-
-      // 16: Takımlar (Site)
-      const PaleWebView(url: "https://palehaxball.com/takimlar"),
-
-      // 17: Maçlar (Site)
-      const PaleWebView(url: "https://palehaxball.com/maclar"),
-
-      // 18: Puan Durumu (Site)
-      const PaleWebView(url: "https://palehaxball.com/puan-durumu"),
-
-      // 19: İstatistikler (Site)
-      const PaleWebView(url: "https://palehaxball.com/istatistikler"),
-
-      // 20: Transferler (Site)
-      const PaleWebView(url: "https://palehaxball.com/transferler"),
-
-      // 21: CHALLENGE HUB (Strateji + Kadro Kurma)
-      const ChallengeHub(),
-
-      // 22: Haftanın 7'lisi (TOTW Modu)
-      const SquadBuilderModule(isTOTWMode: true),
+      const PaleWebView(url: "https://palehaxball.com/"), // 14
+      const PaleHaxPlayersView(), // 15
+      const PaleWebView(url: "https://palehaxball.com/takimlar"), // 16
+      const PaleWebView(url: "https://palehaxball.com/maclar"), // 17
+      const PaleWebView(url: "https://palehaxball.com/puan-durumu"), // 18
+      const PaleWebView(url: "https://palehaxball.com/istatistikler"), // 19
+      const PaleWebView(url: "https://palehaxball.com/transferler"), // 20
+      const ChallengeHub(), // 21
+      const SquadBuilderModule(isTOTWMode: true), // 22
     ];
 
     Widget activeModule = pages[activeIdx < pages.length ? activeIdx : 0];
@@ -272,7 +193,6 @@ class _MainWindowState extends State<MainWindow> {
           if (!uiProv.isSpatialMode)
             Column(
               children: [
-                // ÜST BAR
                 Container(
                   height: 40,
                   color: isDark ? Colors.black26 : Colors.white,
@@ -330,8 +250,6 @@ class _MainWindowState extends State<MainWindow> {
                     ],
                   ),
                 ),
-
-                // ALT İÇERİK (SIDEBAR + MODULE)
                 Expanded(
                   child: Row(
                     children: [
@@ -341,9 +259,7 @@ class _MainWindowState extends State<MainWindow> {
                       Expanded(
                         child: Container(
                           margin: const EdgeInsets.all(20),
-                          // Padding kaldırıldı veya azaltıldı, webview ve yeni modüller tam otursun diye
-                          clipBehavior:
-                              Clip.antiAlias, // Köşeleri yuvarlatmak için
+                          clipBehavior: Clip.antiAlias,
                           decoration: BoxDecoration(
                             color: isDark
                                 ? const Color(0xFF1E1E24).withOpacity(0.6)

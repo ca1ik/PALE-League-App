@@ -18,13 +18,17 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
     with SingleTickerProviderStateMixin {
   final _nameController = TextEditingController();
   final _valueController = TextEditingController();
-  final _recLinkController = TextEditingController(); // YENİ: REC LINK
+  final _recLinkController = TextEditingController();
   String _pos = "ST",
       _team = "Takımsız",
       _role = "Seçiniz",
       _chem = "Temel",
       _type = "Temel";
   int _skillMoves = 3;
+  int _mGoals = 0;
+  int _mAssists = 0;
+  int _mMatches = 0;
+
   late TabController _tabController;
   final Map<String, int> _stats = {};
   final Map<String, bool> _ps = {};
@@ -32,7 +36,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     if (widget.playerToEdit != null) {
       var p = widget.playerToEdit!;
       _nameController.text = p.name;
@@ -44,6 +48,9 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
       _skillMoves = p.skillMoves;
       _chem = p.chemistryStyle;
       _type = p.cardType;
+      _mGoals = p.manualGoals;
+      _mAssists = p.manualAssists;
+      _mMatches = p.manualMatches;
       _stats.addAll(p.stats);
       for (var s in p.playstyles) _ps[s.name] = s.isGold;
     } else {
@@ -81,6 +88,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                   isScrollable: true,
                   tabs: const [
                     Tab(text: "KİMLİK"),
+                    Tab(text: "İSTATİSTİK"),
                     Tab(text: "FİZİK & TOP"),
                     Tab(text: "ŞUT"),
                     Tab(text: "DEFANS"),
@@ -160,6 +168,20 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                               .map((ps) => _psChip(ps))
                               .toList())
                     ])),
+                SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(children: [
+                      const Text("SEZON PERFORMANSI (MANUEL GİRİŞ)",
+                          style: TextStyle(
+                              color: Colors.cyanAccent, fontSize: 18)),
+                      const SizedBox(height: 20),
+                      _counterRow("MAÇ SAYISI", _mMatches,
+                          (v) => setState(() => _mMatches = v)),
+                      _counterRow(
+                          "GOL", _mGoals, (v) => setState(() => _mGoals = v)),
+                      _counterRow("ASİST", _mAssists,
+                          (v) => setState(() => _mAssists = v)),
+                    ])),
                 _statPage("1. Top Sürme & Fizik"),
                 _statPage("2. Şut & Zihinsel"),
                 _statPage("3. Savunma & Güç"),
@@ -175,6 +197,36 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                       style: TextStyle(
                           color: Colors.black, fontWeight: FontWeight.bold)))
             ])));
+  }
+
+  Widget _counterRow(String label, int value, Function(int) onChanged) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 15),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+          color: Colors.white10, borderRadius: BorderRadius.circular(10)),
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text(label,
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold)),
+        Row(children: [
+          IconButton(
+              onPressed: () => value > 0 ? onChanged(value - 1) : null,
+              icon: const Icon(Icons.remove, color: Colors.redAccent)),
+          SizedBox(
+              width: 40,
+              child: Center(
+                  child: Text("$value",
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)))),
+          IconButton(
+              onPressed: () => onChanged(value + 1),
+              icon: const Icon(Icons.add, color: Colors.greenAccent)),
+        ])
+      ]),
+    );
   }
 
   Widget _statPage(String k) => SingleChildScrollView(
@@ -266,10 +318,13 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
     p.recLink = _recLinkController.text;
     p.stats = Map.from(_stats);
     p.playstyles = ps;
+    p.manualGoals = _mGoals;
+    p.manualAssists = _mAssists;
+    p.manualMatches = _mMatches;
     p.calculateRating();
-    if (widget.playerToEdit == null || widget.isNewVersion)
-      p.generateRandomMatchesAndSeasons();
-    var box = Hive.box<Player>('palehax_players_v9');
+
+    // YENİ KUTUYA KAYIT (DÜZELTİLDİ)
+    var box = Hive.box<Player>('palehax_manager_db');
     if (widget.playerToEdit == null || widget.isNewVersion)
       box.add(p);
     else

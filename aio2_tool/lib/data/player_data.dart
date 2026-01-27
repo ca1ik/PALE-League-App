@@ -2,37 +2,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
-// --- ÇEVİRİLER ---
-final Map<String, String> playStyleTranslations = {
-  "Acrobatic": "Akrobatik",
-  "AerialFortress": "Hava Hakimi",
-  "Anticipate": "Sezgi",
-  "Block": "Blok",
-  "Bruiser": "Sert",
-  "CrossClaimer": "Orta Kesici",
-  "FarReach": "Uzak Erişim",
-  "FinesseShot": "Plase",
-  "FirstTouch": "İlk Dokunuş",
-  "Footwork": "Ayak Oyunu",
-  "GameChanger": "Oyun Kurucu",
-  "IncisivePass": "Ara Pası",
-  "Intercept": "Pas Arası",
-  "Inventive": "Yaratıcı",
-  "Jockey": "Markaj",
-  "LongBallPass": "Uzun Top",
-  "PingedPass": "Adrese Teslim",
-  "PowerShot": "Sert Şut",
-  "PressProven": "Baskı Yemez",
-  "QuickStep": "Seri Adım",
-  "Rapid": "Süratli",
-  "RushOut": "Kalesini Terk",
-  "SlideTackle": "Kayarak Müdahale",
-  "Technical": "Teknik",
-  "TikiTaka": "Tiki Taka",
-  "Trickster": "Cambaz",
-  "WhippedPass": "Kavisli Pas"
-};
-
 // --- HIVE ADAPTERLERİ ---
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
@@ -53,7 +22,14 @@ class PlayerAdapter extends TypeAdapter<Player> {
       chemistryStyle: reader.read() ?? "Temel",
       cardType: reader.read() ?? "Temel",
       seasons: (reader.read() as List?)?.cast<SeasonStat>() ?? [],
-      recLink: reader.read() ?? "");
+      recLink: reader.read() ?? "",
+      manualGoals: reader.read() ?? 0,
+      manualAssists: reader.read() ?? 0,
+      manualMatches: reader.read() ?? 0,
+      manualPasses: reader.read() ?? 0,
+      manualKeyPasses: reader.read() ?? 0,
+      manualShots: reader.read() ?? 0,
+      manualPossession: reader.read() ?? 0);
   @override
   void write(BinaryWriter writer, Player obj) {
     writer.write(obj.name);
@@ -71,6 +47,13 @@ class PlayerAdapter extends TypeAdapter<Player> {
     writer.write(obj.cardType);
     writer.write(obj.seasons);
     writer.write(obj.recLink);
+    writer.write(obj.manualGoals);
+    writer.write(obj.manualAssists);
+    writer.write(obj.manualMatches);
+    writer.write(obj.manualPasses);
+    writer.write(obj.manualKeyPasses);
+    writer.write(obj.manualShots);
+    writer.write(obj.manualPossession);
   }
 }
 
@@ -132,6 +115,7 @@ class StrategyAdapter extends TypeAdapter<StrategyModel> {
   }
 }
 
+// --- MODELLER ---
 class PlayStyle {
   final String name;
   final bool isGold;
@@ -180,6 +164,13 @@ class Player extends HiveObject {
   String cardType;
   String recLink;
   List<SeasonStat> seasons;
+  int manualGoals,
+      manualAssists,
+      manualMatches,
+      manualPasses,
+      manualKeyPasses,
+      manualShots,
+      manualPossession;
 
   Player(
       {required this.name,
@@ -196,7 +187,14 @@ class Player extends HiveObject {
       this.chemistryStyle = "Temel",
       this.cardType = "Temel",
       this.seasons = const [],
-      this.recLink = ""});
+      this.recLink = "",
+      this.manualGoals = 0,
+      this.manualAssists = 0,
+      this.manualMatches = 0,
+      this.manualPasses = 0,
+      this.manualKeyPasses = 0,
+      this.manualShots = 0,
+      this.manualPossession = 50});
 
   int get kitNumber {
     switch (position.toUpperCase()) {
@@ -219,7 +217,6 @@ class Player extends HiveObject {
     }
   }
 
-  // Kart Rütbesi (Yıldız Sayısı)
   int getCardTierStars() {
     switch (cardType) {
       case "TOTS":
@@ -244,7 +241,7 @@ class Player extends HiveObject {
       "PAS": _getAvg(statSegments["4. Pas & Vizyon"]!),
       "DRI": _getAvg(["Top Sürme", "Teknik", "Çeviklik", "Denge"]),
       "DEF": _getAvg(statSegments["3. Savunma & Güç"]!),
-      "PHY": _getAvg(["Güç", "Saldırganlık", "Sert Duruş", "Duvar Kabiliyeti"]),
+      "PHY": _getAvg(["Güç", "Saldırganlık", "Sert Duruş", "Duvar Kabiliyeti"])
     };
   }
 
@@ -264,25 +261,20 @@ class Player extends HiveObject {
   }
 
   void generateRandomMatchesAndSeasons() {
-    final random = Random();
-    matches = List.generate(5, (index) {
-      int g = position == "GK"
-          ? 0
-          : (position == "ST" ? random.nextInt(3) : random.nextInt(2));
-      int a = random.nextInt(2);
-      double r = 6.0 + random.nextDouble() * 4.0;
-      return MatchStat(
-          "Hafta ${5 - index}",
-          "${random.nextInt(4)}-${random.nextInt(4)}",
-          g,
-          a,
-          double.parse(r.toStringAsFixed(1)));
-    });
-    seasons = List.generate(5, (index) {
-      double r = 6.5 + random.nextDouble() * 3.5;
-      return SeasonStat("S${index + 1}", double.parse(r.toStringAsFixed(1)),
-          random.nextInt(30), random.nextInt(15), r > 9.0);
-    });
+    if (manualMatches == 0) {
+      final random = Random();
+      manualMatches = 5;
+      manualGoals = random.nextInt(5);
+      manualAssists = random.nextInt(5);
+      matches = List.generate(
+          5,
+          (index) => MatchStat(
+              "Hafta ${5 - index}",
+              "${random.nextInt(4)}-${random.nextInt(4)}",
+              random.nextInt(2),
+              random.nextInt(2),
+              7.5));
+    }
   }
 
   Offset getPitchPosition() {
@@ -312,16 +304,26 @@ class Player extends HiveObject {
     }
   }
 
-  // Türkçe İstatistikler
   Map<String, String> getSimulationStats() {
     var cs = getCardStats();
     return {
-      "Pas": "${(cs['PAS']! * 2.5).toInt()}",
-      "İsabetli Pas": "${(cs['PAS']! * 1.8).toInt()}",
-      "Kilit Pas": "${(cs['PAS']! / 10).toStringAsFixed(1)}",
-      "Şut": "${(cs['SHO']! / 5).toInt()}",
-      "Gol": "${matches.fold(0, (sum, m) => sum + m.goals)}",
-      "Topla Oynama": "${(cs['DRI']! / 1.5).toInt()}%"
+      "Pas": manualMatches == 0
+          ? "${(cs['PAS']! * 2.5).toInt()}"
+          : "$manualPasses",
+      "İsabetli Pas": manualMatches == 0
+          ? "${(cs['PAS']! * 1.8).toInt()}"
+          : "${(manualPasses * 0.8).toInt()}",
+      "Kilit Pas": manualMatches == 0
+          ? "${(cs['PAS']! / 10).toStringAsFixed(1)}"
+          : "$manualKeyPasses",
+      "Şut":
+          manualMatches == 0 ? "${(cs['SHO']! / 5).toInt()}" : "$manualShots",
+      "Gol": "$manualGoals",
+      "Asist": "$manualAssists",
+      "Maç": "$manualMatches",
+      "Topla Oynama": manualMatches == 0
+          ? "${(cs['DRI']! / 1.5).toInt()}%"
+          : "$manualPossession%"
     };
   }
 
@@ -336,6 +338,237 @@ class Player extends HiveObject {
     return c == 0 ? 50 : (s / c).round();
   }
 }
+
+// --- WIKI DATALARI (PlayStyles, Roller, Kartlar) ---
+final Map<String, List<Map<String, String>>> playStyleCategories = {
+  "Bitirici": [
+    {
+      "name": "GameChanger",
+      "label": "Oyun Kurucu/Yaratıcı",
+      "desc":
+          "Sıradışı ve alışılmadık bitirişleriyle tanınan, yaratıcı ve tahmin edilemez vuruşlarda üstün başarı gösteren bir oyuncu."
+    },
+    {
+      "name": "Acrobatic",
+      "label": "Akrobatik",
+      "desc":
+          "Akrobatik paslar, top uzaklaştırmalar ve şutlar yapmaya meyilli bir oyuncu."
+    },
+    {
+      "name": "PowerShot",
+      "label": "Sert Şut",
+      "desc": "Ceza sahası dışından sert şutlar atmasıyla tanınan bir oyuncu."
+    },
+    {
+      "name": "FinesseShot",
+      "label": "Plase Şut",
+      "desc":
+          "Kaleye şut çekerken topu köşelere göndermeye çalışmasıyla bilinen aynı zamanda kaliteli şutör bir oyuncu."
+    }
+  ],
+  "Pas": [
+    {
+      "name": "IncisivePass",
+      "label": "Keskin Pas",
+      "desc":
+          "Savunmayı yaran paslarıyla takım arkadaşının koşarak topa ulaşmasını sağlayan bir oyuncu."
+    },
+    {
+      "name": "PingedPass",
+      "label": "Adrese Teslim",
+      "desc": "Hızlı ve sert adrese teslim paslarıyla tanınan bir oyuncu."
+    },
+    {
+      "name": "LongBallPass",
+      "label": "Uzun Pas",
+      "desc":
+          "Uzaktaki oyuncuya sert ve nokta atışı pas yaplarıyla tanınan bir oyuncu."
+    },
+    {
+      "name": "TikiTaka",
+      "label": "Tiki Taka",
+      "desc":
+          "İlk vuruşta isabetli ve kısa paslarıyla tanınan Barça ruhlu bir oyuncu."
+    },
+    {
+      "name": "WhippedPass",
+      "label": "İçe Pas/Kırbaçlanmış Pas",
+      "desc":
+          "Ceza sahasına yüksek hızda ve sert ortalar yapmasıyla tanınan bir oyuncu."
+    },
+    {
+      "name": "Inventive",
+      "label": "Yaratıcı",
+      "desc":
+          "Yaratıcı paslarıyla ve zekice, tahmin edilemez kombinasyonlar yapabilme yeteneğiyle tanınan bir oyuncu."
+    }
+  ],
+  "Savunma/Fiziksel": [
+    {
+      "name": "Jockey",
+      "label": "Jokey",
+      "desc": "Bire bir mücadelelerde başarılı olmasıyla tanınan bir oyuncu."
+    },
+    {
+      "name": "Block",
+      "label": "Engelleyici",
+      "desc": "Esnek ve markajlayarak yaptığı bloklarla tanınan bir oyuncu."
+    },
+    {
+      "name": "Intercept",
+      "label": "Top Kesici",
+      "desc":
+          "Topu kapma ve topa sahip olma konusunda yetenekli olduğu bilinen bir oyuncu."
+    },
+    {
+      "name": "Anticipate",
+      "label": "Sezgici",
+      "desc":
+          "Topa sahip olma konusunda yüksek başarı oranına ve düşük hata yapma oranına sahip bir oyuncu."
+    },
+    {
+      "name": "Bruiser",
+      "label": "Kavgacı",
+      "desc":
+          "Fiziksel/Bodyleme konusunda topu kazanma/kontrol etmesiyle tanınan bir oyuncu."
+    },
+    {
+      "name": "AerialFortress",
+      "label": "Hava Hakimiyeti",
+      "desc":
+          "Hücumda/Defansta etkili, gelen sert paslara kontrollü ve isabetli tepki vermesiyle tanınan bir oyuncu."
+    }
+  ],
+  "Dripling": [
+    {
+      "name": "Technical",
+      "label": "Teknik",
+      "desc":
+          "Rakibini genellikle teknik top sürme becerisiyle (neredeyse hiç beceri/duvar hareketi yapmadan) alt etmeye çalışan oyuncu."
+    },
+    {
+      "name": "Rapid",
+      "label": "Ani",
+      "desc":
+          "Rakibini dripling ve hızıyla ekarte etmesiyle tanınan bir oyuncu."
+    },
+    {
+      "name": "FirstTouch",
+      "label": "İlk Dokunuş",
+      "desc":
+          "Zorlu pozisyonlarda isabetli ilk dokunuş kontrolüyle tanınan bir oyuncu."
+    },
+    {
+      "name": "Trickster",
+      "label": "Hilebaz/Sanatçı",
+      "desc":
+          "Bire bir mücadelelerde yetenekli duvar hareketleri sergileyebilmesiyle tanınan bir oyuncu."
+    },
+    {
+      "name": "PressProven",
+      "label": "Baskı Yemez",
+      "desc":
+          "Rakibin fiziksel baskısı altında sırtı dönük topa hakimiyetiyle tanınan oyuncu."
+    },
+    {
+      "name": "QuickStep",
+      "label": "Hızlı Adım",
+      "desc":
+          "Topla birlikte hızlı dripling'e geçme yeteneğiyle tanınan bir oyuncu."
+    }
+  ],
+  "Kaleci": [
+    {
+      "name": "FarReach",
+      "label": "Uzak Erişim/Atış",
+      "desc":
+          "Kaleci, uzaktan attığı paslarla daha uzaktaki oyuncuları hedefleyebilir."
+    },
+    {
+      "name": "Footwork",
+      "label": "Ayak Hareketleri",
+      "desc":
+          "Pasör özelliğiyle kaliteli paslar atmasıyla bilinen kaleci oyuncu."
+    },
+    {
+      "name": "CrossClaimer",
+      "label": "Çapraz Muhafız",
+      "desc":
+          "Öndeki rakibini markaj altına alarak top kesmesiyle bilinen kaleci oyuncu."
+    },
+    {
+      "name": "RushOut",
+      "label": "Dışarı Terk",
+      "desc":
+          "Ceza sahasından çıkarken daha agresif davranarak, pasları veya şutları önde engellemesiyle bilinen kaleci oyuncu."
+    },
+  ]
+};
+
+final List<Map<String, dynamic>> metaPlaystyles = [
+  {
+    "role": "(1) GK Metas",
+    "styles": "Ayak Hareketleri - Çapraz Muhafız - Dışarı Terk - Uzak Erişim"
+  },
+  {
+    "role": "(3-6) CB-CDM Metas",
+    "styles":
+        "Sezgici - Kavgacı - Engelleyici - Jokey - Adrese Teslim - Top Kesici"
+  },
+  {
+    "role": "(10) CAM Metas",
+    "styles":
+        "Keskin Pas - Tiki Taka - Adrese Teslim - Oyun Kurucu - Yaratıcı - Sert Şut - Teknik"
+  },
+  {
+    "role": "(7-11) RW/LW Metas",
+    "styles":
+        "Hilebaz - Oyun Kurucu - Hızlı Adım - Ani - Teknik - Sert Şut - Plase Şut - Yaratıcı"
+  },
+  {
+    "role": "(9) ST Metas",
+    "styles":
+        "Plase Şut - Sert Şut - Baskı Yemez - Keskin Pas - İlk Dokunuş - Hava Hakimiyeti"
+  },
+];
+
+final Map<String, String> cardTypeDescriptions = {
+  "Temel": "Standart oyuncu kartı. Başlangıç seviyesi.",
+  "TOTW":
+      "Haftanın Takımı. Ligde haftanın en iyi performansını gösteren oyunculara verilir.",
+  "TOTS":
+      "Sezonun Takımı. Sezon boyunca üstün performans gösteren elit oyuncular.",
+  "MVP": "En Değerli Oyuncu. Maçın veya turnuvanın yıldızı.",
+  "STAR": "Yıldız Oyuncu. Takımın kilit isimleri.",
+  "BALLOND'OR": "Yılın en iyi futbolcusu ödülü. En prestijli kart.",
+  "BAD": "Kötü performans veya cezalı kart.",
+  "TOTM": "Ayın Takımı oyuncusu."
+};
+
+// Rol açıklamaları için bir Map ekleyebiliriz istersen, şimdilik isimleri yeterli.
+final Map<String, String> roleDescriptions = {
+  "Çizgi Kalecisi": "Çizgide kalarak refleksleriyle kurtarış yapar.",
+  "Süpürücü Kaleci": "Defans arkasına atılan toplara çıkar.",
+  "Oyun Kurucu Kaleci": "Ayaklarını iyi kullanır, oyunu geriden kurar.",
+  "Libero": "Defansın en arkasında serbest oynar.",
+  "Çok Yönlü": "Hem savunma hem hücum özelliklerini dengeli kullanır.",
+  "Savaşçı": "Fiziksel gücüyle rakibi yıpratır.",
+  "Oyun Kurucu": "Takımın beyni, pas dağıtımını yönetir.",
+  "Box to Box": "İki ceza sahası arasında mekik dokur.",
+  "Kanat Oyuncusu": "Çizgiye inip orta yapar.",
+  "İç Forvet": "Kanattan içeri kat edip şut arar.",
+  "Hedef Forvet": "Fiziksel gücüyle top saklar, kafa toplarına hakimdir.",
+  "Avcı Forvet": "Ceza sahası içinde bitiriciliğe odaklanır.",
+  "Gizli Forvet": "Arkadan gelip sürpriz goller atar.",
+};
+
+final List<String> availablePlayStyles = playStyleCategories.values
+    .expand((element) => element.map((e) => e["name"]!))
+    .toList();
+final Map<String, String> playStyleTranslationsReverse = playStyleCategories
+    .values
+    .expand((e) => e)
+    .fold({}, (map, e) => map..[e["name"]!] = e["label"]!);
 
 final List<String> cardTypes = [
   "Temel",
@@ -452,35 +685,6 @@ final List<String> availableTeams = [
   "La Mama de Nico",
   "Juventus",
   "Theis FC"
-];
-final List<String> availablePlayStyles = [
-  "GameChanger",
-  "Acrobatic",
-  "AerialFortress",
-  "Anticipate",
-  "Block",
-  "Bruiser",
-  "CrossClaimer",
-  "FarReach",
-  "FinesseShot",
-  "FirstTouch",
-  "Footwork",
-  "IncisivePass",
-  "Intercept",
-  "Inventive",
-  "Jockey",
-  "LongBallPass",
-  "PingedPass",
-  "PowerShot",
-  "PressProven",
-  "QuickStep",
-  "Rapid",
-  "RushOut",
-  "SlideTackle",
-  "Technical",
-  "TikiTaka",
-  "Trickster",
-  "WhippedPass"
 ];
 final List<String> availablePositions = [
   "GK",

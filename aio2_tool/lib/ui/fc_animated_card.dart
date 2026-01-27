@@ -14,16 +14,20 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     with TickerProviderStateMixin {
   late AnimationController _rgb, _pulse;
   final List<Offset> _stars = List.generate(
-      20, (i) => Offset(Random().nextDouble(), Random().nextDouble()));
+      30, (i) => Offset(Random().nextDouble(), Random().nextDouble()));
 
   @override
   void initState() {
     super.initState();
-    _rgb =
-        AnimationController(vsync: this, duration: const Duration(seconds: 3))
-          ..repeat();
+    // Kart önemine göre animasyon hızı
+    int speed = widget.player.cardType == "TOTS" ||
+            widget.player.cardType == "BALLOND'OR"
+        ? 2
+        : 5;
+    _rgb = AnimationController(vsync: this, duration: Duration(seconds: speed))
+      ..repeat();
     _pulse =
-        AnimationController(vsync: this, duration: const Duration(seconds: 1))
+        AnimationController(vsync: this, duration: const Duration(seconds: 2))
           ..repeat(reverse: true);
   }
 
@@ -58,230 +62,241 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     return AnimatedBuilder(
         animation: Listenable.merge([_rgb, _pulse]),
         builder: (context, child) {
-          return Container(
-            width: 320,
+          return SizedBox(
+            width: 350, // Genişletildi (PlayStyle taşması için)
             height: 480,
-            decoration: baseDecor.copyWith(
-                gradient: _getBgGradient(type),
-                border: type == "TOTS" || type == "STAR" || type == "BALLOND'OR"
-                    ? null
-                    : baseDecor.border,
-                boxShadow: [
-                  BoxShadow(
-                      color: _getGlowColor(type)
-                          .withOpacity(_pulse.value * 0.5 + 0.2),
-                      blurRadius: 30,
-                      spreadRadius: 5)
-                ]),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Stack(
-                children: [
-                  if (type == "TOTS" || type == "STAR" || type == "BALLOND'OR")
-                    _buildParticles(type),
-                  if (type == "TOTS" || type == "STAR" || type == "BALLOND'OR")
-                    Positioned.fill(
-                        child: ShaderMask(
-                            shaderCallback: (bounds) => SweepGradient(
-                                    transform:
-                                        GradientRotation(_rgb.value * 2 * pi),
-                                    colors: type == "BALLOND'OR"
-                                        ? [
-                                            Colors.amber,
-                                            Colors.white,
-                                            Colors.amber
-                                          ]
-                                        : [
-                                            Colors.red,
-                                            Colors.blue,
-                                            Colors.green,
-                                            Colors.red
-                                          ])
-                                .createShader(bounds),
-                            child: Container(
-                                decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                        width: 3, color: Colors.white))))),
-                  Padding(
-                    padding: const EdgeInsets.all(20.0),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                // KART GÖVDESİ
+                Container(
+                  width: 320,
+                  height: 480,
+                  decoration: baseDecor.copyWith(
+                      gradient: _getBgGradient(type),
+                      border: (type == "TOTS" || type == "BALLOND'OR")
+                          ? null
+                          : baseDecor.border,
+                      boxShadow: [
+                        BoxShadow(
+                            color: _getGlowColor(type)
+                                .withOpacity(_pulse.value * 0.4 + 0.1),
+                            blurRadius: 30,
+                            spreadRadius: 5)
+                      ]),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
                     child: Stack(
                       children: [
-                        // KART TİPİ (EN ÜST ORTA) - Sadece özel kartlar için
-                        if (type != "Temel")
-                          Positioned(
-                              top: 0,
-                              left: 0,
-                              right: 0,
-                              child: Center(
-                                  child: Text(type.toUpperCase(),
-                                      style: GoogleFonts.orbitron(
-                                          color: _getBorderColor(type),
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 16,
-                                          letterSpacing: 3,
-                                          shadows: [
-                                            Shadow(
-                                                color: Colors.black,
-                                                blurRadius: 10)
-                                          ])))),
-
-                        // Logolar
-                        Positioned(
-                            top: 40,
-                            left: 0,
-                            child: Icon(Icons.sports_soccer,
-                                color: _getTextColor(type).withOpacity(0.7),
-                                size: 30)),
-                        Positioned(
-                            top: 40,
-                            right: 0,
-                            child: Icon(Icons.shield,
-                                color: _getTextColor(type).withOpacity(0.7),
-                                size: 30)),
-
-                        // Sol Üst Bilgiler
-                        Positioned(
-                            top: 80,
-                            left: 0,
-                            child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text("${p.rating}",
-                                      style: GoogleFonts.orbitron(
-                                          fontSize: 45,
-                                          fontWeight: FontWeight.bold,
-                                          color: _getTextColor(type),
-                                          height: 1)),
-                                  Text(p.position,
-                                      style: GoogleFonts.montserrat(
-                                          fontSize: 20,
-                                          color: _getTextColor(type)
-                                              .withOpacity(0.8),
-                                          fontWeight: FontWeight.bold)),
-                                ])),
-
-                        // Sağ Üst: Forma No ve KART YILDIZLARI (Çakışma Önlemek için buraya alındı)
-                        Positioned(
-                            top: 80,
-                            right: 5,
-                            child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text("${p.kitNumber}",
-                                      style: GoogleFonts.russoOne(
-                                          fontSize: 60,
-                                          color: _getTextColor(type)
-                                              .withOpacity(0.15))),
-                                  if (tierStars > 0)
-                                    Row(
-                                        children: List.generate(
-                                            tierStars,
-                                            (i) => Icon(Icons.star,
+                        if (tierStars >= 3) _buildParticles(type),
+                        if (type == "TOTS" || type == "BALLOND'OR" || type == "STAR")
+                          Positioned.fill(
+                              child: ShaderMask(
+                                  shaderCallback: (bounds) => SweepGradient(
+                                          transform: GradientRotation(
+                                              _rgb.value * 2 * pi),
+                                          colors: type == "BALLOND'OR"
+                                              ? [
+                                                  Colors.amber,
+                                                  Colors.white,
+                                                  Colors.amber
+                                                ]
+                                              : [
+                                                  Colors.cyan,
+                                                  Colors.purple,
+                                                  Colors.blue,
+                                                  Colors.cyan
+                                                ])
+                                      .createShader(bounds),
+                                  child: Container(
+                                      decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          border: Border.all(
+                                              width: 4,
+                                              color: Colors.white))))),
+                        Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Stack(
+                            children: [
+                              // KART TİPİ
+                              if (type != "Temel")
+                                Positioned(
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    child: Center(
+                                        child: Text(type.toUpperCase(),
+                                            style: GoogleFonts.orbitron(
                                                 color: _getBorderColor(type),
-                                                size: 14))),
-                                ])),
-
-                        // İsim (Yıldızsız)
-                        Positioned(
-                            top: 190,
-                            left: 0,
-                            right: 0,
-                            child: Center(
-                                child: Text(p.name.toUpperCase(),
-                                    style: GoogleFonts.orbitron(
-                                        fontSize: 26,
-                                        color: _getTextColor(type),
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 1.2),
-                                    overflow: TextOverflow.ellipsis))),
-
-                        // Statlar
-                        Positioned(
-                            top: 250,
-                            left: 20,
-                            right: 20,
-                            child: Column(children: [
-                              const Divider(color: Colors.white30),
-                              const SizedBox(height: 10),
-                              Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    _cStat("PAC", cs["PAC"]!, type),
-                                    _cStat("DRI", cs["DRI"]!, type)
-                                  ]),
-                              const SizedBox(height: 5),
-                              Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    _cStat("SHO", cs["SHO"]!, type),
-                                    _cStat("DEF", cs["DEF"]!, type)
-                                  ]),
-                              const SizedBox(height: 5),
-                              Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    _cStat("PAS", cs["PAS"]!, type),
-                                    _cStat("PHY", cs["PHY"]!, type)
-                                  ]),
-                              const SizedBox(height: 15),
-                              const Divider(color: Colors.white30),
-                            ])),
-
-                        // Sol Kenar Playstyle+
-                        if (goldPs != null)
-                          Positioned(
-                              left: -10,
-                              bottom: 80,
-                              child: RotatedBox(
-                                  quarterTurns: 3,
-                                  child: Row(children: [
-                                    Text(
-                                        playStyleTranslations[goldPs.name] ??
-                                            goldPs.name,
-                                        style: GoogleFonts.montserrat(
-                                            color: _getBorderColor(type),
-                                            fontWeight: FontWeight.bold)),
-                                    const SizedBox(width: 5),
-                                    Image.asset(goldPs.assetPath,
-                                        width: 25,
-                                        height: 25,
-                                        errorBuilder: (c, e, s) => Icon(
-                                            Icons.star,
-                                            color: _getBorderColor(type),
-                                            size: 25))
-                                  ]))),
-
-                        // Alt Bilgi
-                        Positioned(
-                            bottom: 10,
-                            left: 0,
-                            right: 0,
-                            child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.science,
+                                                fontWeight: FontWeight.w900,
+                                                fontSize: 16,
+                                                letterSpacing: 3,
+                                                shadows: [
+                                                  Shadow(
+                                                      color: Colors.black,
+                                                      blurRadius: 10)
+                                                ])))),
+                              // Logolar
+                              Positioned(
+                                  top: 40,
+                                  left: 0,
+                                  child: Icon(Icons.sports_soccer,
                                       color:
-                                          _getTextColor(type).withOpacity(0.6),
-                                      size: 14),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                      "${p.chemistryStyle} • ${p.role}"
-                                          .toUpperCase(),
-                                      style: GoogleFonts.montserrat(
-                                          color: _getTextColor(type)
-                                              .withOpacity(0.6),
-                                          letterSpacing: 1,
-                                          fontSize: 10)),
-                                ])),
+                                          _getTextColor(type).withOpacity(0.7),
+                                      size: 30)),
+                              Positioned(
+                                  top: 40,
+                                  right: 0,
+                                  child: Icon(Icons.shield,
+                                      color:
+                                          _getTextColor(type).withOpacity(0.7),
+                                      size: 30)),
+                              // Sol Üst
+                              Positioned(
+                                  top: 80,
+                                  left: 0,
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text("${p.rating}",
+                                            style: GoogleFonts.orbitron(
+                                                fontSize: 45,
+                                                fontWeight: FontWeight.bold,
+                                                color: _getTextColor(type),
+                                                height: 1)),
+                                        Text(p.position,
+                                            style: GoogleFonts.montserrat(
+                                                fontSize: 20,
+                                                color: _getTextColor(type)
+                                                    .withOpacity(0.8),
+                                                fontWeight: FontWeight.bold)),
+                                      ])),
+                              // Sağ Üst (Forma No + Yıldızlar)
+                              Positioned(
+                                  top: 80,
+                                  right: 5,
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Text("${p.kitNumber}",
+                                            style: GoogleFonts.russoOne(
+                                                fontSize: 60,
+                                                color: _getTextColor(type)
+                                                    .withOpacity(0.15))),
+                                        if (tierStars > 0)
+                                          Row(
+                                              children: List.generate(
+                                                  tierStars,
+                                                  (i) => Icon(Icons.star,
+                                                      color:
+                                                          _getBorderColor(type),
+                                                      size: 14))),
+                                      ])),
+                              // İsim
+                              Positioned(
+                                  top: 190,
+                                  left: 0,
+                                  right: 0,
+                                  child: Center(
+                                      child: Text(p.name.toUpperCase(),
+                                          style: GoogleFonts.orbitron(
+                                              fontSize: 26,
+                                              color: _getTextColor(type),
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 1.2),
+                                          overflow: TextOverflow.ellipsis))),
+                              // Statlar
+                              Positioned(
+                                  top: 250,
+                                  left: 20,
+                                  right: 20,
+                                  child: Column(children: [
+                                    const Divider(color: Colors.white30),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          _cStat("PAC", cs["PAC"]!, type),
+                                          _cStat("DRI", cs["DRI"]!, type)
+                                        ]),
+                                    const SizedBox(height: 5),
+                                    Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          _cStat("SHO", cs["SHO"]!, type),
+                                          _cStat("DEF", cs["DEF"]!, type)
+                                        ]),
+                                    const SizedBox(height: 5),
+                                    Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          _cStat("PAS", cs["PAS"]!, type),
+                                          _cStat("PHY", cs["PHY"]!, type)
+                                        ]),
+                                    const SizedBox(height: 15),
+                                    const Divider(color: Colors.white30),
+                                  ])),
+                              // Alt
+                              Positioned(
+                                  bottom: 10,
+                                  left: 0,
+                                  right: 0,
+                                  child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.science,
+                                            color: _getTextColor(type)
+                                                .withOpacity(0.6),
+                                            size: 14),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                            "${p.chemistryStyle} • ${p.role}"
+                                                .toUpperCase(),
+                                            style: GoogleFonts.montserrat(
+                                                color: _getTextColor(type)
+                                                    .withOpacity(0.6),
+                                                letterSpacing: 1,
+                                                fontSize: 10)),
+                                      ])),
+                            ],
+                          ),
+                        )
                       ],
                     ),
-                  )
-                ],
-              ),
+                  ),
+                ),
+
+                // --- PLAYSTYLE+ (YARISI DIŞARIDA) ---
+                if (goldPs != null)
+                  Positioned(
+                      left: -5, // Kartın solundan taşır
+                      top: 220, // Ortala
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.amber, width: 3),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: Colors.amber.withOpacity(0.5),
+                                  blurRadius: 15)
+                            ]),
+                        child: Image.asset(goldPs.assetPath,
+                            width: 30,
+                            height: 30,
+                            errorBuilder: (c, e, s) => const Icon(Icons.star,
+                                color: Colors.amber, size: 30)),
+                      )),
+              ],
             ),
           );
         });
@@ -301,7 +316,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
   Widget _buildParticles(String type) {
     Color pColor = type == "MVP"
         ? Colors.red
-        : (type == "BALLOND'OR" ? Colors.amber : Colors.white);
+        : (type == "BALLOND'OR" ? Colors.amber : Colors.cyanAccent);
     IconData pIcon = type == "MVP" ? Icons.circle : (Icons.star);
     return Stack(
         children: _stars
@@ -309,7 +324,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                 left: pos.dx * 320,
                 top: (pos.dy + _rgb.value) % 1 * 480,
                 child: Icon(pIcon,
-                    color: pColor.withOpacity(0.3),
+                    color:
+                        pColor.withOpacity(0.3 + (Random().nextDouble() * 0.3)),
                     size: type == "MVP" ? 4 : 10)))
             .toList());
   }
