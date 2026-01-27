@@ -19,7 +19,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
   @override
   void initState() {
     super.initState();
-    // Kart önemine göre animasyon hızı
     int speed = widget.player.cardType == "TOTS" ||
             widget.player.cardType == "BALLOND'OR"
         ? 2
@@ -63,13 +62,12 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         animation: Listenable.merge([_rgb, _pulse]),
         builder: (context, child) {
           return SizedBox(
-            width: 350, // Genişletildi (PlayStyle taşması için)
+            width: 350, // Genişletildi
             height: 480,
             child: Stack(
               clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
-                // KART GÖVDESİ
                 Container(
                   width: 320,
                   height: 480,
@@ -120,7 +118,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                           padding: const EdgeInsets.all(20.0),
                           child: Stack(
                             children: [
-                              // KART TİPİ
                               if (type != "Temel")
                                 Positioned(
                                     top: 0,
@@ -138,7 +135,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                       color: Colors.black,
                                                       blurRadius: 10)
                                                 ])))),
-                              // Logolar
                               Positioned(
                                   top: 40,
                                   left: 0,
@@ -153,7 +149,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                       color:
                                           _getTextColor(type).withOpacity(0.7),
                                       size: 30)),
-                              // Sol Üst
                               Positioned(
                                   top: 80,
                                   left: 0,
@@ -172,9 +167,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                 fontSize: 20,
                                                 color: _getTextColor(type)
                                                     .withOpacity(0.8),
-                                                fontWeight: FontWeight.bold)),
+                                                fontWeight: FontWeight.bold))
                                       ])),
-                              // Sağ Üst (Forma No + Yıldızlar)
                               Positioned(
                                   top: 80,
                                   right: 5,
@@ -194,9 +188,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                   (i) => Icon(Icons.star,
                                                       color:
                                                           _getBorderColor(type),
-                                                      size: 14))),
+                                                      size: 14)))
                                       ])),
-                              // İsim
                               Positioned(
                                   top: 190,
                                   left: 0,
@@ -209,7 +202,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                               fontWeight: FontWeight.bold,
                                               letterSpacing: 1.2),
                                           overflow: TextOverflow.ellipsis))),
-                              // Statlar
                               Positioned(
                                   top: 250,
                                   left: 20,
@@ -241,9 +233,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                           _cStat("PHY", cs["PHY"]!, type)
                                         ]),
                                     const SizedBox(height: 15),
-                                    const Divider(color: Colors.white30),
+                                    const Divider(color: Colors.white30)
                                   ])),
-                              // Alt
                               Positioned(
                                   bottom: 10,
                                   left: 0,
@@ -264,7 +255,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                 color: _getTextColor(type)
                                                     .withOpacity(0.6),
                                                 letterSpacing: 1,
-                                                fontSize: 10)),
+                                                fontSize: 10))
                                       ])),
                             ],
                           ),
@@ -273,29 +264,27 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                     ),
                   ),
                 ),
-
-                // --- PLAYSTYLE+ (YARISI DIŞARIDA) ---
+                // PLAYSTYLE+ (YARISI DIŞARIDA)
                 if (goldPs != null)
                   Positioned(
-                      left: -5, // Kartın solundan taşır
-                      top: 220, // Ortala
+                      left: -5,
+                      top: 220,
                       child: Container(
-                        padding: const EdgeInsets.all(5),
-                        decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.amber, width: 3),
-                            boxShadow: [
-                              BoxShadow(
-                                  color: Colors.amber.withOpacity(0.5),
-                                  blurRadius: 15)
-                            ]),
-                        child: Image.asset(goldPs.assetPath,
-                            width: 30,
-                            height: 30,
-                            errorBuilder: (c, e, s) => const Icon(Icons.star,
-                                color: Colors.amber, size: 30)),
-                      )),
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.amber, width: 3),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: Colors.amber.withOpacity(0.5),
+                                    blurRadius: 15)
+                              ]),
+                          child: Image.asset(goldPs.assetPath,
+                              width: 30,
+                              height: 30,
+                              errorBuilder: (c, e, s) => const Icon(Icons.star,
+                                  color: Colors.amber, size: 30)))),
               ],
             ),
           );

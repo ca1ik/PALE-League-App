@@ -4,18 +4,14 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
 
-// --- PROVIDERS ---
 import 'providers/music_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/language_provider.dart';
 import 'providers/ui_provider.dart';
-
-// --- VERİ & DATA ---
 import 'data/player_data.dart';
-
-// --- UI & EKRANLAR ---
 import 'ui/background.dart';
 import 'ui/sidebar.dart';
 import 'ui/chatbot.dart';
@@ -23,8 +19,6 @@ import 'ui/glass_box.dart';
 import 'ui/spatial_sidebar.dart';
 import 'ui/movable_window.dart';
 import 'screens/settings_screen.dart';
-
-// --- MODÜLLER ---
 import 'modules/wifi_module.dart';
 import 'modules/optimization_module.dart';
 import 'modules/charts_module.dart';
@@ -45,8 +39,6 @@ void main() async {
 
   try {
     await Hive.initFlutter();
-
-    // Adapterleri Kaydet
     Hive.registerAdapter(PlayerAdapter());
     Hive.registerAdapter(PlayStyleAdapter());
     Hive.registerAdapter(MatchStatAdapter());
@@ -56,7 +48,7 @@ void main() async {
     await Hive.openBox('natroff_memory');
     await Hive.openBox<StrategyModel>('palehax_strategies');
 
-    // --- SABİT VERİTABANI İSMİ ---
+    // --- SABİT KUTU İSMİ ---
     await Hive.openBox<Player>('palehax_manager_db');
   } catch (e) {
     debugPrint("Veritabanı Başlatma Hatası: $e");
@@ -92,27 +84,77 @@ void main() async {
 
 class AioApp extends StatelessWidget {
   const AioApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     final themeProv = Provider.of<ThemeProvider>(context);
     final langProv = Provider.of<LanguageProvider>(context);
-
     return GetMaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Natroff AIO',
       locale: langProv.currentLocale,
       themeMode: themeProv.isDark ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData.light().copyWith(
-        scaffoldBackgroundColor: Colors.grey[100],
-        textTheme: GoogleFonts.poppinsTextTheme(ThemeData.light().textTheme),
-      ),
+          scaffoldBackgroundColor: Colors.grey[100],
+          textTheme: GoogleFonts.poppinsTextTheme(ThemeData.light().textTheme)),
       darkTheme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: Colors.transparent,
-        textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
-      ),
+          scaffoldBackgroundColor: Colors.transparent,
+          textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme)),
       home: const MainWindow(),
     );
+  }
+}
+
+class VideoIntroScreen extends StatefulWidget {
+  const VideoIntroScreen({super.key});
+  @override
+  State<VideoIntroScreen> createState() => _VideoIntroScreenState();
+}
+
+class _VideoIntroScreenState extends State<VideoIntroScreen> {
+  late VideoPlayerController _controller;
+  bool _isNavigated = false;
+  @override
+  void initState() {
+    super.initState();
+    _initVideo();
+  }
+
+  void _initVideo() {
+    _controller = VideoPlayerController.asset('assets/x.mp4')
+      ..initialize().then((_) {
+        setState(() {});
+        _controller.play();
+        _controller.setVolume(1.0);
+      }).catchError((e) {
+        _goToMain();
+      });
+    _controller.addListener(() {
+      if (!_isNavigated &&
+          _controller.value.position >= _controller.value.duration) {
+        _goToMain();
+      }
+    });
+    Future.delayed(const Duration(seconds: 5), _goToMain);
+  }
+
+  void _goToMain() {
+    if (_isNavigated) return;
+    _isNavigated = true;
+    _controller.dispose();
+    if (mounted)
+      Get.offAll(() => const MainWindow(), transition: Transition.fadeIn);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+            child: _controller.value.isInitialized
+                ? AspectRatio(
+                    aspectRatio: _controller.value.aspectRatio,
+                    child: VideoPlayer(_controller))
+                : const CircularProgressIndicator(color: Colors.white24)));
   }
 }
 
@@ -125,7 +167,6 @@ class MainWindow extends StatefulWidget {
 class _MainWindowState extends State<MainWindow> {
   List<int> _history = [0];
   int _historyIndex = 0;
-
   void _navigateTo(int index) {
     if (_history[_historyIndex] == index) return;
     setState(() {
@@ -151,35 +192,33 @@ class _MainWindowState extends State<MainWindow> {
     final langProv = Provider.of<LanguageProvider>(context);
     final uiProv = Provider.of<UIProvider>(context);
     final isDark = themeProv.isDark;
-
     int activeIdx = _history[_historyIndex];
 
     final List<Widget> pages = [
-      const ResolutionModule(), // 0
-      const CleaningModule(), // 1
-      const DnsModule(), // 2
-      const PowerModule(), // 3
-      const KeyboardModule(), // 4
-      const WifiModule(), // 5
-      const SecurityModule(), // 6
-      const OptimizationModule(), // 7
-      const HistoryModule(), // 8
-      const WebviewModule(url: "https://github.com/ca1ik"), // 9
-      const AiPhotoModule(), // 10
-      const ChartsModule(), // 11
-      const TurkeyMapModule(), // 12
-      const SettingsScreen(), // 13
-      const PaleWebView(url: "https://palehaxball.com/"), // 14
-      const PaleHaxPlayersView(), // 15
-      const PaleWebView(url: "https://palehaxball.com/takimlar"), // 16
-      const PaleWebView(url: "https://palehaxball.com/maclar"), // 17
-      const PaleWebView(url: "https://palehaxball.com/puan-durumu"), // 18
-      const PaleWebView(url: "https://palehaxball.com/istatistikler"), // 19
-      const PaleWebView(url: "https://palehaxball.com/transferler"), // 20
-      const ChallengeHub(), // 21
-      const SquadBuilderModule(isTOTWMode: true), // 22
+      const ResolutionModule(),
+      const CleaningModule(),
+      const DnsModule(),
+      const PowerModule(),
+      const KeyboardModule(),
+      const WifiModule(),
+      const SecurityModule(),
+      const OptimizationModule(),
+      const HistoryModule(),
+      const WebviewModule(url: "https://github.com/ca1ik"),
+      const AiPhotoModule(),
+      const ChartsModule(),
+      const TurkeyMapModule(),
+      const SettingsScreen(),
+      const PaleWebView(url: "https://palehaxball.com/"),
+      const PaleHaxPlayersView(),
+      const PaleWebView(url: "https://palehaxball.com/takimlar"),
+      const PaleWebView(url: "https://palehaxball.com/maclar"),
+      const PaleWebView(url: "https://palehaxball.com/puan-durumu"),
+      const PaleWebView(url: "https://palehaxball.com/istatistikler"),
+      const PaleWebView(url: "https://palehaxball.com/transferler"),
+      const ChallengeHub(),
+      const SquadBuilderModule(isTOTWMode: true),
     ];
-
     Widget activeModule = pages[activeIdx < pages.length ? activeIdx : 0];
 
     return Scaffold(
@@ -191,92 +230,79 @@ class _MainWindowState extends State<MainWindow> {
           if (!uiProv.isSpatialMode && !isDark)
             Positioned.fill(child: Container(color: Colors.grey[200])),
           if (!uiProv.isSpatialMode)
-            Column(
-              children: [
-                Container(
+            Column(children: [
+              Container(
                   height: 40,
                   color: isDark ? Colors.black26 : Colors.white,
-                  child: Row(
-                    children: [
-                      Expanded(
+                  child: Row(children: [
+                    Expanded(
                         child: GestureDetector(
-                          onPanStart: (_) => windowManager.startDragging(),
-                          child: Container(
-                            color: Colors.transparent,
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            child: Row(
-                              children: [
-                                IconButton(
-                                    icon: Icon(Icons.arrow_back_ios_new_rounded,
-                                        size: 16,
-                                        color: _historyIndex > 0
-                                            ? (isDark
-                                                ? Colors.white
-                                                : Colors.black)
-                                            : Colors.grey.withOpacity(0.3)),
-                                    onPressed:
-                                        _historyIndex > 0 ? _goBack : null),
-                                IconButton(
-                                    icon: Icon(Icons.arrow_forward_ios_rounded,
-                                        size: 16,
-                                        color:
-                                            _historyIndex < _history.length - 1
-                                                ? (isDark
-                                                    ? Colors.white
-                                                    : Colors.black)
-                                                : Colors.grey.withOpacity(0.3)),
-                                    onPressed:
-                                        _historyIndex < _history.length - 1
-                                            ? _goForward
-                                            : null),
-                                const SizedBox(width: 15),
-                                Text(langProv.translate('app_title'),
-                                    style: TextStyle(
-                                        color: isDark
-                                            ? Colors.white
-                                            : Colors.black,
-                                        fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                          icon: Icon(Icons.settings,
-                              color: isDark ? Colors.white70 : Colors.black54,
-                              size: 20),
-                          onPressed: () => _navigateTo(13)),
-                      const WindowButtons(),
-                    ],
-                  ),
-                ),
+                            onPanStart: (_) => windowManager.startDragging(),
+                            child: Container(
+                                color: Colors.transparent,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 10),
+                                child: Row(children: [
+                                  IconButton(
+                                      icon: Icon(
+                                          Icons.arrow_back_ios_new_rounded,
+                                          size: 16,
+                                          color: _historyIndex > 0
+                                              ? (isDark
+                                                  ? Colors.white
+                                                  : Colors.black)
+                                              : Colors.grey.withOpacity(0.3)),
+                                      onPressed:
+                                          _historyIndex > 0 ? _goBack : null),
+                                  IconButton(
+                                      icon: Icon(
+                                          Icons.arrow_forward_ios_rounded,
+                                          size: 16,
+                                          color: _historyIndex <
+                                                  _history.length - 1
+                                              ? (isDark
+                                                  ? Colors.white
+                                                  : Colors.black)
+                                              : Colors.grey.withOpacity(0.3)),
+                                      onPressed:
+                                          _historyIndex < _history.length - 1
+                                              ? _goForward
+                                              : null),
+                                  const SizedBox(width: 15),
+                                  Text(langProv.translate('app_title'),
+                                      style: TextStyle(
+                                          color: isDark
+                                              ? Colors.white
+                                              : Colors.black,
+                                          fontWeight: FontWeight.bold))
+                                ])))),
+                    IconButton(
+                        icon: Icon(Icons.settings,
+                            color: isDark ? Colors.white70 : Colors.black54,
+                            size: 20),
+                        onPressed: () => _navigateTo(13)),
+                    const WindowButtons()
+                  ])),
+              Expanded(
+                  child: Row(children: [
+                CustomSidebar(
+                    selectedIndex: activeIdx,
+                    onIndexChanged: (i) => _navigateTo(i)),
                 Expanded(
-                  child: Row(
-                    children: [
-                      CustomSidebar(
-                          selectedIndex: activeIdx,
-                          onIndexChanged: (i) => _navigateTo(i)),
-                      Expanded(
-                        child: Container(
-                          margin: const EdgeInsets.all(20),
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
+                    child: Container(
+                        margin: const EdgeInsets.all(20),
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
                             color: isDark
                                 ? const Color(0xFF1E1E24).withOpacity(0.6)
                                 : Colors.white,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                                 color:
-                                    isDark ? Colors.white12 : Colors.black12),
-                          ),
-                          child: activeModule,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+                                    isDark ? Colors.white12 : Colors.black12)),
+                        child: activeModule))
+              ]))
+            ]),
           if (uiProv.isSpatialMode) ...[
             Positioned(
                 top: 0,
@@ -302,7 +328,7 @@ class _MainWindowState extends State<MainWindow> {
                         borderRadius: BorderRadius.circular(30),
                         child: activeModule))),
             const Positioned(
-                top: 10, right: 10, child: WindowButtons(isSpatial: true)),
+                top: 10, right: 10, child: WindowButtons(isSpatial: true))
           ],
           uiProv.isSpatialMode
               ? MovableWindow(
@@ -331,53 +357,13 @@ class _MainWindowState extends State<MainWindow> {
     if (command == "NAVIGATE") {
       int? t;
       switch (value) {
-        case "resolution":
-          t = 0;
-          break;
-        case "cleaning":
-          t = 1;
-          break;
-        case "dns":
-          t = 2;
-          break;
-        case "power":
-          t = 3;
-          break;
-        case "keyboard":
-          t = 4;
-          break;
-        case "wifi":
-          t = 5;
-          break;
-        case "security":
-          t = 6;
-          break;
-        case "optimization":
-          t = 7;
-          break;
-        case "history":
-          t = 8;
-          break;
-        case "about":
-          t = 9;
-          break;
-        case "aiphoto":
-          t = 10;
-          break;
-        case "charts":
-          t = 11;
-          break;
-        case "weather":
-          t = 12;
-          break;
-        case "settings":
-          t = 13;
-          break;
         case "palehax":
           t = 14;
           break;
-      }
-      if (t != null) _navigateTo(t!);
+        default:
+          t = 0;
+      } // Basitleştirildi
+      if (t != null) _navigateTo(t);
     }
   }
 }
@@ -388,18 +374,16 @@ class WindowButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color iconColor = isSpatial ? Colors.white : Colors.grey;
-    return Row(
-      children: [
-        _winBtn(Icons.minimize, () => windowManager.minimize(), iconColor),
-        _winBtn(Icons.crop_square, () async {
-          if (await windowManager.isMaximized())
-            windowManager.unmaximize();
-          else
-            windowManager.maximize();
-        }, iconColor),
-        _winBtn(Icons.close, () => windowManager.close(), iconColor),
-      ],
-    );
+    return Row(children: [
+      _winBtn(Icons.minimize, () => windowManager.minimize(), iconColor),
+      _winBtn(Icons.crop_square, () async {
+        if (await windowManager.isMaximized())
+          windowManager.unmaximize();
+        else
+          windowManager.maximize();
+      }, iconColor),
+      _winBtn(Icons.close, () => windowManager.close(), iconColor)
+    ]);
   }
 
   Widget _winBtn(IconData icon, VoidCallback onTap, Color color) {

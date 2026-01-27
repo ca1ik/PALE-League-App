@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
-// --- HIVE ADAPTERLERİ ---
+// --- ADAPTERLER ---
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
   final int typeId = 1;
@@ -339,7 +339,7 @@ class Player extends HiveObject {
   }
 }
 
-// --- WIKI DATALARI (PlayStyles, Roller, Kartlar) ---
+// --- WIKI VERİLERİ (SENİN YOLLADIĞIN METİNLER) ---
 final Map<String, List<Map<String, String>>> playStyleCategories = {
   "Bitirici": [
     {
@@ -518,12 +518,12 @@ final List<Map<String, dynamic>> metaPlaystyles = [
   {
     "role": "(10) CAM Metas",
     "styles":
-        "Keskin Pas - Tiki Taka - Adrese Teslim - Oyun Kurucu - Yaratıcı - Sert Şut - Teknik"
+        "Keskin Pas - Tiki Taka - Adrese Teslim - Oyun Kurucu/Yaratıcı - Yaratıcı - Sert Şut - Teknik"
   },
   {
     "role": "(7-11) RW/LW Metas",
     "styles":
-        "Hilebaz - Oyun Kurucu - Hızlı Adım - Ani - Teknik - Sert Şut - Plase Şut - Yaratıcı"
+        "Hilebaz/Sanatçı - Oyun Kurucu/Yaratıcı - Hızlı Adım - Ani - Teknik - Sert Şut - Plase Şut - Yaratıcı"
   },
   {
     "role": "(9) ST Metas",
@@ -545,26 +545,13 @@ final Map<String, String> cardTypeDescriptions = {
   "TOTM": "Ayın Takımı oyuncusu."
 };
 
-// Rol açıklamaları için bir Map ekleyebiliriz istersen, şimdilik isimleri yeterli.
-final Map<String, String> roleDescriptions = {
-  "Çizgi Kalecisi": "Çizgide kalarak refleksleriyle kurtarış yapar.",
-  "Süpürücü Kaleci": "Defans arkasına atılan toplara çıkar.",
-  "Oyun Kurucu Kaleci": "Ayaklarını iyi kullanır, oyunu geriden kurar.",
-  "Libero": "Defansın en arkasında serbest oynar.",
-  "Çok Yönlü": "Hem savunma hem hücum özelliklerini dengeli kullanır.",
-  "Savaşçı": "Fiziksel gücüyle rakibi yıpratır.",
-  "Oyun Kurucu": "Takımın beyni, pas dağıtımını yönetir.",
-  "Box to Box": "İki ceza sahası arasında mekik dokur.",
-  "Kanat Oyuncusu": "Çizgiye inip orta yapar.",
-  "İç Forvet": "Kanattan içeri kat edip şut arar.",
-  "Hedef Forvet": "Fiziksel gücüyle top saklar, kafa toplarına hakimdir.",
-  "Avcı Forvet": "Ceza sahası içinde bitiriciliğe odaklanır.",
-  "Gizli Forvet": "Arkadan gelip sürpriz goller atar.",
-};
-
+// Çeviri haritaları
 final List<String> availablePlayStyles = playStyleCategories.values
     .expand((element) => element.map((e) => e["name"]!))
     .toList();
+final Map<String, String> playStyleTranslations = playStyleCategories.values
+    .expand((e) => e)
+    .fold({}, (map, e) => map..[e["name"]!] = e["label"]!);
 final Map<String, String> playStyleTranslationsReverse = playStyleCategories
     .values
     .expand((e) => e)
