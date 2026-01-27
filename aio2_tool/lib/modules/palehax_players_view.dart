@@ -74,7 +74,6 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
     with SingleTickerProviderStateMixin {
   Player? selectedPlayer;
   int currentCardIndex = 0;
-  // İç sekmeler (Profil / Ultimate Analiz) için bağımsız controller
   late TabController _innerTabController;
 
   @override
@@ -122,7 +121,6 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
       manualGoals: t.manualGoals,
       manualAssists: t.manualAssists,
       manualMatches: t.manualMatches,
-      // Diğer manuel istatistikler eklenebilir...
     );
   }
 
@@ -134,12 +132,6 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
               child: CircularProgressIndicator(color: Colors.cyanAccent));
-        }
-
-        if (snapshot.hasError) {
-          return Center(
-              child: Text("Hata: ${snapshot.error}",
-                  style: const TextStyle(color: Colors.red)));
         }
 
         final allPlayerTables = snapshot.data ?? [];
@@ -321,8 +313,11 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                         _ViewProfile(
                           player: displayPlayer,
                           versions: versions,
-                          onSelect: (p) => setState(
-                              () => currentCardIndex = versions.indexOf(p)),
+                          onSelect: (p) => setState(() {
+                            selectedPlayer = p; // Seçimi güncelle
+                            currentCardIndex =
+                                versions.indexOf(p); // İndexi güncelle
+                          }),
                         ),
                         _ViewUltimate(
                           player: displayPlayer,
@@ -631,7 +626,11 @@ class SubTabCardTypes extends StatelessWidget {
                             fontWeight: FontWeight.bold))),
                 Expanded(
                     child: Transform.scale(
-                        scale: 1.0, child: FCAnimatedCard(player: dummyP))),
+                        scale: 1.0,
+                        child: FCAnimatedCard(
+                            player: dummyP,
+                            animateOnHover: true) // Hover animasyonu aktif
+                        )),
               ],
             ),
           ),
@@ -759,7 +758,7 @@ class SubTabRoles extends StatelessWidget {
 }
 
 // ==============================================================================
-// YARDIMCI FONKSİYONLAR (GLOBAL KARTLAR, PROFİL, ULTIMATE ANALİZ)
+// YARDIMCI FONKSİYONLAR
 // ==============================================================================
 
 void _showGlobalCards(
@@ -881,7 +880,8 @@ void _showGlobalCards(
                             },
                             child: Transform.scale(
                               scale: 0.9,
-                              child: FCAnimatedCard(player: pModel),
+                              child: FCAnimatedCard(
+                                  player: pModel, animateOnHover: true),
                             ),
                           );
                         },
@@ -908,6 +908,10 @@ class _ViewProfile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Playstyle Sıralama: Gold olanlar önce
+    List<PlayStyle> sortedStyles = List.from(player.playstyles);
+    sortedStyles.sort((a, b) => (b.isGold ? 1 : 0).compareTo(a.isGold ? 1 : 0));
+
     return SingleChildScrollView(
         padding: const EdgeInsets.all(30),
         child: Column(children: [
@@ -935,20 +939,23 @@ class _ViewProfile extends StatelessWidget {
                               color: Colors.amber,
                               fontWeight: FontWeight.bold)),
                       const SizedBox(height: 10),
-                      // Hizalı Playstyles
+                      // Hizalı ve Renkli Playstyles
                       Wrap(
                           spacing: 15,
                           runSpacing: 10,
-                          children: player.playstyles.map((ps) {
-                            // Altın ise sarı, değilse beyaz
+                          children: sortedStyles.map((ps) {
                             Color contentColor =
                                 ps.isGold ? Colors.amber : Colors.white;
+                            // Asset yolunu Gold ise Plus olarak ayarla
+                            String assetName =
+                                ps.isGold ? "${ps.name}Plus" : ps.name;
                             return Container(
-                                width: 90, // Sabit genişlik hizalama sağlar
+                                width: 90,
                                 child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Image.asset(ps.assetPath,
+                                      Image.asset(
+                                          "assets/Playstyles/$assetName.png",
                                           width: 40,
                                           height: 40,
                                           errorBuilder: (c, e, s) => Icon(
@@ -992,7 +999,10 @@ class _ViewProfile extends StatelessWidget {
                                             Transform.scale(
                                                 scale: 0.25,
                                                 child: FCAnimatedCard(
-                                                    player: versions[i])),
+                                                    player: versions[i],
+                                                    animateOnHover:
+                                                        true) // Hover animasyonlu
+                                                ),
                                             Text(versions[i].cardType,
                                                 style: const TextStyle(
                                                     color: Colors.white,
@@ -1104,6 +1114,7 @@ class _ViewUltimate extends StatelessWidget {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10))))),
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // Mini Harita Düzeltmesi (İki Nokta Sorunu Çözüldü)
                   Container(
                       width: 160,
                       height: 220,
@@ -1125,7 +1136,9 @@ class _ViewUltimate extends StatelessWidget {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 4),
                                       color: Colors.black54,
-                                      child: Text(player.position,
+                                      child: Text(
+                                          player.position.replaceAll(
+                                              RegExp(r'[^A-Z]'), ''),
                                           style: const TextStyle(
                                               color: Colors.redAccent,
                                               fontSize: 10,
@@ -1348,19 +1361,23 @@ class _MiniPitchPainter extends CustomPainter {
   _MiniPitchPainter({required this.playerPos});
   @override
   void paint(Canvas c, Size s) {
-    Paint p = Paint()
+    Paint linePaint = Paint()
       ..color = Colors.white24
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
-    c.drawRect(Rect.fromLTWH(0, 0, s.width, s.height), p);
-    c.drawLine(Offset(0, s.height / 2), Offset(s.width, s.height / 2), p);
-    c.drawCircle(Offset(s.width / 2, s.height / 2), 15, p);
-    c.drawRect(
-        Rect.fromLTWH(s.width * 0.25, 0, s.width * 0.5, s.height * 0.15), p);
+    // Saha Çizgileri (Hollow)
+    c.drawRect(Rect.fromLTWH(0, 0, s.width, s.height), linePaint);
+    c.drawLine(
+        Offset(0, s.height / 2), Offset(s.width, s.height / 2), linePaint);
+    c.drawCircle(Offset(s.width / 2, s.height / 2), 15, linePaint); // Orta Saha
+    c.drawRect(Rect.fromLTWH(s.width * 0.25, 0, s.width * 0.5, s.height * 0.15),
+        linePaint);
     c.drawRect(
         Rect.fromLTWH(
             s.width * 0.25, s.height * 0.85, s.width * 0.5, s.height * 0.15),
-        p);
+        linePaint);
+
+    // Oyuncu Noktası (Filled) - İki nokta sorunu çözüldü
     c.drawCircle(
         Offset(playerPos.dx * s.width, playerPos.dy * s.height),
         6,

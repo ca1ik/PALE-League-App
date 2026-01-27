@@ -5,7 +5,10 @@ import '../data/player_data.dart';
 
 class FCAnimatedCard extends StatefulWidget {
   final Player player;
-  const FCAnimatedCard({super.key, required this.player});
+  // Hover ile tetiklemek için opsiyonel parametre
+  final bool animateOnHover;
+  const FCAnimatedCard(
+      {super.key, required this.player, this.animateOnHover = false});
   @override
   State<FCAnimatedCard> createState() => _FCAnimatedCardState();
 }
@@ -18,18 +21,22 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
   final List<double> _randomY = List.generate(50, (i) => Random().nextDouble());
   final List<double> _randomSpeed =
       List.generate(50, (i) => 0.5 + Random().nextDouble() * 0.5);
+  bool _isHovering = false;
 
   @override
   void initState() {
     super.initState();
     // Sonsuz döngü (Linear)
     _loopController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 10))
-          ..repeat();
-    // Nefes alma (Glow)
+        AnimationController(vsync: this, duration: const Duration(seconds: 10));
     _pulseController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 2))
-          ..repeat(reverse: true);
+        AnimationController(vsync: this, duration: const Duration(seconds: 2));
+
+    // Eğer animateOnHover false ise (büyük kart) veya Temel kart değilse sürekli çalıştır
+    if (!widget.animateOnHover && widget.player.cardType != "Temel") {
+      _loopController.repeat();
+      _pulseController.repeat(reverse: true);
+    }
   }
 
   @override
@@ -37,6 +44,18 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     _loopController.dispose();
     _pulseController.dispose();
     super.dispose();
+  }
+
+  void _handleHover(bool hover) {
+    if (!widget.animateOnHover || widget.player.cardType == "Temel") return;
+    setState(() => _isHovering = hover);
+    if (hover) {
+      _loopController.repeat();
+      _pulseController.repeat(reverse: true);
+    } else {
+      _loopController.stop();
+      _pulseController.stop();
+    }
   }
 
   @override
@@ -52,277 +71,291 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         : null;
     Color borderColor = _getBorderColor(type);
 
-    return AnimatedBuilder(
-        animation: Listenable.merge([_loopController, _pulseController]),
-        builder: (context, child) {
-          return SizedBox(
-            width: 350,
-            height: 480,
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
-              children: [
-                // --- KART GÖVDESİ ---
-                Container(
-                  width: 320,
-                  height: 480,
-                  decoration: BoxDecoration(
+    return MouseRegion(
+      onEnter: (_) => _handleHover(true),
+      onExit: (_) => _handleHover(false),
+      child: AnimatedBuilder(
+          animation: Listenable.merge([_loopController, _pulseController]),
+          builder: (context, child) {
+            return SizedBox(
+              width: 350,
+              height: 480,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  // --- KART GÖVDESİ ---
+                  Container(
+                    width: 320,
+                    height: 480,
+                    decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(width: 2, color: borderColor),
+                        gradient: _getBgGradient(type),
+                        boxShadow: isBasic
+                            ? []
+                            : [
+                                BoxShadow(
+                                    color: _getGlowColor(type).withOpacity(
+                                        _pulseController.value * 0.3 + 0.1),
+                                    blurRadius: isBad ? 5 : 25,
+                                    spreadRadius: isBad ? 0 : 3)
+                              ]),
+                    child: ClipRRect(
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(width: 2, color: borderColor),
-                      gradient: _getBgGradient(type),
-                      boxShadow: isBasic
-                          ? []
-                          : [
-                              BoxShadow(
-                                  color: _getGlowColor(type).withOpacity(
-                                      _pulseController.value * 0.3 + 0.1),
-                                  blurRadius: isBad ? 5 : 25,
-                                  spreadRadius: isBad ? 0 : 3)
-                            ]),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: Stack(
-                      children: [
-                        // Efektler
-                        if (!isBasic) _buildSpecialEffects(type),
-
-                        // Shader (Parlaklık)
-                        if (!isBasic &&
-                            !isBad &&
-                            (type == "TOTS" ||
-                                type == "BALLOND'OR" ||
-                                type == "STAR"))
-                          Positioned.fill(
-                              child: ShaderMask(
-                                  shaderCallback: (bounds) => SweepGradient(
-                                          transform: GradientRotation(
-                                              _loopController.value * 4 * pi),
-                                          colors: _getShaderColors(type))
-                                      .createShader(bounds),
-                                  child: Container(
-                                      decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                          border: Border.all(
-                                              width: 3,
-                                              color: Colors.white.withOpacity(0.15)))))),
-
-                        Padding(
-                          padding: const EdgeInsets.all(20.0),
-                          child: Stack(
-                            children: [
-                              if (!isBasic)
+                      child: Stack(
+                        children: [
+                          if (!isBasic) _buildSpecialEffects(type),
+                          if (!isBasic &&
+                              !isBad &&
+                              (type == "TOTS" ||
+                                  type == "BALLOND'OR" ||
+                                  type == "STAR"))
+                            Positioned.fill(
+                                child: ShaderMask(
+                                    shaderCallback: (bounds) => SweepGradient(
+                                            transform: GradientRotation(
+                                                _loopController.value * 4 * pi),
+                                            colors: _getShaderColors(type))
+                                        .createShader(bounds),
+                                    child: Container(
+                                        decoration: BoxDecoration(
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                            border: Border.all(
+                                                width: 3,
+                                                color: Colors.white.withOpacity(0.15)))))),
+                          Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: Stack(
+                              children: [
+                                if (!isBasic)
+                                  Positioned(
+                                      top: 0,
+                                      left: 0,
+                                      right: 0,
+                                      child: Center(
+                                          child: Text(
+                                              isBad
+                                                  ? "BAD"
+                                                  : type.toUpperCase(),
+                                              style: isBad
+                                                  ? GoogleFonts.comicNeue(
+                                                      fontSize: 24,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.white)
+                                                  : GoogleFonts.orbitron(
+                                                      color:
+                                                          _getTitleColor(type),
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                      fontSize: 16,
+                                                      letterSpacing: 3,
+                                                      shadows: [
+                                                          Shadow(
+                                                              color: Colors
+                                                                  .black
+                                                                  .withOpacity(
+                                                                      0.8),
+                                                              blurRadius: 5)
+                                                        ])))),
                                 Positioned(
-                                    top: 0,
+                                    top: 40,
+                                    left: 0,
+                                    child: Icon(
+                                        isBad
+                                            ? Icons.broken_image
+                                            : Icons.sports_soccer,
+                                        color: _getTextColor(type)
+                                            .withOpacity(0.7),
+                                        size: 30)),
+                                Positioned(
+                                    top: 40,
+                                    right: 0,
+                                    child: Icon(
+                                        isBad ? Icons.thumb_down : Icons.shield,
+                                        color: _getTextColor(type)
+                                            .withOpacity(0.7),
+                                        size: 30)),
+                                Positioned(
+                                    top: 80,
+                                    left: 0,
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text("${p.rating}",
+                                              style: isBad
+                                                  ? GoogleFonts.comicNeue(
+                                                      fontSize: 45,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.white)
+                                                  : GoogleFonts.orbitron(
+                                                      fontSize: 45,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color:
+                                                          _getTextColor(type),
+                                                      height: 1)),
+                                          Text(
+                                              p.position.replaceAll(
+                                                  RegExp(r'[^A-Z]'), ''),
+                                              style: isBad
+                                                  ? GoogleFonts.comicNeue(
+                                                      fontSize: 20,
+                                                      color: Colors.white70)
+                                                  : GoogleFonts.montserrat(
+                                                      fontSize: 20,
+                                                      color: _getTextColor(type)
+                                                          .withOpacity(0.8),
+                                                      fontWeight:
+                                                          FontWeight.bold))
+                                        ])),
+                                Positioned(
+                                    top: 80,
+                                    right: 5,
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          Text("${p.kitNumber}",
+                                              style: GoogleFonts.russoOne(
+                                                  fontSize: 60,
+                                                  color: _getTextColor(type)
+                                                      .withOpacity(0.15))),
+                                          if (!isBad && !isBasic)
+                                            Row(
+                                                children: List.generate(
+                                                    p.getCardTierStars(),
+                                                    (i) => Icon(Icons.star,
+                                                        color: borderColor,
+                                                        size: 14)))
+                                        ])),
+                                Positioned(
+                                    top: 190,
                                     left: 0,
                                     right: 0,
                                     child: Center(
-                                        child: Text(
-                                            isBad ? "BAD" : type.toUpperCase(),
+                                        child: Text(p.name.toUpperCase(),
                                             style: isBad
                                                 ? GoogleFonts.comicNeue(
-                                                    fontSize: 24,
+                                                    fontSize: 26,
                                                     fontWeight: FontWeight.bold,
                                                     color: Colors.white)
                                                 : GoogleFonts.orbitron(
-                                                    color: _getTitleColor(
-                                                        type), // Kartına uygun renk
-                                                    fontWeight: FontWeight.w900,
-                                                    fontSize: 16,
-                                                    letterSpacing: 3,
-                                                    shadows: [
-                                                        Shadow(
-                                                            color: Colors.black
-                                                                .withOpacity(
-                                                                    0.8),
-                                                            blurRadius: 5)
-                                                      ])))),
-                              Positioned(
-                                  top: 40,
-                                  left: 0,
-                                  child: Icon(
-                                      isBad
-                                          ? Icons.broken_image
-                                          : Icons.sports_soccer,
-                                      color:
-                                          _getTextColor(type).withOpacity(0.7),
-                                      size: 30)),
-                              Positioned(
-                                  top: 40,
-                                  right: 0,
-                                  child: Icon(
-                                      isBad ? Icons.thumb_down : Icons.shield,
-                                      color:
-                                          _getTextColor(type).withOpacity(0.7),
-                                      size: 30)),
-                              Positioned(
-                                  top: 80,
-                                  left: 0,
-                                  child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text("${p.rating}",
-                                            style: isBad
-                                                ? GoogleFonts.comicNeue(
-                                                    fontSize: 45,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white)
-                                                : GoogleFonts.orbitron(
-                                                    fontSize: 45,
-                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 26,
                                                     color: _getTextColor(type),
-                                                    height: 1)),
-                                        Text(
-                                            p.position.replaceAll(
-                                                RegExp(r'[^A-Z]'), ''),
-                                            style: isBad
-                                                ? GoogleFonts.comicNeue(
-                                                    fontSize: 20,
-                                                    color: Colors.white70)
-                                                : GoogleFonts.montserrat(
-                                                    fontSize: 20,
-                                                    color: _getTextColor(type)
-                                                        .withOpacity(0.8),
-                                                    fontWeight:
-                                                        FontWeight.bold))
-                                      ])),
-                              Positioned(
-                                  top: 80,
-                                  right: 5,
-                                  child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        Text("${p.kitNumber}",
-                                            style: GoogleFonts.russoOne(
-                                                fontSize: 60,
-                                                color: _getTextColor(type)
-                                                    .withOpacity(0.15))),
-                                        if (!isBad && !isBasic)
-                                          Row(
-                                              children: List.generate(
-                                                  p.getCardTierStars(),
-                                                  (i) => Icon(Icons.star,
-                                                      color: borderColor,
-                                                      size: 14)))
-                                      ])),
-                              Positioned(
-                                  top: 190,
-                                  left: 0,
-                                  right: 0,
-                                  child: Center(
-                                      child: Text(p.name.toUpperCase(),
-                                          style: isBad
-                                              ? GoogleFonts.comicNeue(
-                                                  fontSize: 26,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.white)
-                                              : GoogleFonts.orbitron(
-                                                  fontSize: 26,
-                                                  color: _getTextColor(type),
-                                                  fontWeight: FontWeight.bold,
-                                                  letterSpacing: 1.2),
-                                          overflow: TextOverflow.ellipsis))),
-                              Positioned(
-                                  top: 250,
-                                  left: 10,
-                                  right: 10,
-                                  child: Column(children: [
-                                    Divider(
-                                        color: isBad
-                                            ? Colors.white30
-                                            : Colors.white30),
-                                    const SizedBox(height: 10),
-                                    Row(
+                                                    fontWeight: FontWeight.bold,
+                                                    letterSpacing: 1.2),
+                                            overflow: TextOverflow.ellipsis))),
+                                Positioned(
+                                    top: 250,
+                                    left: 10,
+                                    right: 10,
+                                    child: Column(children: [
+                                      Divider(
+                                          color: isBad
+                                              ? Colors.white30
+                                              : Colors.white30),
+                                      const SizedBox(height: 10),
+                                      Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            _cStat(
+                                                "PAC", cs["PAC"]!, type, isBad),
+                                            _cStat(
+                                                "DRI", cs["DRI"]!, type, isBad)
+                                          ]),
+                                      const SizedBox(height: 5),
+                                      Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            _cStat(
+                                                "SHO", cs["SHO"]!, type, isBad),
+                                            _cStat(
+                                                "DEF", cs["DEF"]!, type, isBad)
+                                          ]),
+                                      const SizedBox(height: 5),
+                                      Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            _cStat(
+                                                "PAS", cs["PAS"]!, type, isBad),
+                                            _cStat(
+                                                "PHY", cs["PHY"]!, type, isBad)
+                                          ]),
+                                      const SizedBox(height: 15),
+                                      Divider(
+                                          color: isBad
+                                              ? Colors.white30
+                                              : Colors.white30)
+                                    ])),
+                                Positioned(
+                                    bottom: 10,
+                                    left: 0,
+                                    right: 0,
+                                    child: Row(
                                         mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
+                                            MainAxisAlignment.center,
                                         children: [
-                                          _cStat(
-                                              "PAC", cs["PAC"]!, type, isBad),
-                                          _cStat("DRI", cs["DRI"]!, type, isBad)
-                                        ]),
-                                    const SizedBox(height: 5),
-                                    Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          _cStat(
-                                              "SHO", cs["SHO"]!, type, isBad),
-                                          _cStat("DEF", cs["DEF"]!, type, isBad)
-                                        ]),
-                                    const SizedBox(height: 5),
-                                    Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          _cStat(
-                                              "PAS", cs["PAS"]!, type, isBad),
-                                          _cStat("PHY", cs["PHY"]!, type, isBad)
-                                        ]),
-                                    const SizedBox(height: 15),
-                                    Divider(
-                                        color: isBad
-                                            ? Colors.white30
-                                            : Colors.white30)
-                                  ])),
-                              Positioned(
-                                  bottom: 10,
-                                  left: 0,
-                                  right: 0,
-                                  child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                            isBad
-                                                ? Icons.mood_bad
-                                                : Icons.science,
-                                            color: _getTextColor(type)
-                                                .withOpacity(0.6),
-                                            size: 14),
-                                        const SizedBox(width: 5),
-                                        Text(
-                                            "${p.chemistryStyle} • ${p.role}"
-                                                .toUpperCase(),
-                                            style: GoogleFonts.montserrat(
-                                                color: _getTextColor(type)
-                                                    .withOpacity(0.6),
-                                                letterSpacing: 1,
-                                                fontSize: 10))
-                                      ]))
-                            ],
-                          ),
-                        )
-                      ],
+                                          Icon(
+                                              isBad
+                                                  ? Icons.mood_bad
+                                                  : Icons.science,
+                                              color: _getTextColor(type)
+                                                  .withOpacity(0.6),
+                                              size: 14),
+                                          const SizedBox(width: 5),
+                                          Text(
+                                              "${p.chemistryStyle} • ${p.role}"
+                                                  .toUpperCase(),
+                                              style: GoogleFonts.montserrat(
+                                                  color: _getTextColor(type)
+                                                      .withOpacity(0.6),
+                                                  letterSpacing: 1,
+                                                  fontSize: 10))
+                                        ]))
+                              ],
+                            ),
+                          )
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                // Playstyle İkonu (Sarı Arka Plan)
-                if (goldPs != null && !isBad && !isBasic)
-                  Positioned(
-                      left: -5,
-                      top: 220,
-                      child: Container(
-                          padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                              color: Colors.amber,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                              boxShadow: [
-                                BoxShadow(
-                                    color: Colors.amber.withOpacity(0.6),
-                                    blurRadius: 15)
-                              ]),
-                          child: Image.asset(goldPs.assetPath,
-                              width: 30,
-                              height: 30,
-                              errorBuilder: (c, e, s) => const Icon(Icons.star,
-                                  color: Colors.white, size: 30)))),
-              ],
-            ),
-          );
-        });
+                  // Playstyle İkonu
+                  if (goldPs != null && !isBad && !isBasic)
+                    Positioned(
+                        left: -5,
+                        top: 220,
+                        child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                                color: Colors.amber,
+                                shape: BoxShape.circle,
+                                border:
+                                    Border.all(color: Colors.white, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                      color: Colors.amber.withOpacity(0.6),
+                                      blurRadius: 15)
+                                ]),
+                            child: Image.asset(goldPs.assetPath,
+                                width: 30,
+                                height: 30,
+                                errorBuilder: (c, e, s) => const Icon(
+                                    Icons.star,
+                                    color: Colors.white,
+                                    size: 30)))),
+                ],
+              ),
+            );
+          }),
+    );
   }
 
   Widget _cStat(String l, int v, String t, bool bad) => Row(children: [
@@ -346,23 +379,24 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
 
   Widget _buildSpecialEffects(String type) {
     if (type == "BAD") {
-      // BAD: Kırmızı tarayıcı çizgi
-      return Stack(children: [
-        Positioned(
-            left: (_loopController.value * 400) - 50,
-            top: 0,
-            bottom: 0,
-            child: Container(
+      return Stack(
+        children: [
+          Positioned(
+              left: (_loopController.value * 400) - 50,
+              top: 0,
+              bottom: 0,
+              child: Container(
                 width: 30,
                 decoration: BoxDecoration(
                     gradient: LinearGradient(colors: [
                   Colors.transparent,
                   Colors.red.withOpacity(0.3),
                   Colors.transparent
-                ], begin: Alignment.centerLeft, end: Alignment.centerRight))))
-      ]);
+                ], begin: Alignment.centerLeft, end: Alignment.centerRight)),
+              ))
+        ],
+      );
     } else if (type == "MVP") {
-      // MVP: Çapraz kırmızı çizgiler
       return Stack(
           children: List.generate(15, (i) {
         double startX = _randomX[i] * 320;
@@ -380,7 +414,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                         Colors.redAccent.withOpacity(0.4 * (1 - progress)))));
       }));
     } else if (type == "TOTM") {
-      // TOTM: Rastgele pembe kod blokları
       return Stack(
           children: List.generate(20, (i) {
         double flicker = sin(
@@ -406,7 +439,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                             end: Alignment.bottomCenter)))));
       }));
     } else if (type == "TOTS") {
-      // TOTS: Mavi şimşekler (daha yavaş)
       return Stack(
           children: List.generate(25, (i) {
         double progress = (_loopController.value * _randomSpeed[i]) % 1.0;
@@ -419,11 +451,9 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                     color: Colors.cyanAccent, size: 14)));
       }));
     } else if (type == "BALLOND'OR") {
-      // Ballon d'Or: Aşağıdan yukarı süzülen altın parçacıklar (yavaş)
       return Stack(
           children: List.generate(20, (i) {
-        double progress =
-            (_loopController.value * 0.3 * _randomSpeed[i]) % 1.0; // Çok yavaş
+        double progress = (_loopController.value * 0.3 * _randomSpeed[i]) % 1.0;
         return Positioned(
             bottom: progress * 500,
             left: _randomX[i] * 320,
@@ -433,7 +463,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                     color: Colors.amber, size: 10 + _randomY[i] * 15)));
       }));
     } else if (type == "TOTW") {
-      // TOTW: Minik tozlar
       return Stack(
           children: List.generate(30, (i) {
         double progress = (_loopController.value * _randomSpeed[i]) % 1.0;
@@ -447,7 +476,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                     color: Colors.amber, shape: BoxShape.circle)));
       }));
     }
-    // STAR vb.
     return Stack(
         children: List.generate(30, (i) {
       double progress = (_loopController.value * _randomSpeed[i]) % 1.0;
@@ -538,7 +566,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
             end: Alignment.bottomRight);
       case "TOTS":
         return const LinearGradient(
-            colors: [Color(0xFF000000), Color(0xFF311B92)],
+            colors: [Colors.black, Color(0xFF311B92)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter);
       case "STAR":
