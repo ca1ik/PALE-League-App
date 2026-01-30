@@ -20,7 +20,6 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
   late String _pos, _team, _role, _chem, _type;
   int _skillMoves = 3;
   int _mGoals = 0, _mAssists = 0, _mMatches = 0;
-  int _mPasses = 0, _mKeyPasses = 0, _mShots = 0, _mPossession = 50;
   late TabController _tabController;
   final Map<String, int> _stats = {};
   final Map<String, bool> _ps = {};
@@ -43,18 +42,18 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
       _mGoals = p.manualGoals;
       _mAssists = p.manualAssists;
       _mMatches = p.manualMatches;
-      _mPasses = p.manualPasses;
-      _mKeyPasses = p.manualKeyPasses;
-      _mShots = p.manualShots;
-      _mPossession = p.manualPossession;
       _stats.addAll(p.stats);
       for (var s in p.playstyles) _ps[s.name] = s.isGold;
     } else {
-      _pos = availablePositions.first;
-      _team = availableTeams.first;
-      _role = roleCategories[_pos]!.first;
-      _chem = chemistryBonuses.keys.first;
-      _type = cardTypes.first;
+      _pos =
+          availablePositions.isNotEmpty ? availablePositions.first : "(9) ST";
+      _team = availableTeams.isNotEmpty ? availableTeams.first : "Takımsız";
+      var validRoles = roleCategories[_pos] ?? ["Yok"];
+      _role = validRoles.isNotEmpty ? validRoles.first : "Yok";
+      _chem = chemistryBonuses.keys.isNotEmpty
+          ? chemistryBonuses.keys.first
+          : "Temel";
+      _type = cardTypes.isNotEmpty ? cardTypes.first : "Temel";
       for (var l in statSegments.values) for (var s in l) _stats[s] = 50;
     }
   }
@@ -78,11 +77,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
         stats: Map.from(_stats),
         manualGoals: _mGoals,
         manualAssists: _mAssists,
-        manualMatches: _mMatches,
-        manualPasses: _mPasses,
-        manualKeyPasses: _mKeyPasses,
-        manualShots: _mShots,
-        manualPossession: _mPossession);
+        manualMatches: _mMatches);
     p.calculateRating();
     if (widget.onSave != null) widget.onSave!(p);
     Navigator.pop(context);
@@ -90,13 +85,17 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
+    // FIX: LayoutBuilder ile taşma engelleme
+    return LayoutBuilder(builder: (context, constraints) {
+      return Dialog(
         backgroundColor: const Color(0xFF101014),
         child: Container(
-            width: 900,
-            height: 800,
-            padding: const EdgeInsets.all(20),
-            child: Column(children: [
+          width: 900,
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.9),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
               Text(
                   widget.playerToEdit == null || widget.isNewVersion
                       ? "YENİ KART OLUŞTUR"
@@ -127,7 +126,6 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                     child: Column(children: [
                       _field(_nameController, "Ad Soyad"),
                       const SizedBox(height: 10),
-                      // Takım Seçimi Logolu
                       Row(children: [
                         Expanded(
                             child: DropdownButtonFormField<String>(
@@ -139,8 +137,8 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                                           if (teamLogos[e] != null &&
                                               teamLogos[e]!.isNotEmpty)
                                             Image.asset(teamLogos[e]!,
-                                                width: 24, height: 24),
-                                          const SizedBox(width: 8),
+                                                width: 20),
+                                          const SizedBox(width: 5),
                                           Text(e,
                                               overflow: TextOverflow.ellipsis)
                                         ])))
@@ -165,7 +163,10 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                                 _pos,
                                 (v) => setState(() {
                                       _pos = v!;
-                                      _role = roleCategories[_pos]!.first;
+                                      var r = roleCategories[_pos];
+                                      _role = (r != null && r.isNotEmpty)
+                                          ? r.first
+                                          : "Yok";
                                     }))),
                         const SizedBox(width: 10),
                         Expanded(
@@ -214,7 +215,6 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                               .map((ps) => _psChip(ps))
                               .toList())
                     ])),
-                // ... (Diğer sekme içerikleri aynı) ...
                 SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
                     child: Column(children: [
@@ -235,27 +235,13 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                             child: _counterRow("ASİST", _mAssists,
                                 (v) => setState(() => _mAssists = v)))
                       ]),
-                      Row(children: [
-                        Expanded(
-                            child: _counterRow("PAS", _mPasses,
-                                (v) => setState(() => _mPasses = v))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: _counterRow("KİLİT PAS", _mKeyPasses,
-                                (v) => setState(() => _mKeyPasses = v))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: _counterRow("ŞUT", _mShots,
-                                (v) => setState(() => _mShots = v)))
-                      ]),
-                      _counterRow("TOPLA OYNAMA %", _mPossession,
-                          (v) => setState(() => _mPossession = v.clamp(0, 100)))
                     ])),
                 _statPage("1. Top Sürme & Fizik"),
                 _statPage("2. Şut & Zihinsel"),
                 _statPage("3. Savunma & Güç"),
                 _statPage("4. Pas & Vizyon")
               ])),
+              const SizedBox(height: 10),
               ElevatedButton(
                   onPressed: _save,
                   style: ElevatedButton.styleFrom(
@@ -265,10 +251,13 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog>
                   child: const Text("KAYDET",
                       style: TextStyle(
                           color: Colors.black, fontWeight: FontWeight.bold)))
-            ])));
+            ],
+          ),
+        ),
+      );
+    });
   }
 
-  // ... (Yardımcı widgetlar aynı) ...
   Widget _counterRow(String label, int value, Function(int) onChanged) =>
       Container(
           margin: const EdgeInsets.only(bottom: 10),

@@ -24,7 +24,7 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
     if (Hive.isBoxOpen('palehax_manager_db')) {
       return Hive.box<Player>('palehax_manager_db');
     } else {
-      return await Hive.openBox<Player>('palehax_manager_db');
+      return await Hive.openBox<Player>('palehax_players');
     }
   }
 
@@ -785,17 +785,13 @@ void _createVersion(BuildContext context, Player p, Function(Player) onSave) {
       recLink: p.recLink,
       manualGoals: p.manualGoals,
       manualAssists: p.manualAssists,
-      manualMatches: p.manualMatches,
-      manualPasses: p.manualPasses,
-      manualKeyPasses: p.manualKeyPasses,
-      manualShots: p.manualShots,
-      manualPossession: p.manualPossession);
+      manualMatches: p.manualMatches);
   showDialog(
       context: context,
       builder: (context) => CreatePlayerDialog(
           playerToEdit: newVersion,
           isNewVersion: true,
-          onSave: () => onSave(newVersion)));
+          onSave: (player) => onSave(player)));
 }
 
 void _showEditor(BuildContext context, Player? p, Function(Player) onSave) {

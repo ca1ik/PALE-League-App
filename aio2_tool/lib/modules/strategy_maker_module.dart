@@ -42,6 +42,9 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
   Future<void> _openBox() async {
     strategyBox = await Hive.openBox<StrategyModel>('palehax_strategies');
     setState(() {});
+    setState(() {});
+    setState(() {});
+    setState(() {});
   }
 
   void _resetPlayers() {

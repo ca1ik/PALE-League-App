@@ -25,11 +25,7 @@ class PlayerAdapter extends TypeAdapter<Player> {
       recLink: reader.read() ?? "",
       manualGoals: reader.read() ?? 0,
       manualAssists: reader.read() ?? 0,
-      manualMatches: reader.read() ?? 0,
-      manualPasses: reader.read() ?? 0,
-      manualKeyPasses: reader.read() ?? 0,
-      manualShots: reader.read() ?? 0,
-      manualPossession: reader.read() ?? 50);
+      manualMatches: reader.read() ?? 0);
   @override
   void write(BinaryWriter writer, Player obj) {
     writer
@@ -50,11 +46,7 @@ class PlayerAdapter extends TypeAdapter<Player> {
       ..write(obj.recLink)
       ..write(obj.manualGoals)
       ..write(obj.manualAssists)
-      ..write(obj.manualMatches)
-      ..write(obj.manualPasses)
-      ..write(obj.manualKeyPasses)
-      ..write(obj.manualShots)
-      ..write(obj.manualPossession);
+      ..write(obj.manualMatches);
   }
 }
 
@@ -116,6 +108,7 @@ class StrategyAdapter extends TypeAdapter<StrategyModel> {
   }
 }
 
+// --- MODELLER ---
 class PlayStyle {
   final String name;
   final bool isGold;
@@ -164,13 +157,7 @@ class Player extends HiveObject {
   String cardType;
   String recLink;
   List<SeasonStat> seasons;
-  int manualGoals,
-      manualAssists,
-      manualMatches,
-      manualPasses,
-      manualKeyPasses,
-      manualShots,
-      manualPossession;
+  int manualGoals, manualAssists, manualMatches;
 
   Player(
       {required this.name,
@@ -190,20 +177,15 @@ class Player extends HiveObject {
       this.recLink = "",
       this.manualGoals = 0,
       this.manualAssists = 0,
-      this.manualMatches = 0,
-      this.manualPasses = 0,
-      this.manualKeyPasses = 0,
-      this.manualShots = 0,
-      this.manualPossession = 50});
+      this.manualMatches = 0});
 
   int get kitNumber {
     if (position.contains("GK")) return 1;
     if (position.contains("CDM")) return 6;
     if (position.contains("CAM")) return 10;
-    if (position.contains("(7) RW")) return 7;
-    if (position.contains("(11) LW")) return 11;
-    if (position.contains("ST")) return 9;
-    return 99;
+    if (position.contains("RW")) return 7;
+    if (position.contains("LW")) return 11;
+    return 9;
   }
 
   int getCardTierStars() {
@@ -266,17 +248,13 @@ class Player extends HiveObject {
 
   Map<String, String> getSimulationStats() {
     var cs = getCardStats();
-    int passes = manualPasses > 0 ? manualPasses : (cs['PAS']! * 1.5).toInt();
-    int shots = manualShots > 0 ? manualShots : (cs['SHO']! / 4).toInt();
-    int possession = manualPossession > 0
-        ? manualPossession
-        : (cs['DRI']! / 1.8).toInt().clamp(30, 70);
+    int passes = (cs['PAS']! * 1.5).toInt();
+    int shots = (cs['SHO']! / 4).toInt();
+    int possession = (cs['DRI']! / 1.8).toInt().clamp(30, 70);
     return {
       "Pas": "$passes",
       "İsabetli Pas": "${(passes * 0.8).toInt()}",
-      "Kilit Pas": manualKeyPasses > 0
-          ? "$manualKeyPasses"
-          : "${(cs['PAS']! / 15).toStringAsFixed(1)}",
+      "Kilit Pas": "${(cs['PAS']! / 15).toStringAsFixed(1)}",
       "Şut": "$shots",
       "Gol": "$manualGoals",
       "Asist": "$manualAssists",
@@ -586,6 +564,8 @@ final Map<String, Map<String, int>> chemistryBonuses = {
   "Katalizör": {"Hız": 3, "Pas": 3, "Ara Pas": 2},
   "Gladyatör": {"Bitiricilik": 3, "Savunma Farkındalığı": 3, "Güç": 2}
 };
+
+// --- DÜZELTME: ROKET ŞUT EKLENDİ ---
 final Map<String, List<String>> statSegments = {
   "1. Top Sürme & Fizik": [
     "Hız",
@@ -602,7 +582,8 @@ final Map<String, List<String>> statSegments = {
     "Bitiricilik",
     "Uzaktan Şut",
     "Soğukkanlılık",
-    "Karar Alma"
+    "Karar Alma",
+    "Roket Şut"
   ],
   "3. Savunma & Güç": [
     "Top Kapma",
@@ -628,7 +609,7 @@ final Map<String, List<String>> statSegments = {
 final Map<String, String> teamLogos = {
   "Bursa Spor": "assets/takimlar/bursaspor.png",
   "Chelsea": "assets/takimlar/chelsea.png",
-  "Fenerbahçe": "assets/takimlar/fenerbahçe.png",
+  "Fenerbahçe": "assets/takimlar/fenerbahce.png",
   "Invicta": "assets/takimlar/invicta.png",
   "It Spor": "assets/takimlar/itspor.png",
   "Juventus": "assets/takimlar/juventus.png",
@@ -640,5 +621,36 @@ final Map<String, String> teamLogos = {
   "Toulouse": "assets/takimlar/toulouse.png",
   "Werder Weremem": "assets/takimlar/werderweremem.png",
   "Takımsız": ""
+};
+final Map<String, String> teamUrlSlugs = {
+  "Bursa Spor": "bursa-spor",
+  "CA RIVER PLATE": "ca-ri%CC%87ver-plate",
+  "Chelsea": "chelsea",
+  "Fenerbahçe": "fenerbah%C3%A7e",
+  "Invicta": "invicta",
+  "It Spor": "i%CC%87t-spor",
+  "Juventus": "juventus",
+  "Livorno": "livorno",
+  "Maximilian": "maximilian",
+  "Shamrock Rovers": "shamrock-rovers",
+  "Tiyatro FC": "tiyatro-fc",
+  "Toulouse": "toulouse",
+  "Werder Weremem": "werder-weremem",
+};
+// Bu Map'i dosyanın uygun bir yerine ekle
+final Map<String, String> teamMarketValues = {
+  "Toulouse": "€96.86M",
+  "Livorno": "€85.67M",
+  "Werder Weremem": "€75.56M",
+  "Maximilian": "€69.31M",
+  "Invicta": "€63.89M",
+  "Bursa Spor": "€61.82M",
+  "Fenerbahçe": "€58.17M",
+  "CA RİVER PLATE": "€55.70M",
+  "Shamrock Rovers": "€46.48M",
+  "Chelsea": "€30.81M",
+  "İt Spor": "€27.44M",
+  "Tiyatro FC": "€24.59M",
+  "Juventus": "€14.53M",
 };
 final List<String> availableTeams = teamLogos.keys.toList();

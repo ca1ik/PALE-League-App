@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:win32/win32.dart';
 
+import 'modules/standings_view.dart';
 import 'services/database_service.dart';
+import 'services/haxball_service.dart';
 import 'providers/music_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/language_provider.dart';
@@ -36,7 +40,6 @@ import 'modules/squad_builder_module.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   try {
     await Hive.initFlutter();
     Hive.registerAdapter(PlayerAdapter());
@@ -44,14 +47,15 @@ void main() async {
     Hive.registerAdapter(MatchStatAdapter());
     Hive.registerAdapter(SeasonStatAdapter());
     Hive.registerAdapter(StrategyAdapter());
-
-    // --- TÜM KUTULARI EKSİKSİZ AÇIYORUZ (HATA ÇÖZÜMÜ) ---
-    await Hive.openBox('natroff_memory');
-    await Hive.openBox<StrategyModel>('palehax_strategies');
-    await Hive.openBox<Player>('palehax_manager_db');
-    await Hive.openBox<Player>('palehax_players_v9');
+    await Future.wait([
+      Hive.openBox('natroff_memory'),
+      Hive.openBox<StrategyModel>('palehax_strategies'),
+      Hive.openBox<Player>('palehax_manager_db'),
+      Hive.openBox<Player>('palehax_players_v9'),
+      Hive.openBox<Player>('palehax_players'),
+    ]);
   } catch (e) {
-    debugPrint("Genel Veritabanı Hatası: $e");
+    debugPrint("Hive Hatası: $e");
   }
 
   await windowManager.ensureInitialized();
@@ -62,7 +66,6 @@ void main() async {
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.hidden,
   );
-
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.show();
     await windowManager.focus();
@@ -71,9 +74,8 @@ void main() async {
 
   runApp(MultiProvider(providers: [
     Provider<AppDatabase>(
-      create: (context) => AppDatabase(),
-      dispose: (context, db) => db.close(),
-    ),
+        create: (context) => AppDatabase(),
+        dispose: (context, db) => db.close()),
     ChangeNotifierProvider(create: (_) => ThemeProvider()),
     ChangeNotifierProvider(create: (_) => MusicProvider()),
     ChangeNotifierProvider(create: (_) => LanguageProvider()),
@@ -112,6 +114,24 @@ class MainWindow extends StatefulWidget {
 class _MainWindowState extends State<MainWindow> {
   List<int> _history = [0];
   int _historyIndex = 0;
+  bool _isFullScreenMode = false;
+  bool _showHelpIcon = false;
+  final FocusNode _keyboardFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FocusScope.of(context).requestFocus(_keyboardFocusNode);
+    });
+  }
+
+  @override
+  void dispose() {
+    _keyboardFocusNode.dispose();
+    super.dispose();
+  }
+
   void _navigateTo(int index) {
     if (_history[_historyIndex] == index) return;
     setState(() {
@@ -129,6 +149,25 @@ class _MainWindowState extends State<MainWindow> {
 
   void _goForward() {
     if (_historyIndex < _history.length - 1) setState(() => _historyIndex++);
+  }
+
+  void _launchHaxBall() {
+    final int myHwnd = GetActiveWindow();
+    HaxBallService.launchAndEmbed(myHwnd);
+    setState(() {
+      _showHelpIcon = true;
+    });
+  }
+
+  void _handleKeyEvent(RawKeyEvent event) {
+    if (event is RawKeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.f11) {
+        setState(() {
+          _isFullScreenMode = !_isFullScreenMode;
+          if (_isFullScreenMode) _showHelpIcon = false;
+        });
+      }
+    }
   }
 
   @override
@@ -155,149 +194,162 @@ class _MainWindowState extends State<MainWindow> {
       const TurkeyMapModule(),
       const SettingsScreen(),
       const PaleWebView(
-          url: "https://palehaxball.com/", key: ValueKey("ph_home")), // 14
-      const PaleHaxPlayersView(), // 15
-      const PaleWebView(
-          url: "https://palehaxball.com/takimlar",
-          key: ValueKey("ph_teams")), // 16
-      const PaleWebView(
-          url: "https://palehaxball.com/maclar",
-          key: ValueKey("ph_matches")), // 17
-      const PaleWebView(
-          url: "https://palehaxball.com/puan-durumu",
-          key: ValueKey("ph_table")), // 18
-      const PaleWebView(
-          url: "https://palehaxball.com/istatistikler",
-          key: ValueKey("ph_stats")), // 19
-      const PaleWebView(
-          url: "https://palehaxball.com/transferler",
-          key: ValueKey("ph_transfers")), // 20
-      const ChallengeHub(), const SquadBuilderModule(isTOTWMode: true),
+          url: "https://palehaxball.com/", key: ValueKey("ph_home")),
+      const PaleHaxPlayersView(),
+      const StandingsView(),
+      const ChallengeHub(),
+      const SquadBuilderModule(isTOTWMode: true),
     ];
+
     Widget activeModule = pages[activeIdx < pages.length ? activeIdx : 0];
 
-    return Scaffold(
+    return RawKeyboardListener(
+      focusNode: _keyboardFocusNode,
+      autofocus: true,
+      onKey: _handleKeyEvent,
+      child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Stack(children: [
-          if (!uiProv.isSpatialMode && isDark)
-            const Positioned.fill(child: ParticleBackground()),
-          if (!uiProv.isSpatialMode && !isDark)
-            Positioned.fill(child: Container(color: Colors.grey[200])),
-          if (!uiProv.isSpatialMode)
-            Column(children: [
-              Container(
-                  height: 40,
-                  color: isDark ? Colors.black26 : Colors.white,
-                  child: Row(children: [
-                    Expanded(
-                        child: GestureDetector(
-                            onPanStart: (_) => windowManager.startDragging(),
-                            child: Container(
-                                color: Colors.transparent,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 10),
-                                child: Row(children: [
-                                  IconButton(
-                                      icon: Icon(
-                                          Icons.arrow_back_ios_new_rounded,
-                                          size: 16,
-                                          color: _historyIndex > 0
-                                              ? (isDark
-                                                  ? Colors.white
-                                                  : Colors.black)
-                                              : Colors.grey.withOpacity(0.3)),
-                                      onPressed:
-                                          _historyIndex > 0 ? _goBack : null),
-                                  IconButton(
-                                      icon: Icon(
-                                          Icons.arrow_forward_ios_rounded,
-                                          size: 16,
-                                          color: _historyIndex <
-                                                  _history.length - 1
-                                              ? (isDark
-                                                  ? Colors.white
-                                                  : Colors.black)
-                                              : Colors.grey.withOpacity(0.3)),
-                                      onPressed:
-                                          _historyIndex < _history.length - 1
-                                              ? _goForward
-                                              : null),
-                                  const SizedBox(width: 15),
-                                  Text(langProv.translate('app_title'),
-                                      style: TextStyle(
-                                          color: isDark
-                                              ? Colors.white
-                                              : Colors.black,
-                                          fontWeight: FontWeight.bold))
-                                ])))),
-                    IconButton(
-                        icon: Icon(Icons.settings,
-                            color: isDark ? Colors.white70 : Colors.black54,
-                            size: 20),
-                        onPressed: () => _navigateTo(13)),
-                    const WindowButtons()
-                  ])),
-              Expanded(
-                  child: Row(children: [
-                CustomSidebar(
-                    selectedIndex: activeIdx,
-                    onIndexChanged: (i) => _navigateTo(i)),
+          if (_isFullScreenMode)
+            Positioned.fill(child: Container(color: Colors.black))
+          else ...[
+            if (!uiProv.isSpatialMode && isDark)
+              const Positioned.fill(child: ParticleBackground()),
+            if (!uiProv.isSpatialMode && !isDark)
+              Positioned.fill(child: Container(color: Colors.grey[200])),
+            if (!uiProv.isSpatialMode)
+              Column(children: [
+                Container(
+                    height: 40,
+                    color: isDark ? Colors.black26 : Colors.white,
+                    child: Row(children: [
+                      Expanded(
+                          child: GestureDetector(
+                              onPanStart: (_) => windowManager.startDragging(),
+                              child: Container(
+                                  color: Colors.transparent,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10),
+                                  child: Row(children: [
+                                    IconButton(
+                                        icon: Icon(
+                                            Icons.arrow_back_ios_new_rounded,
+                                            size: 16,
+                                            color: _historyIndex > 0
+                                                ? (isDark
+                                                    ? Colors.white
+                                                    : Colors.black)
+                                                : Colors.grey.withOpacity(0.3)),
+                                        onPressed:
+                                            _historyIndex > 0 ? _goBack : null),
+                                    IconButton(
+                                        icon: Icon(
+                                            Icons.arrow_forward_ios_rounded,
+                                            size: 16,
+                                            color: _historyIndex <
+                                                    _history.length - 1
+                                                ? (isDark
+                                                    ? Colors.white
+                                                    : Colors.black)
+                                                : Colors.grey.withOpacity(0.3)),
+                                        onPressed:
+                                            _historyIndex < _history.length - 1
+                                                ? _goForward
+                                                : null),
+                                    const SizedBox(width: 15),
+                                    Text(langProv.translate('app_title'),
+                                        style: TextStyle(
+                                            color: isDark
+                                                ? Colors.white
+                                                : Colors.black,
+                                            fontWeight: FontWeight.bold))
+                                  ])))),
+                      IconButton(
+                          icon: Icon(Icons.settings,
+                              color: isDark ? Colors.white70 : Colors.black54,
+                              size: 20),
+                          onPressed: () => _navigateTo(13)),
+                      const WindowButtons()
+                    ])),
                 Expanded(
-                    child: Container(
-                        margin: const EdgeInsets.all(20),
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF1E1E24).withOpacity(0.6)
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                                color:
-                                    isDark ? Colors.white12 : Colors.black12)),
-                        child: activeModule))
-              ]))
-            ]),
-          if (uiProv.isSpatialMode) ...[
-            Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 40,
-                child: GestureDetector(
-                    onPanStart: (_) => windowManager.startDragging(),
-                    child: Container(color: Colors.transparent))),
-            MovableWindow(
-                initialX: 20,
-                initialY: 100,
-                child: SpatialSidebar(
-                    selectedIndex: activeIdx,
-                    onIndexChanged: (i) => _navigateTo(i))),
-            MovableWindow(
-                initialX: 140,
-                initialY: 80,
-                child: GlassBox(
-                    width: 900,
-                    height: 650,
-                    child: ClipRRect(
-                        borderRadius: BorderRadius.circular(30),
-                        child: activeModule))),
-            const Positioned(
-                top: 10, right: 10, child: WindowButtons(isSpatial: true))
+                    child: Row(children: [
+                  CustomSidebar(
+                      selectedIndex: activeIdx,
+                      onIndexChanged: (i) => _navigateTo(i),
+                      onHaxBallClick: _launchHaxBall),
+                  Expanded(
+                      child: Container(
+                          margin: const EdgeInsets.all(20),
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                              color: isDark
+                                  ? const Color(0xFF1E1E24).withOpacity(0.6)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                  color: isDark
+                                      ? Colors.white12
+                                      : Colors.black12)),
+                          child: activeModule))
+                ]))
+              ]),
+            if (uiProv.isSpatialMode) ...[
+              Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 40,
+                  child: GestureDetector(
+                      onPanStart: (_) => windowManager.startDragging(),
+                      child: Container(color: Colors.transparent))),
+              MovableWindow(
+                  initialX: 20,
+                  initialY: 100,
+                  child: SpatialSidebar(
+                      selectedIndex: activeIdx,
+                      onIndexChanged: (i) => _navigateTo(i))),
+              MovableWindow(
+                  initialX: 140,
+                  initialY: 80,
+                  child: GlassBox(
+                      width: 900,
+                      height: 650,
+                      child: ClipRRect(
+                          borderRadius: BorderRadius.circular(30),
+                          child: activeModule))),
+              const Positioned(
+                  top: 10, right: 10, child: WindowButtons(isSpatial: true))
+            ],
+            uiProv.isSpatialMode
+                ? MovableWindow(
+                    initialX: 1000,
+                    initialY: 600,
+                    child: FloatingChatbot(
+                        currentLang: langProv.currentLocale.languageCode,
+                        onSystemControl: (c, v) => {}))
+                : Positioned(
+                    bottom: 20,
+                    right: 20,
+                    child: FloatingChatbot(
+                        currentLang: langProv.currentLocale.languageCode,
+                        onSystemControl: (c, v) => {})),
           ],
-          uiProv.isSpatialMode
-              ? MovableWindow(
-                  initialX: 1000,
-                  initialY: 600,
-                  child: FloatingChatbot(
-                      currentLang: langProv.currentLocale.languageCode,
-                      onSystemControl: (c, v) => {}))
-              : Positioned(
-                  bottom: 20,
-                  right: 20,
-                  child: FloatingChatbot(
-                      currentLang: langProv.currentLocale.languageCode,
-                      onSystemControl: (c, v) => {})),
-        ]));
+          if (_showHelpIcon && !_isFullScreenMode)
+            Positioned(
+                top: 50,
+                right: 20,
+                child: Tooltip(
+                    message: 'Tam Ekran Modu için "F11" tuşuna bas.',
+                    textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                    child: ShaderMask(
+                        shaderCallback: (b) => const LinearGradient(
+                                colors: [Colors.red, Colors.green, Colors.blue])
+                            .createShader(b),
+                        child: const Icon(Icons.help_outline,
+                            size: 40, color: Colors.white))))
+        ]),
+      ),
+    );
   }
 }
 
@@ -319,13 +371,11 @@ class WindowButtons extends StatelessWidget {
     ]);
   }
 
-  Widget _winBtn(IconData icon, VoidCallback onTap, Color color) {
-    return InkWell(
-        onTap: onTap,
-        child: Container(
-            width: 40,
-            height: 32,
-            alignment: Alignment.center,
-            child: Icon(icon, size: 16, color: color)));
-  }
+  Widget _winBtn(IconData icon, VoidCallback onTap, Color color) => InkWell(
+      onTap: onTap,
+      child: Container(
+          width: 40,
+          height: 32,
+          alignment: Alignment.center,
+          child: Icon(icon, size: 16, color: color)));
 }
