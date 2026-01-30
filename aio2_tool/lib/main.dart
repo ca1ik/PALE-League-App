@@ -151,9 +151,11 @@ class _MainWindowState extends State<MainWindow> {
     if (_historyIndex < _history.length - 1) setState(() => _historyIndex++);
   }
 
+  // --- HAXBALL BAŞLAT VE GÖM (GÜNCELLENDİ) ---
   void _launchHaxBall() {
     final int myHwnd = GetActiveWindow();
-    HaxBallService.launchAndEmbed(myHwnd);
+    // 110: Sidebar genişliği, 40: Üst bar yüksekliği. Kalan alan oyunun.
+    HaxBallService.launchAndEmbed(myHwnd, 110, 40, 1170, 810);
     setState(() {
       _showHelpIcon = true;
     });

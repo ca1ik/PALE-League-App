@@ -7,8 +7,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:win32/win32.dart';
 
 class HaxBallService {
+  // HaxBall pencere başlığı (Exe açıldığında sol üstte yazar)
   static const String _windowTitle = "HaxBall";
 
+  // Oyunu başlat ve GÖM
   static Future<void> launchAndEmbed(
       int parentHwnd, int x, int y, int width, int height) async {
     try {
@@ -21,6 +23,7 @@ class HaxBallService {
       final filePath = '$dirPath/HaxBall.exe';
       final file = File(filePath);
 
+      // Dosya yoksa assets'ten çıkar
       if (!await file.exists()) {
         final ByteData data = await rootBundle.load('assets/HaxBall.exe');
         final List<int> bytes =
@@ -28,13 +31,15 @@ class HaxBallService {
         await file.writeAsBytes(bytes);
       }
 
+      // 1. Başlat
       await Process.start(filePath, [],
           mode: ProcessStartMode.detached, workingDirectory: dirPath);
 
+      // 2. Pencereyi Bul ve Göm (Biraz beklememiz gerekebilir)
       int haxHwnd = 0;
       int attempts = 0;
 
-      Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      Timer.periodic(const Duration(milliseconds: 200), (timer) {
         attempts++;
         final lpWindowName = _windowTitle.toNativeUtf16();
         haxHwnd = FindWindow(nullptr, lpWindowName);
@@ -44,16 +49,18 @@ class HaxBallService {
           timer.cancel();
           _embedWindow(haxHwnd, parentHwnd, x, y, width, height);
         } else if (attempts > 50) {
+          // 10 saniye sonra vazgeç
           timer.cancel();
           print("HaxBall penceresi bulunamadı.");
         }
       });
     } catch (e) {
-      print("Hata: $e");
+      print("HaxBall Servis Hatası: $e");
     }
   }
 
   static void _embedWindow(int child, int parent, int x, int y, int w, int h) {
+    // Stilleri temizle (Kenarlık, başlık çubuğu vs. kaldır)
     int style = GetWindowLongPtr(child, GWL_STYLE);
     style &= ~(WS_CAPTION |
         WS_THICKFRAME |
@@ -61,10 +68,15 @@ class HaxBallService {
         WS_MAXIMIZEBOX |
         WS_SYSMENU |
         WS_POPUP);
-    style |= WS_CHILD;
+    style |= WS_CHILD; // Çocuğu yap
+
     SetWindowLongPtr(child, GWL_STYLE, style);
     SetParent(child, parent);
+
+    // Konumlandır
     MoveWindow(child, x, y, w, h, TRUE);
+
+    // Göster ve Odaklan
     ShowWindow(child, SW_SHOW);
     SetFocus(child);
   }

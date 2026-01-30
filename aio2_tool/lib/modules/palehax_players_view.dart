@@ -755,11 +755,11 @@ void _showTeamDialog(
                                           PopupMenuButton<String>(
                                               icon: const Icon(Icons.more_vert,
                                                   color: Colors.white38),
-                                              onSelected: (selection) {
-                                                if (selection == 'remove')
+                                              onSelected: (val) {
+                                                if (val == 'remove')
                                                   setModalState(
                                                       () => roster.remove(raw));
-                                                if (selection == 'make_cap')
+                                                if (val == 'make_cap')
                                                   setModalState(() {
                                                     int idx =
                                                         roster.indexOf(raw);
@@ -944,7 +944,6 @@ class _ViewProfile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // PlayStyle Plus'ları en başa getir
     List<PlayStyle> sortedPs = List.from(player.playstyles)
       ..sort((a, b) => (b.isGold ? 1 : 0).compareTo(a.isGold ? 1 : 0));
     return ListView(padding: const EdgeInsets.all(35), children: [
@@ -1220,10 +1219,6 @@ class SubTabCardTypes extends StatelessWidget {
         itemBuilder: (c, i) {
           String t = cardTypes[i];
           Color clr = _getCardTypeColor(t);
-          if (t == "TOTW") clr = Colors.amber;
-          if (t == "TOTM") clr = const Color(0xFFE91E63);
-          if (t == "TOTS") clr = Colors.cyanAccent;
-          if (t == "BAD") clr = Colors.pinkAccent;
           return GestureDetector(
               onTap: () => _showCardDetail(
                   context,
@@ -1289,10 +1284,7 @@ class SubTabCardTypes extends StatelessWidget {
                           child: Transform.scale(
                               scale: 0.95, child: FCAnimatedCard(player: p))),
                       const SizedBox(height: 15),
-                      Text(
-                          t == "BALLOND'OR"
-                              ? "Sezonun Oyuncusu"
-                              : (cardTypeDescriptions[t] ?? ""),
+                      Text(cardTypeDescriptions[t] ?? "",
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                               color: Colors.white, fontSize: 17)),
@@ -1742,7 +1734,94 @@ void _showEditor(BuildContext context, Player? p, Function(Player) onSave) {
           }));
 }
 
-void _showGlobal(BuildContext c, AppDatabase db, Function(PlayerTable) onS) {}
+void _showGlobal(BuildContext c, AppDatabase db, Function(PlayerTable) onS) {
+  String s = "Reyting", f = "Tümü", q = "";
+  showDialog(
+      context: c,
+      builder: (c) => StatefulBuilder(
+          builder: (c, setS) => Dialog(
+              backgroundColor: const Color(0xFF0D0D12),
+              child: Container(
+                  width: 1100,
+                  height: 850,
+                  padding: const EdgeInsets.all(25),
+                  child: Column(children: [
+                    Row(children: [
+                      SizedBox(
+                          width: 250,
+                          child: TextField(
+                              style: const TextStyle(color: Colors.white),
+                              decoration: const InputDecoration(
+                                  hintText: "Ara...",
+                                  prefixIcon: Icon(Icons.search,
+                                      color: Colors.cyanAccent)),
+                              onChanged: (v) => setS(() => q = v))),
+                      const SizedBox(width: 30),
+                      DropdownButton<String>(
+                          value: f,
+                          dropdownColor: const Color(0xFF1E1E24),
+                          style: const TextStyle(color: Colors.white),
+                          items: ["Tümü", ...cardTypes]
+                              .map((e) =>
+                                  DropdownMenuItem(value: e, child: Text(e)))
+                              .toList(),
+                          onChanged: (v) => setS(() => f = v!)),
+                      const SizedBox(width: 30),
+                      DropdownButton<String>(
+                          value: s,
+                          dropdownColor: const Color(0xFF1E1E24),
+                          style: const TextStyle(color: Colors.white),
+                          items: ["Reyting", "A-Z", "En Yeni"]
+                              .map((e) =>
+                                  DropdownMenuItem(value: e, child: Text(e)))
+                              .toList(),
+                          onChanged: (v) => setS(() => s = v!)),
+                      const Spacer(),
+                      IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          onPressed: () => Navigator.pop(c))
+                    ]),
+                    const Divider(color: Colors.white10),
+                    Expanded(
+                        child: StreamBuilder<List<PlayerTable>>(
+                            stream: db.watchFilteredPlayers(
+                                searchQuery: q,
+                                cardTypeFilter: f,
+                                sortOption: s),
+                            builder: (c, sn) {
+                              if (!sn.hasData)
+                                return const Center(
+                                    child: CircularProgressIndicator());
+                              return GridView.builder(
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: 5,
+                                          childAspectRatio: 0.65),
+                                  itemCount: sn.data!.length,
+                                  itemBuilder: (c, i) {
+                                    final t = sn.data![i];
+                                    return GestureDetector(
+                                        onTap: () {
+                                          onS(t);
+                                          Navigator.pop(c);
+                                        },
+                                        child: Transform.scale(
+                                            scale: 0.9,
+                                            child: FCAnimatedCard(
+                                                player: Player(
+                                                    name: t.name,
+                                                    rating: t.rating,
+                                                    position: t.position,
+                                                    playstyles: [],
+                                                    cardType: t.cardType,
+                                                    team: t.team,
+                                                    role: t.role),
+                                                animateOnHover: true)));
+                                  });
+                            }))
+                  ])))));
+}
+
 Widget _infoBadge(String label, String val, {Color color = Colors.white}) =>
     Column(children: [
       Text(label, style: const TextStyle(color: Colors.white38, fontSize: 11)),
@@ -1751,3 +1830,16 @@ Widget _infoBadge(String label, String val, {Color color = Colors.white}) =>
           style: TextStyle(
               color: color, fontWeight: FontWeight.bold, fontSize: 16))
     ]);
+Widget _statBox(String l, String v, Color c) => Container(
+    padding: const EdgeInsets.all(12),
+    width: 110,
+    decoration: BoxDecoration(
+        color: c.withOpacity(0.1),
+        border: Border.all(color: c.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(12)),
+    child: Column(children: [
+      Text(v,
+          style:
+              TextStyle(color: c, fontSize: 20, fontWeight: FontWeight.bold)),
+      Text(l, style: TextStyle(color: c.withOpacity(0.7), fontSize: 11))
+    ]));

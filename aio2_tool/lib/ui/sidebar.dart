@@ -34,6 +34,7 @@ class CustomSidebar extends StatelessWidget {
   }
 }
 
+// --- YENİ PROFESYONEL HAXBALL BUTONU ---
 class HaxBallProButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool isCompact;
@@ -44,15 +45,16 @@ class HaxBallProButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      // Dar sidebar için daha küçük margin
       margin: isCompact
-          ? const EdgeInsets.symmetric(horizontal: 5, vertical: 10)
+          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 15)
           : const EdgeInsets.fromLTRB(15, 20, 15, 10),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6C63FF).withOpacity(0.3),
-            blurRadius: 10,
+            color: const Color(0xFF6C63FF).withOpacity(0.4),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -61,13 +63,14 @@ class HaxBallProButton extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 5),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
+              // Şık Gradyan
               gradient: const LinearGradient(
-                colors: [Color(0xFF1A2980), Color(0xFF26D0CE)],
+                colors: [Color(0xFF2E3192), Color(0xFF1BFFFF)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -76,19 +79,20 @@ class HaxBallProButton extends StatelessWidget {
             ),
             child: isCompact
                 ? Column(
+                    // Dar modda ikon üstte
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.gamepad, color: Colors.white, size: 22),
+                      const Icon(Icons.gamepad, color: Colors.white, size: 24),
                       const SizedBox(height: 4),
                       Text("HAXBALL",
                           style: GoogleFonts.orbitron(
                               color: Colors.white,
                               fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1)),
+                              fontWeight: FontWeight.bold)),
                     ],
                   )
                 : Row(
+                    // Geniş modda yan yana
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Icon(Icons.gamepad, color: Colors.white, size: 20),
@@ -96,8 +100,8 @@ class HaxBallProButton extends StatelessWidget {
                       Text("HAXBALL",
                           style: GoogleFonts.orbitron(
                               color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
                               letterSpacing: 2)),
                     ],
                   ),
@@ -140,6 +144,7 @@ class _ClassicSidebarState extends State<_ClassicSidebar> {
       child: Column(
         children: [
           const SizedBox(height: 10),
+          // YENİ BUTON
           HaxBallProButton(onTap: widget.onHaxBallClick, isCompact: true),
           const SizedBox(height: 5),
           const ProfileAvatar(),
@@ -354,6 +359,7 @@ class _ModernSidebarState extends State<_ModernSidebar> {
                           fontSize: 12,
                           letterSpacing: 2,
                           fontWeight: FontWeight.bold)),
+                  // YENİ BUTON
                   HaxBallProButton(
                       onTap: widget.onHaxBallClick, isCompact: false),
                   const SizedBox(height: 10),
@@ -497,6 +503,7 @@ class _ModernSidebarState extends State<_ModernSidebar> {
   }
 }
 
+// --- EKSİK OLAN SINIFLAR EKLENDİ ---
 class SidebarItem extends StatefulWidget {
   final IconData icon;
   final String label;
@@ -542,12 +549,12 @@ class _SidebarItemState extends State<SidebarItem> {
                                 Colors.blue
                               ]).createShader(b),
                           child:
-                              Icon(widget.icon, size: 24, color: Colors.white))
-                      : Icon(widget.icon, size: 22, color: color),
-                  const SizedBox(height: 3),
+                              Icon(widget.icon, size: 30, color: Colors.white))
+                      : Icon(widget.icon, size: 28, color: color),
+                  const SizedBox(height: 5),
                   Text(widget.label,
                       style: GoogleFonts.poppins(
-                          fontSize: 10,
+                          fontSize: 11,
                           fontWeight: widget.isSelected
                               ? FontWeight.bold
                               : FontWeight.normal,
@@ -586,12 +593,12 @@ class _ProfileAvatarState extends State<ProfileAvatar>
     return RotationTransition(
         turns: _c,
         child: Container(
-            padding: const EdgeInsets.all(2),
+            padding: const EdgeInsets.all(3),
             decoration: const BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: LinearGradient(colors: [Colors.purple, Colors.cyan])),
             child: const CircleAvatar(
-                radius: 24,
+                radius: 26,
                 backgroundColor: Colors.black,
                 child: Icon(Icons.person, color: Colors.white))));
   }
