@@ -2,19 +2,25 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:drift/drift.dart' as drift; // drift.Value için gerekli
+import 'package:drift/drift.dart' as drift;
 import 'package:url_launcher/url_launcher.dart';
 
-import '../data/player_data.dart';
-import '../services/database_service.dart'; // PlayerTablesCompanion buradan gelir
+// Veri Çakışmasını Önlemek İçin 'pd' Ön Eki ile Import Ediyoruz
+import '../data/player_data.dart' as pd;
+import '../data/player_data.dart'
+    show Player, PlayStyle; // Modelleri direkt kullanmak için
+
+import '../services/database_service.dart';
 import '../services/scraper_service.dart';
 import '../ui/fc_animated_card.dart';
 import '../modules/player_editor.dart';
+import 'pale_webview.dart'; // Gerçek Webview Dosyası
 
 // ============================================================================
-// BÖLÜM 1: SABİT VERİLER VE LİSTELER
+// BÖLÜM 1: SABİT VERİLER (Lokalde kalması gerekenler veya pd'den çekilenler)
 // ============================================================================
 
+// Bu veri sadece bu sayfaya özel olduğu için burada kalabilir
 final Map<String, String> teamMarketValues = {
   "Toulouse": "€96.86M",
   "Livorno": "€85.67M",
@@ -31,23 +37,7 @@ final Map<String, String> teamMarketValues = {
   "Juventus": "€14.53M",
 };
 
-final Map<String, String> teamLogos = {
-  "Bursa Spor": "assets/takimlar/bursaspor.png",
-  "CA RIVER PLATE": "assets/takimlar/riverplate.png",
-  "Chelsea": "assets/takimlar/chelsea.png",
-  "Fenerbahçe": "assets/takimlar/fenerbahce.png",
-  "Invicta": "assets/takimlar/invicta.png",
-  "It Spor": "assets/takimlar/itspor.png",
-  "Juventus": "assets/takimlar/juventus.png",
-  "Livorno": "assets/takimlar/livorno.png",
-  "Maximilian": "assets/takimlar/maximilian.png",
-  "Shamrock Rovers": "assets/takimlar/shamrock.png",
-  "Tiyatro FC": "assets/takimlar/tiyatro.png",
-  "Toulouse": "assets/takimlar/toulouse.png",
-  "Werder Weremem": "assets/takimlar/werderweremem.png",
-  "Takımsız": ""
-};
-
+// Manuel Kadrolar (Sadece bu sayfada kullanılıyor)
 final Map<String, List<String>> manualTeamRosters = {
   "Bursa Spor": [
     "jesse00481⭐",
@@ -316,6 +306,7 @@ final Map<String, List<String>> manualTeamRosters = {
   ],
 };
 
+// PlayStyle Kategorileri (Manuel tanımlanmış, player_data'da yoksa buradan kullanılır)
 final Map<String, List<Map<String, String>>> playStyleCategories = {
   "Bitirici": [
     {
@@ -456,6 +447,13 @@ final Map<String, List<Map<String, String>>> playStyleCategories = {
   ]
 };
 
+// Ters Çeviri Haritası
+final Map<String, String> playStyleTranslationsReverse = playStyleCategories
+    .values
+    .expand((e) => e)
+    .fold({}, (map, e) => map..[e["name"]!] = e["label"]!);
+
+// Meta Playstyles
 final List<Map<String, dynamic>> metaPlaystyles = [
   {
     "role": "(1) GK Metas",
@@ -524,47 +522,6 @@ final Map<String, String> roleDescriptions = {
   "Kanat Bek": "Hücuma katkı veren savunma oyuncusu.",
   "Hücum Bek": "Neredeyse kanat gibi oynayan bek."
 };
-
-final List<String> availablePlayStyles = playStyleCategories.values
-    .expand((element) => element.map((e) => e["name"]!))
-    .toList();
-final Map<String, String> playStyleTranslationsReverse = playStyleCategories
-    .values
-    .expand((e) => e)
-    .fold({}, (map, e) => map..[e["name"]!] = e["label"]!);
-final List<String> cardTypes = [
-  "Temel",
-  "TOTW",
-  "TOTM",
-  "TOTS",
-  "MVP",
-  "STAR",
-  "BALLOND'OR",
-  "BAD"
-];
-
-final Map<String, List<String>> roleCategories = {
-  "(1) GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
-  "(3-6) CDM": [
-    "Savunmatik",
-    "Libero",
-    "Oyun Kurucu Stoper",
-    "Tutucu",
-    "Derin Oyun Kurucu",
-    "Savaşçı"
-  ],
-  "(10) CAM": [
-    "Oyun Kurucu",
-    "Box to Box",
-    "Mezzala",
-    "Gölge Forvet",
-    "Enganche"
-  ],
-  "(7) RW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
-  "(11) LW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
-  "(9) ST": ["Hedef Forvet", "Avcı Forvet", "Yanlış 9", "Gölge Forvet"]
-};
-final List<String> availablePositions = roleCategories.keys.toList();
 
 // ============================================================================
 // BÖLÜM 2: ANA EKRAN VE UI (Logic)
@@ -665,7 +622,6 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
 
   @override
   Widget build(BuildContext context) {
-    // List<dynamic> kullanarak tip hatasını çözüyoruz
     return StreamBuilder<List<dynamic>>(
         stream: widget.database.watchAllPlayers(),
         builder: (context, snapshot) {
@@ -825,9 +781,6 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
   }
 
   void _save(Player p, bool isNew) async {
-    // DÜZELTME: drift.PlayerTablesCompanion yerine PlayerTablesCompanion kullanıldı (database_service'den gelir)
-    // Eğer veritabanı dosyasında tablo adı tekil ise 'PlayerTableCompanion' olabilir.
-    // Garanti olması için dynamic olarak tanımlıyorum.
     dynamic companion = PlayerTablesCompanion(
         name: drift.Value(p.name),
         rating: drift.Value(p.rating),
@@ -843,7 +796,6 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
         manualGoals: drift.Value(p.manualGoals),
         manualAssists: drift.Value(p.manualAssists),
         manualMatches: drift.Value(p.manualMatches));
-
     await widget.database.insertPlayer(companion);
     setState(() {});
   }
@@ -898,6 +850,7 @@ class _SubTabTeamsState extends State<_SubTabTeams> {
   }
 
   Widget _buildTeamsBody() {
+    // BURADA pd.teamLogos KULLANILIYOR
     return SingleChildScrollView(
         padding: const EdgeInsets.all(40),
         child: Center(
@@ -905,8 +858,8 @@ class _SubTabTeamsState extends State<_SubTabTeams> {
                 spacing: 30,
                 runSpacing: 30,
                 alignment: WrapAlignment.center,
-                children: manualTeamRosters.keys.map((name) {
-                  String? logo = teamLogos[name];
+                children: pd.teamLogos.keys.map((name) {
+                  String? logo = pd.teamLogos[name];
                   if (name == "CA RIVER PLATE")
                     logo = "assets/takimlar/riverplate.png";
                   if (name == "It Spor") logo = "assets/takimlar/itspor.png";
@@ -1089,16 +1042,18 @@ class SubTabCardTypes extends StatelessWidget {
   const SubTabCardTypes({super.key});
   @override
   Widget build(BuildContext context) {
+    // BURADA pd.globalCardTypes KULLANILIYOR
     return GridView.builder(
         padding: const EdgeInsets.all(40),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 4,
-            childAspectRatio: 0.65,
+            childAspectRatio:
+                0.60, // ORAN DÜŞÜRÜLDÜ Kİ KARTLAR SIKIŞMASIN (Daha uzun alan)
             crossAxisSpacing: 35,
             mainAxisSpacing: 35),
-        itemCount: cardTypes.length,
+        itemCount: pd.globalCardTypes.length,
         itemBuilder: (c, i) {
-          String t = cardTypes[i];
+          String t = pd.globalCardTypes[i];
           Color clr = _getCardTypeColor(t);
           return GestureDetector(
               onTap: () => _showCardDetail(
@@ -1116,7 +1071,7 @@ class SubTabCardTypes extends StatelessWidget {
                 Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    margin: const EdgeInsets.only(bottom: 2),
+                    margin: const EdgeInsets.only(bottom: 10),
                     decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.6),
                         borderRadius: BorderRadius.circular(15),
@@ -1127,21 +1082,21 @@ class SubTabCardTypes extends StatelessWidget {
                             fontSize: 13,
                             fontWeight: FontWeight.bold))),
                 Expanded(
-                    child: Transform.scale(
-                        scale: 0.95,
-                        child: FCAnimatedCard(
-                            player: Player(
-                                name: "ÖRNEK",
-                                rating: 90,
-                                position: "(9) ST",
-                                playstyles: [],
-                                cardType: t,
-                                team: "Takımsız"),
-                            animateOnHover: true)))
+                    // Scale 1.0 yapıldı çünkü FittedBox zaten sığdıracak
+                    child: FCAnimatedCard(
+                        player: Player(
+                            name: "ÖRNEK",
+                            rating: 90,
+                            position: "(9) ST",
+                            playstyles: [],
+                            cardType: t,
+                            team: "Takımsız"),
+                        animateOnHover: true))
               ]));
         });
   }
 
+  // _showCardDetail metodu aynı kalabilir...
   void _showCardDetail(BuildContext c, String t, Player p, Color clr) {
     showDialog(
         context: c,
@@ -1160,10 +1115,7 @@ class SubTabCardTypes extends StatelessWidget {
                           style:
                               GoogleFonts.orbitron(color: clr, fontSize: 32)),
                       const SizedBox(height: 10),
-                      SizedBox(
-                          height: 480,
-                          child: Transform.scale(
-                              scale: 0.95, child: FCAnimatedCard(player: p))),
+                      SizedBox(height: 480, child: FCAnimatedCard(player: p)),
                       const SizedBox(height: 15),
                       Text(cardTypeDescriptions[t] ?? "",
                           textAlign: TextAlign.center,
@@ -1181,9 +1133,10 @@ class SubTabRoles extends StatelessWidget {
   const SubTabRoles({super.key});
   @override
   Widget build(BuildContext context) {
+    // BURADA pd.roleCategories KULLANILIYOR
     return ListView(
         padding: const EdgeInsets.all(40),
-        children: roleCategories.entries.map((e) {
+        children: pd.roleCategories.entries.map((e) {
           IconData ic = (e.key.contains("GK"))
               ? Icons.sports_handball
               : (e.key.contains("CDM"))
@@ -1388,7 +1341,6 @@ class _ViewUltimate extends StatelessWidget {
   Widget build(BuildContext context) {
     var st = player.getSimulationStats();
     List<Player> otherVersions = versions.where((v) => v != player).toList();
-    // GK Kontrolü
     bool isGK =
         player.position.contains("GK") || player.position.contains("(1)");
 
@@ -1844,7 +1796,8 @@ void _showDetailedStats(BuildContext context, Player p) {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: statSegments.entries.map((entry) {
+                            children: pd.statSegments.entries.map((entry) {
+                              // pd.statSegments KULLANILIYOR
                               return Container(
                                   width: 250,
                                   margin: const EdgeInsets.only(right: 30),
@@ -1931,7 +1884,7 @@ void _showGlobal(
                           value: filter,
                           dropdownColor: const Color(0xFF1E1E24),
                           style: const TextStyle(color: Colors.white),
-                          items: ["Tümü", ...cardTypes]
+                          items: ["Tümü", ...pd.globalCardTypes]
                               .map((e) =>
                                   DropdownMenuItem(value: e, child: Text(e)))
                               .toList(),
@@ -2158,16 +2111,4 @@ void _showEditor(BuildContext context, Player? p, Function(Player) onSave) {
           onSave: (player) {
             if (player != null) onSave(player);
           }));
-}
-
-// EKLENDİ: Eksik olan PaleWebView sınıfı (Dummy olarak, hata vermemesi için)
-class PaleWebView extends StatelessWidget {
-  final String url;
-  const PaleWebView({super.key, required this.url});
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-        child: Text("Web Sayfası Yükleniyor: $url",
-            style: const TextStyle(color: Colors.white)));
-  }
 }

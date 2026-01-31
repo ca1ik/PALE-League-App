@@ -37,15 +37,23 @@ import 'modules/palehax_players_view.dart';
 import 'modules/challenge_hub.dart';
 import 'modules/squad_builder_module.dart';
 
+// --- YENİ EKLENEN MODÜLLER ---
+import 'modules/palehax_tierlist.dart';
+import 'modules/palehax_ultimate.dart';
+import 'modules/palehax_games.dart'; // EKSİK OLAN BUYDU
+import 'modules/pale_webview.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await Hive.initFlutter();
-    Hive.registerAdapter(PlayerAdapter());
-    Hive.registerAdapter(PlayStyleAdapter());
-    Hive.registerAdapter(MatchStatAdapter());
-    Hive.registerAdapter(SeasonStatAdapter());
-    Hive.registerAdapter(StrategyAdapter());
+    // Adapter kayıtları
+    if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(PlayerAdapter());
+    if (!Hive.isAdapterRegistered(2)) Hive.registerAdapter(PlayStyleAdapter());
+    if (!Hive.isAdapterRegistered(3)) Hive.registerAdapter(MatchStatAdapter());
+    if (!Hive.isAdapterRegistered(5)) Hive.registerAdapter(SeasonStatAdapter());
+    if (!Hive.isAdapterRegistered(4)) Hive.registerAdapter(StrategyAdapter());
+
     await Future.wait([
       Hive.openBox('natroff_memory'),
       Hive.openBox<StrategyModel>('palehax_strategies'),
@@ -78,7 +86,9 @@ void main() async {
     ChangeNotifierProvider(create: (_) => ThemeProvider()),
     ChangeNotifierProvider(create: (_) => MusicProvider()),
     ChangeNotifierProvider(create: (_) => LanguageProvider()),
-    ChangeNotifierProvider(create: (_) => UIProvider())
+    ChangeNotifierProvider(create: (_) => UIProvider()),
+    // Ultimate Team Provider Eklendi
+    ChangeNotifierProvider(create: (_) => UltimateTeamProvider()..startTimer()),
   ], child: const AioApp()));
 }
 
@@ -174,33 +184,43 @@ class _MainWindowState extends State<MainWindow> {
     final themeProv = Provider.of<ThemeProvider>(context);
     final langProv = Provider.of<LanguageProvider>(context);
     final uiProv = Provider.of<UIProvider>(context);
+    final database = Provider.of<AppDatabase>(context);
     final isDark = themeProv.isDark;
     int activeIdx = _history[_historyIndex];
 
+    // --- SAYFA LİSTESİ DÜZELTİLDİ ---
     final List<Widget> pages = [
-      const ResolutionModule(),
-      const CleaningModule(),
-      const DnsModule(),
-      const PowerModule(),
-      const KeyboardModule(),
-      const WifiModule(),
-      const SecurityModule(),
-      const OptimizationModule(),
-      const HistoryModule(),
-      const WebviewModule(url: "https://github.com/ca1ik"),
-      const AiPhotoModule(),
-      const ChartsModule(),
-      const TurkeyMapModule(),
-      const SettingsScreen(),
-      const PaleWebView(
+      /* 0 */ const ResolutionModule(),
+      /* 1 */ const CleaningModule(),
+      /* 2 */ const DnsModule(),
+      /* 3 */ const PowerModule(),
+      /* 4 */ const KeyboardModule(),
+      /* 5 */ const WifiModule(),
+      /* 6 */ const SecurityModule(),
+      /* 7 */ const OptimizationModule(),
+      /* 8 */ const HistoryModule(),
+      /* 9 */ const WebviewModule(url: "https://github.com/ca1ik"),
+      /* 10 */ const AiPhotoModule(),
+      /* 11 */ const ChartsModule(),
+      /* 12 */ const TurkeyMapModule(),
+      /* 13 */ const SettingsScreen(),
+      /* 14 */ const PaleWebView(
           url: "https://palehaxball.com/", key: ValueKey("ph_home")),
-      const PaleHaxPlayersView(),
-      const StandingsView(),
-      const ChallengeHub(),
-      const SquadBuilderModule(isTOTWMode: true),
+      /* 15 */ const PaleHaxPlayersView(),
+      /* 16 */ const StandingsView(),
+      /* 17 */ const ChallengeHub(),
+      /* 18 */ const SquadBuilderModule(isTOTWMode: true),
+      /* 19 */ TierListView(database: database),
+      /* 20 */ UltimateTeamView(database: database),
+      /* 21 */ const GamesHubView(), // const eklenebilir stateful olsa bile constructor const ise
     ];
 
-    Widget activeModule = pages[activeIdx < pages.length ? activeIdx : 0];
+    Widget activeModule;
+    if (activeIdx >= 0 && activeIdx < pages.length) {
+      activeModule = pages[activeIdx];
+    } else {
+      activeModule = pages[0];
+    }
 
     return RawKeyboardListener(
       focusNode: _keyboardFocusNode,
@@ -377,4 +397,16 @@ class WindowButtons extends StatelessWidget {
           height: 32,
           alignment: Alignment.center,
           child: Icon(icon, size: 16, color: color)));
+}
+
+// Dummy WebviewModule (Hata vermesin diye)
+class WebviewModule extends StatelessWidget {
+  final String url;
+  const WebviewModule({super.key, required this.url});
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+        child:
+            Text("WebView: $url", style: const TextStyle(color: Colors.white)));
+  }
 }

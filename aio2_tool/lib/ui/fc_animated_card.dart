@@ -1,26 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../data/player_data.dart';
-
-// --- EKSİK OLAN TAKIM LOGOLARI HARİTASI ---
-// (Bu dosyada kullanıldığı için buraya ekliyoruz)
-final Map<String, String> teamLogos = {
-  "Bursa Spor": "assets/takimlar/bursaspor.png",
-  "Chelsea": "assets/takimlar/chelsea.png",
-  "Fenerbahçe": "assets/takimlar/fenerbahce.png",
-  "Invicta": "assets/takimlar/invicta.png",
-  "It Spor": "assets/takimlar/itspor.png",
-  "Juventus": "assets/takimlar/juventus.png",
-  "Livorno": "assets/takimlar/livorno.png",
-  "Maximilian": "assets/takimlar/maximilian.png",
-  "CA RIVER PLATE": "assets/takimlar/riverplate.png",
-  "Shamrock Rovers": "assets/takimlar/shamrock.png",
-  "Tiyatro FC": "assets/takimlar/tiyatro.png",
-  "Toulouse": "assets/takimlar/toulouse.png",
-  "Werder Weremem": "assets/takimlar/werderweremem.png",
-  "Takımsız": ""
-};
+import '../data/player_data.dart'; // teamLogos, Player, PlayStyle buradan gelir
 
 class FCAnimatedCard extends StatefulWidget {
   final Player player;
@@ -68,6 +49,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
 
   void _handleHover(bool hover) {
     if (!widget.animateOnHover || widget.player.cardType == "Temel") return;
+    if (!mounted) return;
     setState(() => _isHovering = hover);
     if (hover) {
       _pulseController.repeat(reverse: true);
@@ -84,7 +66,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     bool isBasic = type == "Temel";
     Map<String, int> cs = p.getCardStats();
 
-    // Altın PlayStyle bulma (yoksa ilki, o da yoksa null)
     PlayStyle? goldPs;
     if (p.playstyles.isNotEmpty) {
       goldPs = p.playstyles
@@ -92,286 +73,295 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     }
 
     Color borderColor = _getBorderColor(type);
-    // HATA DÜZELTİLDİ: teamLogos artık bu dosyanın başında tanımlı
     String? teamLogo = teamLogos[p.team];
 
-    return MouseRegion(
-      onEnter: (_) => _handleHover(true),
-      onExit: (_) => _handleHover(false),
-      child: AnimatedBuilder(
-          animation: Listenable.merge([_loopController, _pulseController]),
-          builder: (context, child) {
-            return AnimatedScale(
-              scale: _isHovering ? 1.02 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              child: SizedBox(
-                width: 350,
-                height: 480,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 320,
-                      height: 480,
-                      decoration: BoxDecoration(
+    // --- BURASI KRİTİK DEĞİŞİKLİK ---
+    // FittedBox sayesinde kartı 350x480 olarak tasarlıyoruz ama her yere sığıyor.
+    return FittedBox(
+      fit: BoxFit.contain, // Ebeveynin boyutuna orantılı sığdır
+      child: MouseRegion(
+        onEnter: (_) => _handleHover(true),
+        onExit: (_) => _handleHover(false),
+        child: AnimatedBuilder(
+            animation: Listenable.merge([_loopController, _pulseController]),
+            builder: (context, child) {
+              return AnimatedScale(
+                scale: _isHovering ? 1.02 : 1.0,
+                duration: const Duration(milliseconds: 200),
+                child: SizedBox(
+                  width: 350, // ESKİ SABİT GENİŞLİK
+                  height: 480, // ESKİ SABİT YÜKSEKLİK
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 320,
+                        height: 480,
+                        decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(width: 2, color: borderColor),
+                            gradient: _getBgGradient(type),
+                            boxShadow: isBasic
+                                ? []
+                                : [
+                                    BoxShadow(
+                                        color: _getGlowColor(type).withOpacity(
+                                            _pulseController.value * 0.3 + 0.1),
+                                        blurRadius: isBad ? 5 : 25,
+                                        spreadRadius: isBad ? 0 : 3)
+                                  ]),
+                        child: ClipRRect(
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(width: 2, color: borderColor),
-                          gradient: _getBgGradient(type),
-                          boxShadow: isBasic
-                              ? []
-                              : [
-                                  BoxShadow(
-                                      color: _getGlowColor(type).withOpacity(
-                                          _pulseController.value * 0.3 + 0.1),
-                                      blurRadius: isBad ? 5 : 25,
-                                      spreadRadius: isBad ? 0 : 3)
-                                ]),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Stack(children: [
-                          if (_hasGif(type))
-                            Positioned.fill(
-                                child: Opacity(
-                                    opacity: type == "BALLOND'OR" ? 0.15 : 0.5,
-                                    child: Image.asset(_getGif(type),
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (c, e, s) =>
-                                            Container()))),
-                          if (!_hasGif(type) && !isBasic)
-                            _buildCodeEffects(type),
+                          child: Stack(children: [
+                            if (_hasGif(type))
+                              Positioned.fill(
+                                  child: Opacity(
+                                      opacity:
+                                          type == "BALLOND'OR" ? 0.15 : 0.5,
+                                      child: Image.asset(_getGif(type),
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (c, e, s) =>
+                                              Container()))),
+                            if (!_hasGif(type) && !isBasic)
+                              _buildCodeEffects(type),
 
-                          // Parlama Efektleri
-                          if (!isBasic &&
-                              !isBad &&
-                              (type == "TOTS" ||
-                                  type == "BALLOND'OR" ||
-                                  type == "STAR"))
-                            Positioned.fill(
-                                child: ShaderMask(
-                                    shaderCallback: (bounds) => SweepGradient(
-                                            transform: GradientRotation(
-                                                _loopController.value * 4 * pi),
-                                            colors: _getShaderColors(type))
-                                        .createShader(bounds),
-                                    child: Container(
-                                        decoration: BoxDecoration(
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                            border: Border.all(
-                                                width: 3,
-                                                color: Colors.white.withOpacity(0.15)))))),
+                            // Parlama Efekti
+                            if (!isBasic &&
+                                !isBad &&
+                                (type == "TOTS" ||
+                                    type == "BALLOND'OR" ||
+                                    type == "STAR"))
+                              Positioned.fill(
+                                  child: ShaderMask(
+                                      shaderCallback: (bounds) => SweepGradient(
+                                              transform: GradientRotation(
+                                                  _loopController.value *
+                                                      4 *
+                                                      pi),
+                                              colors: _getShaderColors(type))
+                                          .createShader(bounds),
+                                      child: Container(
+                                          decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                              border: Border.all(width: 3, color: Colors.white.withOpacity(0.15)))))),
 
-                          Padding(
-                            padding: const EdgeInsets.all(20.0),
-                            child: Stack(children: [
-                              // Başlık
-                              if (!isBasic)
+                            // İçerik
+                            Padding(
+                              padding: const EdgeInsets.all(20.0),
+                              child: Stack(children: [
+                                // Kart Tipi Başlığı
+                                if (!isBasic)
+                                  Positioned(
+                                      top: 0,
+                                      left: 0,
+                                      right: 0,
+                                      child: Center(
+                                          child: Text(
+                                              isBad
+                                                  ? "BAD"
+                                                  : type.toUpperCase(),
+                                              style: GoogleFonts.orbitron(
+                                                  color: _getTitleColor(type),
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 16,
+                                                  letterSpacing: 3,
+                                                  shadows: [
+                                                    const Shadow(
+                                                        color: Colors.black,
+                                                        blurRadius: 5)
+                                                  ])))),
+
+                                // Takım Logosu
                                 Positioned(
-                                    top: 0,
+                                    top: 40,
+                                    left: 0,
+                                    child: (teamLogo != null &&
+                                            teamLogo.isNotEmpty)
+                                        ? Image.asset(teamLogo,
+                                            width: 35,
+                                            height: 35,
+                                            errorBuilder: (c, e, s) =>
+                                                const Icon(Icons.sports_soccer,
+                                                    color: Colors.white70))
+                                        : const Icon(Icons.sports_soccer,
+                                            color: Colors.white70, size: 30)),
+
+                                // Palehax Logo
+                                Positioned(
+                                    top: 40,
+                                    right: 0,
+                                    child: Image.asset(
+                                        "assets/takimlar/palehax.png",
+                                        width: 35,
+                                        height: 35,
+                                        errorBuilder: (c, e, s) => Icon(
+                                            isBad
+                                                ? Icons.thumb_down
+                                                : Icons.shield,
+                                            color: Colors.white70,
+                                            size: 30))),
+
+                                // Reyting ve Pozisyon
+                                Positioned(
+                                    top: 80,
+                                    left: 0,
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text("${p.rating}",
+                                              style: GoogleFonts.orbitron(
+                                                  fontSize: 45,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                  height: 1)),
+                                          Text(
+                                              p.position.replaceAll(
+                                                  RegExp(r'[^A-Z]'), ''),
+                                              style: GoogleFonts.montserrat(
+                                                  fontSize: 20,
+                                                  color: Colors.white70,
+                                                  fontWeight: FontWeight.bold))
+                                        ])),
+
+                                // Forma No ve Yıldızlar
+                                Positioned(
+                                    top: 80,
+                                    right: 5,
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          Text("${p.kitNumber}",
+                                              style: GoogleFonts.russoOne(
+                                                  fontSize: 60,
+                                                  color: Colors.white12)),
+                                          if (!isBad && !isBasic)
+                                            Row(
+                                                children: List.generate(
+                                                    p.getCardTierStars(),
+                                                    (i) => Icon(Icons.star,
+                                                        color: borderColor,
+                                                        size: 14)))
+                                        ])),
+
+                                // İsim
+                                Positioned(
+                                    top: 190,
                                     left: 0,
                                     right: 0,
                                     child: Center(
-                                        child: Text(
-                                            isBad ? "BAD" : type.toUpperCase(),
+                                        child: Text(p.name.toUpperCase(),
                                             style: GoogleFonts.orbitron(
-                                                color: _getTitleColor(type),
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 16,
-                                                letterSpacing: 3,
-                                                shadows: [
-                                                  const Shadow(
-                                                      color: Colors.black,
-                                                      blurRadius: 5)
-                                                ])))),
-
-                              // Takım Logosu
-                              Positioned(
-                                  top: 40,
-                                  left: 0,
-                                  child: (teamLogo != null &&
-                                          teamLogo.isNotEmpty)
-                                      ? Image.asset(teamLogo,
-                                          width: 35,
-                                          height: 35,
-                                          errorBuilder: (c, e, s) => const Icon(
-                                              Icons.sports_soccer,
-                                              color: Colors.white70))
-                                      : const Icon(Icons.sports_soccer,
-                                          color: Colors.white70, size: 30)),
-
-                              // Palehax Logo
-                              Positioned(
-                                  top: 40,
-                                  right: 0,
-                                  child: Image.asset(
-                                      "assets/takimlar/palehax.png",
-                                      width: 35,
-                                      height: 35,
-                                      errorBuilder: (c, e, s) => Icon(
-                                          isBad
-                                              ? Icons.thumb_down
-                                              : Icons.shield,
-                                          color: Colors.white70,
-                                          size: 30))),
-
-                              // Reyting ve Pozisyon
-                              Positioned(
-                                  top: 80,
-                                  left: 0,
-                                  child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text("${p.rating}",
-                                            style: GoogleFonts.orbitron(
-                                                fontSize: 45,
-                                                fontWeight: FontWeight.bold,
+                                                fontSize: 26,
                                                 color: Colors.white,
-                                                height: 1)),
-                                        Text(
-                                            p.position.replaceAll(
-                                                RegExp(r'[^A-Z]'), ''),
-                                            style: GoogleFonts.montserrat(
-                                                fontSize: 20,
-                                                color: Colors.white70,
-                                                fontWeight: FontWeight.bold))
-                                      ])),
+                                                fontWeight: FontWeight.bold,
+                                                letterSpacing: 1.2),
+                                            overflow: TextOverflow.ellipsis))),
 
-                              // HATA DÜZELTİLDİ: kitNumber ve getCardTierStars
-                              Positioned(
-                                  top: 80,
-                                  right: 5,
-                                  child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        // p.kitNumber -> Extension'dan gelecek
-                                        Text("${p.kitNumber}",
-                                            style: GoogleFonts.russoOne(
-                                                fontSize: 60,
-                                                color: Colors.white12)),
-                                        if (!isBad && !isBasic)
-                                          Row(
-                                              children: List.generate(
-                                                  // p.getCardTierStars -> Extension'dan gelecek
-                                                  p.getCardTierStars(),
-                                                  (i) => Icon(Icons.star,
-                                                      color: borderColor,
-                                                      size: 14)))
-                                      ])),
+                                // İstatistikler
+                                Positioned(
+                                    top: 250,
+                                    left: 10,
+                                    right: 10,
+                                    child: Column(children: [
+                                      const Divider(color: Colors.white30),
+                                      const SizedBox(height: 10),
+                                      Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            _cStat(
+                                                "PAC", cs["PAC"]!, type, isBad),
+                                            _cStat(
+                                                "DRI", cs["DRI"]!, type, isBad)
+                                          ]),
+                                      const SizedBox(height: 5),
+                                      Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            _cStat(
+                                                "SHO", cs["SHO"]!, type, isBad),
+                                            _cStat(
+                                                "DEF", cs["DEF"]!, type, isBad)
+                                          ]),
+                                      const SizedBox(height: 5),
+                                      Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            _cStat(
+                                                "PAS", cs["PAS"]!, type, isBad),
+                                            _cStat(
+                                                "PHY", cs["PHY"]!, type, isBad)
+                                          ]),
+                                      const SizedBox(height: 15),
+                                      const Divider(color: Colors.white30)
+                                    ])),
 
-                              // İsim
-                              Positioned(
-                                  top: 190,
-                                  left: 0,
-                                  right: 0,
-                                  child: Center(
-                                      child: Text(p.name.toUpperCase(),
-                                          style: GoogleFonts.orbitron(
-                                              fontSize: 26,
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 1.2),
-                                          overflow: TextOverflow.ellipsis))),
-
-                              // İstatistikler
-                              Positioned(
-                                  top: 250,
-                                  left: 10,
-                                  right: 10,
-                                  child: Column(children: [
-                                    const Divider(color: Colors.white30),
-                                    const SizedBox(height: 10),
-                                    Row(
+                                // Kimya ve Rol
+                                Positioned(
+                                    bottom: 10,
+                                    left: 0,
+                                    right: 0,
+                                    child: Row(
                                         mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
+                                            MainAxisAlignment.center,
                                         children: [
-                                          _cStat(
-                                              "PAC", cs["PAC"]!, type, isBad),
-                                          _cStat("DRI", cs["DRI"]!, type, isBad)
-                                        ]),
-                                    const SizedBox(height: 5),
-                                    Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          _cStat(
-                                              "SHO", cs["SHO"]!, type, isBad),
-                                          _cStat("DEF", cs["DEF"]!, type, isBad)
-                                        ]),
-                                    const SizedBox(height: 5),
-                                    Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          _cStat(
-                                              "PAS", cs["PAS"]!, type, isBad),
-                                          _cStat("PHY", cs["PHY"]!, type, isBad)
-                                        ]),
-                                    const SizedBox(height: 15),
-                                    const Divider(color: Colors.white30)
-                                  ])),
+                                          const Icon(Icons.science,
+                                              color: Colors.white60, size: 14),
+                                          const SizedBox(width: 5),
+                                          Text(
+                                              "${p.chemistryStyle} • ${p.role}"
+                                                  .toUpperCase(),
+                                              style: GoogleFonts.montserrat(
+                                                  color: Colors.white60,
+                                                  letterSpacing: 1,
+                                                  fontSize: 10))
+                                        ]))
+                              ]),
+                            ),
 
-                              // Kimya ve Rol
+                            // PlayStyle Plus İkonu
+                            if (goldPs != null && !isBad && !isBasic)
                               Positioned(
-                                  bottom: 10,
-                                  left: 0,
-                                  right: 0,
-                                  child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        const Icon(Icons.science,
-                                            color: Colors.white60, size: 14),
-                                        const SizedBox(width: 5),
-                                        Text(
-                                            "${p.chemistryStyle} • ${p.role}"
-                                                .toUpperCase(),
-                                            style: GoogleFonts.montserrat(
-                                                color: Colors.white60,
-                                                letterSpacing: 1,
-                                                fontSize: 10))
-                                      ]))
-                            ]),
-                          ),
-
-                          // PlayStyle Plus İkonu
-                          if (goldPs != null && !isBad && !isBasic)
-                            Positioned(
-                                left: -5,
-                                top: 220,
-                                child: Container(
-                                    padding: const EdgeInsets.all(5),
-                                    decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                            color: Colors.amber, width: 2),
-                                        boxShadow: [
-                                          BoxShadow(
-                                              color:
-                                                  Colors.amber.withOpacity(0.5),
-                                              blurRadius: 10)
-                                        ]),
-                                    child: Image.asset(
-                                        goldPs.isGold
-                                            ? "assets/Playstyles/plus/${goldPs.name}Plus.png"
-                                            : goldPs.assetPath,
-                                        width: 30,
-                                        height: 30,
-                                        errorBuilder: (c, e, s) => const Icon(
-                                            Icons.star,
-                                            color: Colors.amber,
-                                            size: 20)))),
-                        ]),
+                                  left: -5,
+                                  top: 220,
+                                  child: Container(
+                                      padding: const EdgeInsets.all(5),
+                                      decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                              color: Colors.amber, width: 2),
+                                          boxShadow: [
+                                            BoxShadow(
+                                                color: Colors.amber
+                                                    .withOpacity(0.5),
+                                                blurRadius: 10)
+                                          ]),
+                                      child: Image.asset(
+                                          goldPs.isGold
+                                              ? "assets/Playstyles/plus/${goldPs.name}Plus.png"
+                                              : goldPs.assetPath,
+                                          width: 30,
+                                          height: 30,
+                                          errorBuilder: (c, e, s) => const Icon(
+                                              Icons.star,
+                                              color: Colors.amber,
+                                              size: 20)))),
+                          ]),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            );
-          }),
+              );
+            }),
+      ),
     );
   }
 
@@ -520,35 +510,5 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     if (t == "TOTS") return [Colors.blue, Colors.cyanAccent, Colors.blue];
     if (t == "STAR") return [Colors.cyan, Colors.white, Colors.cyan];
     return [Colors.white, Colors.grey, Colors.white];
-  }
-}
-
-// --- DÜZELTME: PLAYER SINIFI İÇİN EKLENTİ (EXTENSION) ---
-// player_data.dart dosyasında olmayan metodları buraya ekliyoruz.
-extension PlayerCardUtils on Player {
-  int get kitNumber {
-    if (position.contains("GK")) return 1;
-    if (position.contains("CDM")) return 6;
-    if (position.contains("CAM")) return 10;
-    if (position.contains("RW")) return 7;
-    if (position.contains("LW")) return 11;
-    return 9;
-  }
-
-  int getCardTierStars() {
-    switch (cardType) {
-      case "TOTS":
-        return 5;
-      case "BALLOND'OR":
-      case "STAR":
-        return 4;
-      case "MVP":
-        return 3;
-      case "TOTW":
-      case "TOTM":
-        return 1;
-      default:
-        return 0;
-    }
   }
 }

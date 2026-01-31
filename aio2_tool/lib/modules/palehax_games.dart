@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class GamesHubView extends StatefulWidget {
@@ -35,7 +36,6 @@ class _GamesHubViewState extends State<GamesHubView> {
         _gameCard("SPEED CLICKER", Icons.touch_app, Colors.blue, true),
         _gameCard("OKEY 101", Icons.table_restaurant, Colors.green, false),
         _gameCard("UNO", Icons.style, Colors.red, false),
-        // Düzeltme: Icons.spades yerine Icons.videogame_asset
         _gameCard("BATAK", Icons.videogame_asset, Colors.grey, false),
         _gameCard("VAMPİR KÖYLÜ", Icons.nightlight_round, Colors.purple, false),
         _gameCard("PAPAZ KAÇTI", Icons.person_off, Colors.orange, false),
@@ -68,7 +68,7 @@ class _GamesHubViewState extends State<GamesHubView> {
                 style: GoogleFonts.russoOne(color: Colors.white, fontSize: 16)),
             if (!isActive)
               Container(
-                margin: const EdgeInsets.top(5),
+                margin: const EdgeInsets.only(top: 5), // DÜZELTİLDİ
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                     color: Colors.black54,
@@ -158,6 +158,7 @@ class _SpeedClickerGameState extends State<_SpeedClickerGame> {
   bool isPlaying = false;
   int timeLeft = 10;
   Timer? _timer;
+  final FocusNode _gameFocus = FocusNode();
 
   void startGame() {
     setState(() {
@@ -165,6 +166,7 @@ class _SpeedClickerGameState extends State<_SpeedClickerGame> {
       timeLeft = 10;
       isPlaying = true;
     });
+    FocusScope.of(context).requestFocus(_gameFocus);
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (mounted) {
         setState(() {
@@ -181,53 +183,73 @@ class _SpeedClickerGameState extends State<_SpeedClickerGame> {
     });
   }
 
+  void _handleKeyPress(RawKeyEvent event) {
+    if (!isPlaying) return;
+    if (event is RawKeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.keyX) {
+      setState(() {
+        score++;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
+    _gameFocus.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text("SKOR: $score",
-            style: GoogleFonts.russoOne(fontSize: 60, color: Colors.white)),
-        Text("SÜRE: $timeLeft",
-            style: const TextStyle(color: Colors.amber, fontSize: 30)),
-        const SizedBox(height: 30),
-        if (!isPlaying)
-          ElevatedButton(
-              onPressed: startGame,
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 40, vertical: 20)),
-              child: const Text("BAŞLA",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)))
-        else
-          GestureDetector(
-            onTap: () => setState(() => score++),
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                  color: Colors.redAccent,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                        color: Colors.red.withOpacity(0.5), blurRadius: 20)
-                  ]),
-              child: const Center(
-                  child: Text("BAS!",
+    return RawKeyboardListener(
+      focusNode: _gameFocus,
+      onKey: _handleKeyPress,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text("SKOR: $score",
+              style: GoogleFonts.russoOne(fontSize: 60, color: Colors.white)),
+          Text("SÜRE: $timeLeft",
+              style: const TextStyle(color: Colors.amber, fontSize: 30)),
+          const SizedBox(height: 30),
+          if (!isPlaying)
+            ElevatedButton(
+                onPressed: startGame,
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 40, vertical: 20)),
+                child: const Text("BAŞLA (X ile Oyna)",
+                    style:
+                        TextStyle(fontSize: 24, fontWeight: FontWeight.bold)))
+          else
+            Column(
+              children: [
+                const Text("Klavyedeki 'X' tuşuna bas!",
+                    style: TextStyle(color: Colors.white, fontSize: 20)),
+                const SizedBox(height: 20),
+                Container(
+                  width: 150,
+                  height: 150,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.red.withOpacity(0.5), blurRadius: 20)
+                      ]),
+                  child: const Text("X",
                       style: TextStyle(
                           color: Colors.white,
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold))),
-            ),
-          )
-      ],
+                          fontSize: 80,
+                          fontWeight: FontWeight.bold)),
+                ),
+              ],
+            )
+        ],
+      ),
     );
   }
 }

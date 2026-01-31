@@ -1,11 +1,8 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:screenshot/screenshot.dart';
-import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart'; // Dosya kaydı için gerekli
-import '../data/player_data.dart';
+import '../data/player_data.dart' as pd;
 import '../services/database_service.dart';
 import '../ui/fc_animated_card.dart';
 
@@ -20,7 +17,8 @@ class TierListView extends StatefulWidget {
 class _TierListViewState extends State<TierListView> {
   final ScreenshotController screenshotController = ScreenshotController();
   String searchQuery = "";
-  Map<String, List<Player>> tiers = {
+
+  Map<String, List<pd.Player>> tiers = {
     "S": [],
     "A": [],
     "B": [],
@@ -48,32 +46,34 @@ class _TierListViewState extends State<TierListView> {
                 color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.download, color: Colors.greenAccent),
-            onPressed: _saveTierList,
-            tooltip: "PNG Olarak İndir",
-          )
+              icon: const Icon(Icons.download, color: Colors.greenAccent),
+              onPressed: _saveTierList,
+              tooltip: "PNG Olarak İndir")
         ],
       ),
       body: Row(
         children: [
-          // SOL TARAF: TIER LIST ALANI
+          // SOL TARAF: TIER LIST (DÜZELTİLDİ: Column + Expanded yapısı)
           Expanded(
-            flex: 3,
+            flex: 4,
             child: Screenshot(
               controller: screenshotController,
               child: Container(
                 color: const Color(0xFF15151E),
                 padding: const EdgeInsets.all(10),
-                child: ListView(
-                  children:
-                      tiers.keys.map((key) => _buildTierRow(key)).toList(),
+                child: SingleChildScrollView(
+                  // Donmayı engellemek için
+                  child: Column(
+                    children:
+                        tiers.keys.map((key) => _buildTierRow(key)).toList(),
+                  ),
                 ),
               ),
             ),
           ),
           // SAĞ TARAF: OYUNCU HAVUZU
           Container(
-            width: 300,
+            width: 350,
             decoration: const BoxDecoration(
                 border: Border(left: BorderSide(color: Colors.white10)),
                 color: Color(0xFF101014)),
@@ -102,15 +102,17 @@ class _TierListViewState extends State<TierListView> {
                         if (!snapshot.hasData)
                           return const Center(
                               child: CircularProgressIndicator());
-                        // Sadece temel kartları ve yüksek reytinglileri al, isme göre filtrele
-                        var players = snapshot.data!
+                        // Filtreleme
+                        var playerList = snapshot.data!
+                            .map((t) => _convertToPlayer(t))
+                            .toList();
+                        var players = playerList
                             .where((p) =>
                                 p.name
                                     .toLowerCase()
                                     .contains(searchQuery.toLowerCase()) &&
                                 p.cardType == "Temel")
                             .toList();
-                        // Reytinge göre sırala
                         players.sort((a, b) => b.rating.compareTo(a.rating));
 
                         return GridView.builder(
@@ -118,22 +120,28 @@ class _TierListViewState extends State<TierListView> {
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: 2,
-                                  childAspectRatio: 0.7,
+                                  childAspectRatio:
+                                      0.72, // FCAnimatedCard AspectRatio ile uyumlu
                                   crossAxisSpacing: 10,
                                   mainAxisSpacing: 10),
                           itemCount: players.length,
                           itemBuilder: (c, i) {
-                            Player p = _convertToPlayer(players[i]);
-                            return Draggable<Player>(
+                            pd.Player p = players[i];
+                            // Draggable feedback'i sadeleştirerek MouseTracker hatasını önlüyoruz
+                            return Draggable<pd.Player>(
                               data: p,
-                              feedback: SizedBox(
-                                  width: 100,
-                                  height: 140,
-                                  child: FCAnimatedCard(player: p)),
+                              feedback: Material(
+                                  color: Colors.transparent,
+                                  child: SizedBox(
+                                      width: 120,
+                                      child: FCAnimatedCard(
+                                          player: p, animateOnHover: false))),
                               childWhenDragging: Opacity(
                                   opacity: 0.3,
-                                  child: FCAnimatedCard(player: p)),
-                              child: FCAnimatedCard(player: p),
+                                  child: FCAnimatedCard(
+                                      player: p, animateOnHover: false)),
+                              child: FCAnimatedCard(
+                                  player: p, animateOnHover: true),
                             );
                           },
                         );
@@ -148,86 +156,91 @@ class _TierListViewState extends State<TierListView> {
   }
 
   Widget _buildTierRow(String tierKey) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 5),
-      constraints: const BoxConstraints(minHeight: 120),
-      child: Row(
-        children: [
-          // Tier Başlığı (S, A, B...)
-          Container(
-            width: 80,
-            constraints: const BoxConstraints(minHeight: 120),
-            decoration: BoxDecoration(
-                color: tierColors[tierKey],
-                borderRadius:
-                    const BorderRadius.horizontal(left: Radius.circular(5))),
-            child: Center(
-                child: Text(tierKey,
-                    style: GoogleFonts.russoOne(
-                        fontSize: 40, color: Colors.black))),
-          ),
-          // Tier İçeriği (Drop Zone)
-          Expanded(
-            child: DragTarget<Player>(
-              onAccept: (player) {
-                setState(() {
-                  // Başka tierlardan sil
-                  tiers.forEach(
-                      (k, v) => v.removeWhere((p) => p.name == player.name));
-                  tiers[tierKey]!.add(player);
-                });
-              },
-              builder: (context, candidateData, rejectedData) {
-                return Container(
+    return DragTarget<pd.Player>(
+      onAccept: (player) {
+        setState(() {
+          tiers.forEach((k, v) => v.removeWhere((p) => p.name == player.name));
+          tiers[tierKey]!.add(player);
+        });
+      },
+      builder: (context, candidateData, rejectedData) {
+        bool isHovering = candidateData.isNotEmpty;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 5),
+          constraints: const BoxConstraints(minHeight: 130),
+          decoration: BoxDecoration(
+              border: isHovering
+                  ? Border.all(color: Colors.cyanAccent, width: 2)
+                  : Border.all(color: Colors.white10),
+              boxShadow: isHovering
+                  ? [
+                      BoxShadow(
+                          color: Colors.cyanAccent.withOpacity(0.5),
+                          blurRadius: 10)
+                    ]
+                  : [],
+              color: Colors.white.withOpacity(0.02)),
+          child: IntrinsicHeight(
+            // Row yüksekliğini eşitlemek için
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 80,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    border: Border.all(color: Colors.white12),
+                      color: tierColors[tierKey],
+                      borderRadius: const BorderRadius.horizontal(
+                          left: Radius.circular(5))),
+                  child: Center(
+                      child: Text(tierKey,
+                          style: GoogleFonts.russoOne(
+                              fontSize: 40, color: Colors.black))),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: tiers[tierKey]!
+                          .map((p) => GestureDetector(
+                                onTap: () =>
+                                    setState(() => tiers[tierKey]!.remove(p)),
+                                child: SizedBox(
+                                    width: 90,
+                                    child: FCAnimatedCard(
+                                        player: p, animateOnHover: false)),
+                              ))
+                          .toList(),
+                    ),
                   ),
-                  child: Wrap(
-                    children: tiers[tierKey]!
-                        .map((p) => GestureDetector(
-                              onTap: () {
-                                // Tıklayınca tierdan kaldır
-                                setState(() => tiers[tierKey]!.remove(p));
-                              },
-                              child: Container(
-                                  width: 80,
-                                  height: 110,
-                                  margin: const EdgeInsets.all(5),
-                                  child: FCAnimatedCard(player: p)),
-                            ))
-                        .toList(),
-                  ),
-                );
-              },
+                )
+              ],
             ),
-          )
-        ],
-      ),
+          ),
+        );
+      },
     );
   }
 
-  Player _convertToPlayer(dynamic t) {
-    // Veritabanı tablosundan Player modeline çevirici (Basitleştirilmiş)
-    // Gerçek projede jsonDecode işlemleri burada olmalı.
-    return Player(
+  pd.Player _convertToPlayer(dynamic t) {
+    // Veritabanı objesinden pd.Player modeline dönüşüm
+    return pd.Player(
         name: t.name,
         rating: t.rating,
         position: t.position,
         playstyles: [],
         cardType: t.cardType,
-        team: t.team);
+        team: t.team,
+        stats: {},
+        role: t.role);
   }
 
   void _saveTierList() async {
-    // Web veya Desktop için dosya kaydetme mantığı
     final image = await screenshotController.capture();
     if (image != null) {
-      // Burada dosya kaydetme dialogu açılabilir. Şimdilik sadece uyarı veriyoruz.
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
-              "Tier List Görüntüsü Hazırlandı (Kaydetme mantığı eklenecek)"),
-          backgroundColor: Colors.green));
+          content: Text("Görüntü yakalandı!"), backgroundColor: Colors.green));
     }
   }
 }

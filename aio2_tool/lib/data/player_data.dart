@@ -2,130 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
-// part 'player_data.g.dart'; // Bu satır kapalı kalsın.
-
-// ============================================================================
-// GLOBAL VERİ LİSTELERİ (Tüm dosyaların erişebilmesi için burada)
-// ============================================================================
-
-final List<String> gkSkillStats = [
-  "Reflex",
-  "1e1 Savunma",
-  "Çizgide Kurtarış",
-  "Sert Duruş",
-  "Güç"
-];
-final List<String> gkPassStats = [
-  "Pas",
-  "Top Kontrolü",
-  "Görüş",
-  "Topsuz Alan",
-  "Soğukkanlılık",
-  "Karar Alma",
-  "Pozisyon Alma"
-];
-
-final Map<String, List<String>> statSegments = {
-  "1. Top Sürme & Fizik": [
-    "Hız",
-    "Hızlanma",
-    "Çeviklik",
-    "Denge",
-    "Top Sürme",
-    "Duvar Kabiliyeti",
-    "Teknik"
-  ],
-  "2. Şut & Zihinsel": [
-    "Şut Gücü",
-    "Pozisyon Alma",
-    "Bitiricilik",
-    "Uzaktan Şut",
-    "Soğukkanlılık",
-    "Karar Alma",
-    "Roket Şut"
-  ],
-  "3. Savunma & Güç": [
-    "Top Kapma",
-    "Savunma Farkındalığı",
-    "Sert Duruş",
-    "Güç",
-    "Saldırganlık",
-    "Markaj",
-    "Top Kesme"
-  ],
-  "4. Pas & Vizyon": [
-    "Pas",
-    "Ara Pas",
-    "Takım Oyunu",
-    "Görüş",
-    "Topsuz Alan",
-    "Orta Yapma",
-    "Top Kontrolü"
-  ]
-};
-
-// Kart Tipleri ve Roller
-final List<String> globalCardTypes = [
-  "Temel",
-  "TOTW",
-  "TOTM",
-  "TOTS",
-  "MVP",
-  "STAR",
-  "BALLOND'OR",
-  "BAD"
-];
-final List<String> globalRoles = [
-  "Kaptan",
-  "Yedek",
-  "Rotasyon",
-  "Yıldız",
-  "Genç Yetenek"
-];
-
-// Takım Logoları
-final Map<String, String> teamLogos = {
-  "Bursa Spor": "assets/takimlar/bursaspor.png",
-  "CA RIVER PLATE": "assets/takimlar/riverplate.png",
-  "Chelsea": "assets/takimlar/chelsea.png",
-  "Fenerbahçe": "assets/takimlar/fenerbahce.png",
-  "Invicta": "assets/takimlar/invicta.png",
-  "It Spor": "assets/takimlar/itspor.png",
-  "Juventus": "assets/takimlar/juventus.png",
-  "Livorno": "assets/takimlar/livorno.png",
-  "Maximilian": "assets/takimlar/maximilian.png",
-  "Shamrock Rovers": "assets/takimlar/shamrock.png",
-  "Tiyatro FC": "assets/takimlar/tiyatro.png",
-  "Toulouse": "assets/takimlar/toulouse.png",
-  "Werder Weremem": "assets/takimlar/werderweremem.png",
-  "Takımsız": ""
-};
-
-// Mevkiler ve Rolleri
-final Map<String, List<String>> roleCategories = {
-  "(1) GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
-  "(3-6) CDM": [
-    "Savunmatik",
-    "Libero",
-    "Oyun Kurucu Stoper",
-    "Tutucu",
-    "Derin Oyun Kurucu",
-    "Savaşçı"
-  ],
-  "(10) CAM": [
-    "Oyun Kurucu",
-    "Box to Box",
-    "Mezzala",
-    "Gölge Forvet",
-    "Enganche"
-  ],
-  "(7) RW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
-  "(11) LW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
-  "(9) ST": ["Hedef Forvet", "Avcı Forvet", "Yanlış 9", "Gölge Forvet"]
-};
-
 // --- HIVE ADAPTERLERİ ---
-
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
   final int typeId = 1;
@@ -303,7 +180,33 @@ class Player extends HiveObject {
       this.manualAssists = 0,
       this.manualMatches = 0});
 
-  // --- REYTİNG HESAPLAMA ---
+  // --- EKSİK OLAN GETTER'LAR BURAYA EKLENDİ ---
+  int get kitNumber {
+    if (position.contains("GK")) return 1;
+    if (position.contains("CDM")) return 6;
+    if (position.contains("CAM")) return 10;
+    if (position.contains("RW")) return 7;
+    if (position.contains("LW")) return 11;
+    return 9;
+  }
+
+  int getCardTierStars() {
+    switch (cardType) {
+      case "TOTS":
+        return 5;
+      case "BALLOND'OR":
+      case "STAR":
+        return 4;
+      case "MVP":
+        return 3;
+      case "TOTW":
+      case "TOTM":
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
   void calculateSmartRating() {
     if (stats.isEmpty) {
       rating = 50;
@@ -439,3 +342,117 @@ class Player extends HiveObject {
     return c == 0 ? 50.0 : (s / c);
   }
 }
+
+// --- GLOBAL LİSTELER ---
+final List<String> gkSkillStats = [
+  "Reflex",
+  "1e1 Savunma",
+  "Çizgide Kurtarış",
+  "Sert Duruş",
+  "Güç"
+];
+final List<String> gkPassStats = [
+  "Pas",
+  "Top Kontrolü",
+  "Görüş",
+  "Topsuz Alan",
+  "Soğukkanlılık",
+  "Karar Alma",
+  "Pozisyon Alma"
+];
+
+final Map<String, List<String>> statSegments = {
+  "1. Top Sürme & Fizik": [
+    "Hız",
+    "Hızlanma",
+    "Çeviklik",
+    "Denge",
+    "Top Sürme",
+    "Duvar Kabiliyeti",
+    "Teknik"
+  ],
+  "2. Şut & Zihinsel": [
+    "Şut Gücü",
+    "Pozisyon Alma",
+    "Bitiricilik",
+    "Uzaktan Şut",
+    "Soğukkanlılık",
+    "Karar Alma",
+    "Roket Şut"
+  ],
+  "3. Savunma & Güç": [
+    "Top Kapma",
+    "Savunma Farkındalığı",
+    "Sert Duruş",
+    "Güç",
+    "Saldırganlık",
+    "Markaj",
+    "Top Kesme"
+  ],
+  "4. Pas & Vizyon": [
+    "Pas",
+    "Ara Pas",
+    "Takım Oyunu",
+    "Görüş",
+    "Topsuz Alan",
+    "Orta Yapma",
+    "Top Kontrolü"
+  ]
+};
+
+final List<String> globalCardTypes = [
+  "Temel",
+  "TOTW",
+  "TOTM",
+  "TOTS",
+  "MVP",
+  "STAR",
+  "BALLOND'OR",
+  "BAD"
+];
+final List<String> globalRoles = [
+  "Kaptan",
+  "Yedek",
+  "Rotasyon",
+  "Yıldız",
+  "Genç Yetenek"
+];
+
+final Map<String, String> teamLogos = {
+  "Bursa Spor": "assets/takimlar/bursaspor.png",
+  "CA RIVER PLATE": "assets/takimlar/riverplate.png",
+  "Chelsea": "assets/takimlar/chelsea.png",
+  "Fenerbahçe": "assets/takimlar/fenerbahce.png",
+  "Invicta": "assets/takimlar/invicta.png",
+  "It Spor": "assets/takimlar/itspor.png",
+  "Juventus": "assets/takimlar/juventus.png",
+  "Livorno": "assets/takimlar/livorno.png",
+  "Maximilian": "assets/takimlar/maximilian.png",
+  "Shamrock Rovers": "assets/takimlar/shamrock.png",
+  "Tiyatro FC": "assets/takimlar/tiyatro.png",
+  "Toulouse": "assets/takimlar/toulouse.png",
+  "Werder Weremem": "assets/takimlar/werderweremem.png",
+  "Takımsız": ""
+};
+
+final Map<String, List<String>> roleCategories = {
+  "(1) GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
+  "(3-6) CDM": [
+    "Savunmatik",
+    "Libero",
+    "Oyun Kurucu Stoper",
+    "Tutucu",
+    "Derin Oyun Kurucu",
+    "Savaşçı"
+  ],
+  "(10) CAM": [
+    "Oyun Kurucu",
+    "Box to Box",
+    "Mezzala",
+    "Gölge Forvet",
+    "Enganche"
+  ],
+  "(7) RW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
+  "(11) LW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
+  "(9) ST": ["Hedef Forvet", "Avcı Forvet", "Yanlış 9", "Gölge Forvet"]
+};
