@@ -2,7 +2,130 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
-// --- ADAPTERLER ---
+// part 'player_data.g.dart'; // Bu satır kapalı kalsın.
+
+// ============================================================================
+// GLOBAL VERİ LİSTELERİ (Tüm dosyaların erişebilmesi için burada)
+// ============================================================================
+
+final List<String> gkSkillStats = [
+  "Reflex",
+  "1e1 Savunma",
+  "Çizgide Kurtarış",
+  "Sert Duruş",
+  "Güç"
+];
+final List<String> gkPassStats = [
+  "Pas",
+  "Top Kontrolü",
+  "Görüş",
+  "Topsuz Alan",
+  "Soğukkanlılık",
+  "Karar Alma",
+  "Pozisyon Alma"
+];
+
+final Map<String, List<String>> statSegments = {
+  "1. Top Sürme & Fizik": [
+    "Hız",
+    "Hızlanma",
+    "Çeviklik",
+    "Denge",
+    "Top Sürme",
+    "Duvar Kabiliyeti",
+    "Teknik"
+  ],
+  "2. Şut & Zihinsel": [
+    "Şut Gücü",
+    "Pozisyon Alma",
+    "Bitiricilik",
+    "Uzaktan Şut",
+    "Soğukkanlılık",
+    "Karar Alma",
+    "Roket Şut"
+  ],
+  "3. Savunma & Güç": [
+    "Top Kapma",
+    "Savunma Farkındalığı",
+    "Sert Duruş",
+    "Güç",
+    "Saldırganlık",
+    "Markaj",
+    "Top Kesme"
+  ],
+  "4. Pas & Vizyon": [
+    "Pas",
+    "Ara Pas",
+    "Takım Oyunu",
+    "Görüş",
+    "Topsuz Alan",
+    "Orta Yapma",
+    "Top Kontrolü"
+  ]
+};
+
+// Kart Tipleri ve Roller
+final List<String> globalCardTypes = [
+  "Temel",
+  "TOTW",
+  "TOTM",
+  "TOTS",
+  "MVP",
+  "STAR",
+  "BALLOND'OR",
+  "BAD"
+];
+final List<String> globalRoles = [
+  "Kaptan",
+  "Yedek",
+  "Rotasyon",
+  "Yıldız",
+  "Genç Yetenek"
+];
+
+// Takım Logoları
+final Map<String, String> teamLogos = {
+  "Bursa Spor": "assets/takimlar/bursaspor.png",
+  "CA RIVER PLATE": "assets/takimlar/riverplate.png",
+  "Chelsea": "assets/takimlar/chelsea.png",
+  "Fenerbahçe": "assets/takimlar/fenerbahce.png",
+  "Invicta": "assets/takimlar/invicta.png",
+  "It Spor": "assets/takimlar/itspor.png",
+  "Juventus": "assets/takimlar/juventus.png",
+  "Livorno": "assets/takimlar/livorno.png",
+  "Maximilian": "assets/takimlar/maximilian.png",
+  "Shamrock Rovers": "assets/takimlar/shamrock.png",
+  "Tiyatro FC": "assets/takimlar/tiyatro.png",
+  "Toulouse": "assets/takimlar/toulouse.png",
+  "Werder Weremem": "assets/takimlar/werderweremem.png",
+  "Takımsız": ""
+};
+
+// Mevkiler ve Rolleri
+final Map<String, List<String>> roleCategories = {
+  "(1) GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
+  "(3-6) CDM": [
+    "Savunmatik",
+    "Libero",
+    "Oyun Kurucu Stoper",
+    "Tutucu",
+    "Derin Oyun Kurucu",
+    "Savaşçı"
+  ],
+  "(10) CAM": [
+    "Oyun Kurucu",
+    "Box to Box",
+    "Mezzala",
+    "Gölge Forvet",
+    "Enganche"
+  ],
+  "(7) RW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
+  "(11) LW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
+  "(9) ST": ["Hedef Forvet", "Avcı Forvet", "Yanlış 9", "Gölge Forvet"]
+};
+
+// --- HIVE ADAPTERLERİ ---
+
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
   final int typeId = 1;
@@ -113,8 +236,9 @@ class PlayStyle {
   final String name;
   final bool isGold;
   PlayStyle(this.name, {this.isGold = false});
-  String get assetPath =>
-      "assets/Playstyles/${isGold ? "${name}Plus" : name}.png";
+  String get assetPath => isGold
+      ? "assets/Playstyles/plus/${name}Plus.png"
+      : "assets/Playstyles/$name.png";
 }
 
 class MatchStat {
@@ -179,35 +303,74 @@ class Player extends HiveObject {
       this.manualAssists = 0,
       this.manualMatches = 0});
 
-  int get kitNumber {
-    if (position.contains("GK")) return 1;
-    if (position.contains("CDM")) return 6;
-    if (position.contains("CAM")) return 10;
-    if (position.contains("RW")) return 7;
-    if (position.contains("LW")) return 11;
-    return 9;
-  }
-
-  int getCardTierStars() {
-    switch (cardType) {
-      case "TOTS":
-        return 5;
-      case "BALLOND'OR":
-      case "STAR":
-        return 4;
-      case "MVP":
-        return 3;
-      case "TOTW":
-      case "TOTM":
-        return 1;
-      default:
-        return 0;
+  // --- REYTİNG HESAPLAMA ---
+  void calculateSmartRating() {
+    if (stats.isEmpty) {
+      rating = 50;
+      return;
     }
+    if (position.contains("GK") || position.contains("(1)")) {
+      double gkSkillAvg = _getAvgDouble(gkSkillStats);
+      double gkPassAvg = _getAvgDouble(gkPassStats);
+      rating = ((gkSkillAvg * 0.70) + (gkPassAvg * 0.30)).round().clamp(1, 99);
+      return;
+    }
+    double dribbling = _getAvgDouble(
+        ["Top Sürme", "Teknik", "Çeviklik", "Denge", "Hız", "Hızlanma"]);
+    double shooting = _getAvgDouble(statSegments["2. Şut & Zihinsel"]!);
+    double defense = _getAvgDouble(statSegments["3. Savunma & Güç"]!);
+    double passing = _getAvgDouble(statSegments["4. Pas & Vizyon"]!);
+
+    String numStr = position.replaceAll(RegExp(r'[^0-9]'), '');
+    int pNum = int.tryParse(numStr) ?? 9;
+
+    double wDrib = 0.25, wShoot = 0.25, wDef = 0.25, wPass = 0.25;
+    if (pNum >= 3 && pNum <= 6) {
+      wDrib = 0.20;
+      wShoot = 0.10;
+      wDef = 0.50;
+      wPass = 0.30;
+    } else if (pNum == 10) {
+      wDrib = 0.25;
+      wShoot = 0.20;
+      wDef = 0.15;
+      wPass = 0.40;
+    } else if (pNum == 7 || pNum == 11) {
+      wDrib = 0.45;
+      wShoot = 0.25;
+      wDef = 0.05;
+      wPass = 0.25;
+    } else if (pNum == 9) {
+      wDrib = 0.28;
+      wShoot = 0.45;
+      wDef = 0.02;
+      wPass = 0.25;
+    }
+
+    double weightedTotal = (dribbling * wDrib) +
+        (shooting * wShoot) +
+        (defense * wDef) +
+        (passing * wPass);
+    double totalWeight = wDrib + wShoot + wDef + wPass;
+    rating = (weightedTotal / totalWeight).round().clamp(1, 99);
+    if (cardType == "TOTS" || cardType == "BALLOND'OR")
+      rating = (rating + 3).clamp(1, 99);
+    if (cardType == "BAD") rating = (rating - 25).clamp(1, 60);
   }
 
   Map<String, int> getCardStats() {
     if (stats.isEmpty)
       return {"PAC": 50, "SHO": 50, "PAS": 50, "DRI": 50, "DEF": 50, "PHY": 50};
+    if (position.contains("GK") || position.contains("(1)")) {
+      return {
+        "REF": stats["Reflex"] ?? 50,
+        "1v1": stats["1e1 Savunma"] ?? 50,
+        "DIV": stats["Çizgide Kurtarış"] ?? 50,
+        "HAN": stats["Top Kontrolü"] ?? 50,
+        "KIC": stats["Güç"] ?? 50,
+        "POS": stats["Pozisyon Alma"] ?? 50,
+      };
+    }
     return {
       "PAC": _getAvg(statSegments["1. Top Sürme & Fizik"]!.sublist(0, 4)),
       "SHO": _getAvg(statSegments["2. Şut & Zihinsel"]!),
@@ -216,24 +379,6 @@ class Player extends HiveObject {
       "DEF": _getAvg(statSegments["3. Savunma & Güç"]!),
       "PHY": _getAvg(["Güç", "Saldırganlık", "Sert Duruş", "Duvar Kabiliyeti"])
     };
-  }
-
-  void calculateRating() {
-    if (stats.isEmpty) {
-      rating = 50;
-      return;
-    }
-    var cs = getCardStats();
-    double total = (cs["PAC"]! * 1.2 +
-        cs["SHO"]! * 1.5 +
-        cs["PAS"]! * 1.0 +
-        cs["DRI"]! * 1.2 +
-        cs["DEF"]! * 0.2 +
-        cs["PHY"]! * 0.8);
-    rating = (total / 5.9).round().clamp(1, 99);
-    if (cardType == "TOTS" || cardType == "BALLOND'OR")
-      rating = (rating + 3).clamp(1, 99);
-    if (cardType == "BAD") rating = (rating - 30).clamp(1, 60);
   }
 
   Offset getPitchPosition() {
@@ -248,6 +393,15 @@ class Player extends HiveObject {
 
   Map<String, String> getSimulationStats() {
     var cs = getCardStats();
+    if (position.contains("GK")) {
+      return {
+        "Pas": "${stats['Pas'] ?? 50}",
+        "Refleks": "${stats['Reflex'] ?? 50}",
+        "Gol": "$manualGoals",
+        "Asist": "$manualAssists",
+        "Maç": "$manualMatches"
+      };
+    }
     int passes = (cs['PAS']! * 1.5).toInt();
     int shots = (cs['SHO']! / 4).toInt();
     int possession = (cs['DRI']! / 1.8).toInt().clamp(30, 70);
@@ -267,390 +421,21 @@ class Player extends HiveObject {
     if (stats.isEmpty) return 50;
     int s = 0, c = 0;
     for (var k in keys) {
-      if (stats.containsKey(k) && stats[k] != null) {
+      if (stats.containsKey(k)) {
         s += stats[k]!;
         c++;
       }
     }
     return c == 0 ? 50 : (s / c).round();
   }
+
+  double _getAvgDouble(List<String> keys) {
+    if (stats.isEmpty) return 50.0;
+    int s = 0, c = 0;
+    for (var k in keys) {
+      s += stats[k] ?? 60;
+      c++;
+    }
+    return c == 0 ? 50.0 : (s / c);
+  }
 }
-
-// --- WIKI VERİLERİ ---
-final Map<String, List<Map<String, String>>> playStyleCategories = {
-  "Bitirici": [
-    {
-      "name": "GameChanger",
-      "label": "Oyun Kurucu/Yaratıcı",
-      "desc": "Sıradışı bitirişler ve yaratıcı vuruşlar."
-    },
-    {
-      "name": "Acrobatic",
-      "label": "Akrobatik",
-      "desc": "Akrobatik paslar ve estetik vuruşlar."
-    },
-    {
-      "name": "PowerShot",
-      "label": "Sert Şut",
-      "desc": "Ceza sahası dışından sert şutlar."
-    },
-    {
-      "name": "FinesseShot",
-      "label": "Plase Şut",
-      "desc": "Köşelere isabetli ve kaliteli şutlar."
-    }
-  ],
-  "Pas": [
-    {
-      "name": "IncisivePass",
-      "label": "Keskin Pas",
-      "desc": "Savunmayı yaran koşturucu paslar."
-    },
-    {
-      "name": "PingedPass",
-      "label": "Adrese Teslim",
-      "desc": "Hızlı ve sert adrese teslim paslar."
-    },
-    {
-      "name": "LongBallPass",
-      "label": "Uzun Pas",
-      "desc": "Uzaktaki oyuncuya nokta atışı paslar."
-    },
-    {
-      "name": "TikiTaka",
-      "label": "Tiki Taka",
-      "desc": "İlk vuruşta isabetli kısa paslar."
-    },
-    {
-      "name": "WhippedPass",
-      "label": "Kırbaçlanmış Pas",
-      "desc": "Hızlı ve sert ceza sahası ortaları."
-    },
-    {
-      "name": "Inventive",
-      "label": "Yaratıcı",
-      "desc": "Zekice ve tahmin edilemez paslar."
-    }
-  ],
-  "Savunma/Fiziksel": [
-    {"name": "Jockey", "label": "Jokey", "desc": "Bire bir mücadele uzmanı."},
-    {
-      "name": "Block",
-      "label": "Engelleyici",
-      "desc": "Esnek ve markajlayarak blok yapma."
-    },
-    {
-      "name": "Intercept",
-      "label": "Top Kesici",
-      "desc": "Topu kapma ve sahip olma yeteneği."
-    },
-    {
-      "name": "Anticipate",
-      "label": "Sezgici",
-      "desc": "Düşük hata oranıyla top çalma."
-    },
-    {
-      "name": "Bruiser",
-      "label": "Kavgacı",
-      "desc": "Bodyleme ve fiziksel top kazanma."
-    },
-    {
-      "name": "AerialFortress",
-      "label": "Hava Hakimiyeti",
-      "desc": "Sert paslara kontrollü hava tepkisi."
-    }
-  ],
-  "Dripling": [
-    {
-      "name": "Technical",
-      "label": "Teknik",
-      "desc": "Teknik top sürme becerisi."
-    },
-    {"name": "Rapid", "label": "Ani", "desc": "Rakibi hızla ekarte etme."},
-    {
-      "name": "FirstTouch",
-      "label": "İlk Dokunuş",
-      "desc": "Zor pozisyonlarda isabetli kontrol."
-    },
-    {
-      "name": "Trickster",
-      "label": "Hilebaz/Sanatçı",
-      "desc": "Yetenekli duvar hareketleri."
-    },
-    {
-      "name": "PressProven",
-      "label": "Baskı Yemez",
-      "desc": "Fiziksel baskı altında hakimiyet."
-    },
-    {
-      "name": "QuickStep",
-      "label": "Hızlı Adım",
-      "desc": "Topla birlikte hızlı dripling."
-    }
-  ],
-  "Kaleci": [
-    {
-      "name": "FarReach",
-      "label": "Uzak Erişim/Atış",
-      "desc": "Uzak köşelere uzanabilir."
-    },
-    {
-      "name": "Footwork",
-      "label": "Ayak Hareketleri",
-      "desc": "Kaliteli pas atan pasör kaleci."
-    },
-    {
-      "name": "CrossClaimer",
-      "label": "Çapraz Muhafız",
-      "desc": "Markajla top kesen kaleci."
-    },
-    {
-      "name": "RushOut",
-      "label": "Dışarı Terk",
-      "desc": "Agresif şut/pas engelleme."
-    },
-  ]
-};
-
-final List<Map<String, dynamic>> metaPlaystyles = [
-  {
-    "role": "(1) GK Metas",
-    "styles":
-        "Ayak Hareketleri - Çapraz Muhafız - Dışarı Terk - Uzak Erişim/Atış"
-  },
-  {
-    "role": "(3-6) CDM Metas",
-    "styles":
-        "Sezgici - Kavgacı - Engelleyici - Jokey - Adrese Teslim - Top Kesici"
-  },
-  {
-    "role": "(10) CAM Metas",
-    "styles":
-        "Keskin Pas - Tiki Taka - Adrese Teslim - Oyun Kurucu/Yaratıcı - Yaratıcı - Sert Şut - Teknik"
-  },
-  {
-    "role": "(7) RW Metas",
-    "styles":
-        "Hilebaz/Sanatçı - Oyun Kurucu/Yaratıcı - Hızlı Adım - Ani - Teknik - Sert Şut - Plase Şut - Yaratıcı"
-  },
-  {
-    "role": "(11) LW Metas",
-    "styles":
-        "Hilebaz/Sanatçı - Oyun Kurucu/Yaratıcı - Hızlı Adım - Ani - Teknik - Sert Şut - Plase Şut - Yaratıcı"
-  },
-  {
-    "role": "(9) ST Metas",
-    "styles":
-        "Plase Şut - Sert Şut - Baskı Yemez - Keskin Pas - İlk Dokunuş - Hava Hakimiyeti"
-  },
-];
-
-final Map<String, String> cardTypeDescriptions = {
-  "Temel": "Standart oyuncu kartı.",
-  "TOTW": "Haftanın Takımı.",
-  "TOTS": "Sezonun Takımı.",
-  "MVP": "En Değerli Oyuncu.",
-  "STAR": "Yıldız Oyuncu.",
-  "BALLOND'OR": "Sezonun Oyuncusu.",
-  "BAD": "Facia Performans.",
-  "TOTM": "Ayın Takımı."
-};
-
-final Map<String, String> roleDescriptions = {
-  "Çizgi Kalecisi": "Refleks kurtarışları yapar.",
-  "Süpürücü Kaleci": "Defans arkası toplara çıkar.",
-  "Oyun Kurucu Kaleci": "Geriden oyun kurar.",
-  "Savunmatik": "Önceliği defans güvenliğidir.",
-  "Libero": "En arkada serbest oynar.",
-  "Oyun Kurucu Stoper": "Topu oyuna sokar.",
-  "Tutucu": "Defans önünü süpürür.",
-  "Derin Oyun Kurucu": "Geriden oyun kurar.",
-  "Savaşçı": "Rakibi yıpratır.",
-  "Oyun Kurucu": "Takımın beyni konumu.",
-  "Box to Box": "İki ceza sahası arası mekik dokur.",
-  "Mezzala": "Yarı kanat, yaratıcı merkez oyuncusu.",
-  "Gölge Forvet": "Forvet arkasından gol arayan oyuncu.",
-  "Enganche": "Klasik 10 numara tarzı oyun kurucu.",
-  "İç Forvet": "Kanattan içeri kat edip şut çeker.",
-  "Kanat Oyuncusu": "Çizgiye inip orta yapmaya odaklanır.",
-  "Gizli Forvet": "Geri planda kalıp sürpriz goller arar.",
-  "Avcı Forvet": "Ceza sahası içi bitiriciliğe odaklanır.",
-  "Hedef Forvet": "Top saklayıp arkadaşlarına servis yapar.",
-  "Yanlış 9": "Forvet görünüp orta sahaya yardıma gelir.",
-  "Kanat Bek": "Hücuma katkı veren savunma oyuncusu.",
-  "Hücum Bek": "Neredeyse kanat gibi oynayan bek."
-};
-
-final List<String> availablePlayStyles = playStyleCategories.values
-    .expand((element) => element.map((e) => e["name"]!))
-    .toList();
-final Map<String, String> playStyleTranslationsReverse = playStyleCategories
-    .values
-    .expand((e) => e)
-    .fold({}, (map, e) => map..[e["name"]!] = e["label"]!);
-final List<String> cardTypes = [
-  "Temel",
-  "TOTW",
-  "TOTM",
-  "TOTS",
-  "MVP",
-  "STAR",
-  "BALLOND'OR",
-  "BAD"
-];
-
-final Map<String, List<String>> roleCategories = {
-  "(1) GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
-  "(3-6) CDM": [
-    "Savunmatik",
-    "Libero",
-    "Oyun Kurucu Stoper",
-    "Tutucu",
-    "Derin Oyun Kurucu",
-    "Savaşçı"
-  ],
-  "(10) CAM": [
-    "Oyun Kurucu",
-    "Box to Box",
-    "Mezzala",
-    "Gölge Forvet",
-    "Enganche"
-  ],
-  "(7) RW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
-  "(11) LW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
-  "(9) ST": ["Hedef Forvet", "Avcı Forvet", "Yanlış 9", "Gölge Forvet"]
-};
-final List<String> availablePositions = roleCategories.keys.toList();
-
-final Map<String, Map<String, int>> chemistryBonuses = {
-  "Temel": {
-    "Hız": 2,
-    "Çeviklik": 1,
-    "Savunma Farkındalığı": 2,
-    "Bitiricilik": 1
-  },
-  "Omurga": {"Top Kesme": 4, "Savunma Farkındalığı": 3, "Güç": 3},
-  "Motor": {"Hız": 2, "Pas": 4, "Ara Pas": 2, "Görüş": 1, "Güç": 1},
-  "Muhafız": {
-    "Güç": 4,
-    "Soğukkanlılık": 2,
-    "Savunma Farkındalığı": 3,
-    "Top Kesme": 1
-  },
-  "Güçlü": {"Güç": 5, "Savunma Farkındalığı": 3, "Hız": 1, "Saldırganlık": 2},
-  "Gölge": {
-    "Güç": 1,
-    "Savunma Farkındalığı": 3,
-    "Hız": 3,
-    "Pas": 1,
-    "Soğukkanlılık": 2
-  },
-  "Mimar": {
-    "Pas": 4,
-    "Ara Pas": 2,
-    "Görüş": 3,
-    "Çeviklik": 2,
-    "Top Kontrolü": 2
-  },
-  "Sanatçı": {"Pas": 2, "Ara Pas": 2, "Görüş": 3, "Çeviklik": 3, "Teknik": 4},
-  "Nişancı": {"Bitiricilik": 4, "Şut Gücü": 3, "Görüş": 2, "Güç": 1},
-  "Maestro": {"Pas": 4, "Ara Pas": 4, "Görüş": 4},
-  "Avcı": {"Bitiricilik": 3, "Hız": 3, "Çeviklik": 3, "Görüş": 2},
-  "Keskin Nişancı": {"Bitiricilik": 5, "Şut Gücü": 4, "Görüş": 2},
-  "Şahin": {"Bitiricilik": 2, "Hız": 5, "Şut Gücü": 2, "Güç": 3},
-  "Bitirici": {"Bitiricilik": 6, "Hız": 3, "Şut Gücü": 3, "Güç": 1},
-  "Gözcü": {"Hız": 2, "Top Kapma": 3, "Markaj": 3, "Güç": 2},
-  "Çapa": {"Hız": 2, "Savunma Farkındalığı": 2, "Güç": 4},
-  "Katalizör": {"Hız": 3, "Pas": 3, "Ara Pas": 2},
-  "Gladyatör": {"Bitiricilik": 3, "Savunma Farkındalığı": 3, "Güç": 2}
-};
-
-// --- DÜZELTME: ROKET ŞUT EKLENDİ ---
-final Map<String, List<String>> statSegments = {
-  "1. Top Sürme & Fizik": [
-    "Hız",
-    "Hızlanma",
-    "Çeviklik",
-    "Denge",
-    "Top Sürme",
-    "Duvar Kabiliyeti",
-    "Teknik"
-  ],
-  "2. Şut & Zihinsel": [
-    "Şut Gücü",
-    "Pozisyon Alma",
-    "Bitiricilik",
-    "Uzaktan Şut",
-    "Soğukkanlılık",
-    "Karar Alma",
-    "Roket Şut"
-  ],
-  "3. Savunma & Güç": [
-    "Top Kapma",
-    "Savunma Farkındalığı",
-    "Sert Duruş",
-    "Güç",
-    "Saldırganlık",
-    "Markaj",
-    "Top Kesme"
-  ],
-  "4. Pas & Vizyon": [
-    "Pas",
-    "Ara Pas",
-    "Takım Oyunu",
-    "Görüş",
-    "Topsuz Alan",
-    "Orta Yapma",
-    "Top Kontrolü"
-  ]
-};
-
-// --- TAKIM LOGOLARI ---
-final Map<String, String> teamLogos = {
-  "Bursa Spor": "assets/takimlar/bursaspor.png",
-  "Chelsea": "assets/takimlar/chelsea.png",
-  "Fenerbahçe": "assets/takimlar/fenerbahce.png",
-  "Invicta": "assets/takimlar/invicta.png",
-  "It Spor": "assets/takimlar/itspor.png",
-  "Juventus": "assets/takimlar/juventus.png",
-  "Livorno": "assets/takimlar/livorno.png",
-  "Maximilian": "assets/takimlar/maximilian.png",
-  "CA RIVER PLATE": "assets/takimlar/riverplate.png",
-  "Shamrock Rovers": "assets/takimlar/shamrock.png",
-  "Tiyatro FC": "assets/takimlar/tiyatro.png",
-  "Toulouse": "assets/takimlar/toulouse.png",
-  "Werder Weremem": "assets/takimlar/werderweremem.png",
-  "Takımsız": ""
-};
-final Map<String, String> teamUrlSlugs = {
-  "Bursa Spor": "bursa-spor",
-  "CA RIVER PLATE": "ca-ri%CC%87ver-plate",
-  "Chelsea": "chelsea",
-  "Fenerbahçe": "fenerbah%C3%A7e",
-  "Invicta": "invicta",
-  "It Spor": "i%CC%87t-spor",
-  "Juventus": "juventus",
-  "Livorno": "livorno",
-  "Maximilian": "maximilian",
-  "Shamrock Rovers": "shamrock-rovers",
-  "Tiyatro FC": "tiyatro-fc",
-  "Toulouse": "toulouse",
-  "Werder Weremem": "werder-weremem",
-};
-// Bu Map'i dosyanın uygun bir yerine ekle
-final Map<String, String> teamMarketValues = {
-  "Toulouse": "€96.86M",
-  "Livorno": "€85.67M",
-  "Werder Weremem": "€75.56M",
-  "Maximilian": "€69.31M",
-  "Invicta": "€63.89M",
-  "Bursa Spor": "€61.82M",
-  "Fenerbahçe": "€58.17M",
-  "CA RİVER PLATE": "€55.70M",
-  "Shamrock Rovers": "€46.48M",
-  "Chelsea": "€30.81M",
-  "İt Spor": "€27.44M",
-  "Tiyatro FC": "€24.59M",
-  "Juventus": "€14.53M",
-};
-final List<String> availableTeams = teamLogos.keys.toList();

@@ -3,6 +3,25 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../data/player_data.dart';
 
+// --- EKSİK OLAN TAKIM LOGOLARI HARİTASI ---
+// (Bu dosyada kullanıldığı için buraya ekliyoruz)
+final Map<String, String> teamLogos = {
+  "Bursa Spor": "assets/takimlar/bursaspor.png",
+  "Chelsea": "assets/takimlar/chelsea.png",
+  "Fenerbahçe": "assets/takimlar/fenerbahce.png",
+  "Invicta": "assets/takimlar/invicta.png",
+  "It Spor": "assets/takimlar/itspor.png",
+  "Juventus": "assets/takimlar/juventus.png",
+  "Livorno": "assets/takimlar/livorno.png",
+  "Maximilian": "assets/takimlar/maximilian.png",
+  "CA RIVER PLATE": "assets/takimlar/riverplate.png",
+  "Shamrock Rovers": "assets/takimlar/shamrock.png",
+  "Tiyatro FC": "assets/takimlar/tiyatro.png",
+  "Toulouse": "assets/takimlar/toulouse.png",
+  "Werder Weremem": "assets/takimlar/werderweremem.png",
+  "Takımsız": ""
+};
+
 class FCAnimatedCard extends StatefulWidget {
   final Player player;
   final bool animateOnHover;
@@ -28,6 +47,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         AnimationController(vsync: this, duration: const Duration(seconds: 10));
     _pulseController =
         AnimationController(vsync: this, duration: const Duration(seconds: 2));
+
     String type = widget.player.cardType;
     if (_hasGif(type)) {
       _loopController.repeat();
@@ -64,13 +84,15 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     bool isBasic = type == "Temel";
     Map<String, int> cs = p.getCardStats();
 
-    // DÜZELTME: Altın olan ilk yeteneği bul
-    PlayStyle? goldPs = p.playstyles.isNotEmpty
-        ? p.playstyles
-            .firstWhere((ps) => ps.isGold, orElse: () => p.playstyles.first)
-        : null;
+    // Altın PlayStyle bulma (yoksa ilki, o da yoksa null)
+    PlayStyle? goldPs;
+    if (p.playstyles.isNotEmpty) {
+      goldPs = p.playstyles
+          .firstWhere((ps) => ps.isGold, orElse: () => p.playstyles.first);
+    }
 
     Color borderColor = _getBorderColor(type);
+    // HATA DÜZELTİLDİ: teamLogos artık bu dosyanın başında tanımlı
     String? teamLogo = teamLogos[p.team];
 
     return MouseRegion(
@@ -80,8 +102,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
           animation: Listenable.merge([_loopController, _pulseController]),
           builder: (context, child) {
             return AnimatedScale(
-              scale:
-                  _isHovering ? 1.02 : 1.0, // Değişkeni kullandık, uyarı gitti
+              scale: _isHovering ? 1.02 : 1.0,
               duration: const Duration(milliseconds: 200),
               child: SizedBox(
                 width: 350,
@@ -114,9 +135,13 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                 child: Opacity(
                                     opacity: type == "BALLOND'OR" ? 0.15 : 0.5,
                                     child: Image.asset(_getGif(type),
-                                        fit: BoxFit.cover))),
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (c, e, s) =>
+                                            Container()))),
                           if (!_hasGif(type) && !isBasic)
                             _buildCodeEffects(type),
+
+                          // Parlama Efektleri
                           if (!isBasic &&
                               !isBad &&
                               (type == "TOTS" ||
@@ -136,9 +161,11 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                             border: Border.all(
                                                 width: 3,
                                                 color: Colors.white.withOpacity(0.15)))))),
+
                           Padding(
                             padding: const EdgeInsets.all(20.0),
                             child: Stack(children: [
+                              // Başlık
                               if (!isBasic)
                                 Positioned(
                                     top: 0,
@@ -157,6 +184,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                       color: Colors.black,
                                                       blurRadius: 5)
                                                 ])))),
+
+                              // Takım Logosu
                               Positioned(
                                   top: 40,
                                   left: 0,
@@ -170,6 +199,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                               color: Colors.white70))
                                       : const Icon(Icons.sports_soccer,
                                           color: Colors.white70, size: 30)),
+
+                              // Palehax Logo
                               Positioned(
                                   top: 40,
                                   right: 0,
@@ -183,6 +214,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                               : Icons.shield,
                                           color: Colors.white70,
                                           size: 30))),
+
+                              // Reyting ve Pozisyon
                               Positioned(
                                   top: 80,
                                   left: 0,
@@ -204,6 +237,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                 color: Colors.white70,
                                                 fontWeight: FontWeight.bold))
                                       ])),
+
+                              // HATA DÜZELTİLDİ: kitNumber ve getCardTierStars
                               Positioned(
                                   top: 80,
                                   right: 5,
@@ -211,6 +246,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                       crossAxisAlignment:
                                           CrossAxisAlignment.end,
                                       children: [
+                                        // p.kitNumber -> Extension'dan gelecek
                                         Text("${p.kitNumber}",
                                             style: GoogleFonts.russoOne(
                                                 fontSize: 60,
@@ -218,11 +254,14 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                         if (!isBad && !isBasic)
                                           Row(
                                               children: List.generate(
+                                                  // p.getCardTierStars -> Extension'dan gelecek
                                                   p.getCardTierStars(),
                                                   (i) => Icon(Icons.star,
                                                       color: borderColor,
                                                       size: 14)))
                                       ])),
+
+                              // İsim
                               Positioned(
                                   top: 190,
                                   left: 0,
@@ -235,6 +274,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                               fontWeight: FontWeight.bold,
                                               letterSpacing: 1.2),
                                           overflow: TextOverflow.ellipsis))),
+
+                              // İstatistikler
                               Positioned(
                                   top: 250,
                                   left: 10,
@@ -271,6 +312,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                     const SizedBox(height: 15),
                                     const Divider(color: Colors.white30)
                                   ])),
+
+                              // Kimya ve Rol
                               Positioned(
                                   bottom: 10,
                                   left: 0,
@@ -291,33 +334,39 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                 fontSize: 10))
                                       ]))
                             ]),
-                          )
+                          ),
+
+                          // PlayStyle Plus İkonu
+                          if (goldPs != null && !isBad && !isBasic)
+                            Positioned(
+                                left: -5,
+                                top: 220,
+                                child: Container(
+                                    padding: const EdgeInsets.all(5),
+                                    decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                            color: Colors.amber, width: 2),
+                                        boxShadow: [
+                                          BoxShadow(
+                                              color:
+                                                  Colors.amber.withOpacity(0.5),
+                                              blurRadius: 10)
+                                        ]),
+                                    child: Image.asset(
+                                        goldPs.isGold
+                                            ? "assets/Playstyles/plus/${goldPs.name}Plus.png"
+                                            : goldPs.assetPath,
+                                        width: 30,
+                                        height: 30,
+                                        errorBuilder: (c, e, s) => const Icon(
+                                            Icons.star,
+                                            color: Colors.amber,
+                                            size: 20)))),
                         ]),
                       ),
                     ),
-                    if (goldPs != null && !isBad && !isBasic)
-                      Positioned(
-                          left: -5,
-                          top: 220,
-                          child: Container(
-                              padding: const EdgeInsets.all(5),
-                              decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  border:
-                                      Border.all(color: Colors.amber, width: 2),
-                                  boxShadow: [
-                                    BoxShadow(
-                                        color: Colors.amber.withOpacity(0.5),
-                                        blurRadius: 10)
-                                  ]),
-                              child: Image.asset(
-                                  // PLUS MANTIĞI: plus klasöründen Plus.png uzantılıyı al
-                                  goldPs.isGold
-                                      ? "assets/Playstyles/plus/${goldPs.name}Plus.png"
-                                      : goldPs.assetPath,
-                                  width: 30,
-                                  height: 30))),
                   ],
                 ),
               ),
@@ -336,8 +385,10 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         Text(l,
             style: GoogleFonts.montserrat(fontSize: 16, color: Colors.white70))
       ]);
+
   bool _hasGif(String t) =>
       ["TOTS", "BALLOND'OR", "MVP", "TOTM", "STAR"].contains(t);
+
   String _getGif(String t) {
     switch (t) {
       case "TOTS":
@@ -469,5 +520,35 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     if (t == "TOTS") return [Colors.blue, Colors.cyanAccent, Colors.blue];
     if (t == "STAR") return [Colors.cyan, Colors.white, Colors.cyan];
     return [Colors.white, Colors.grey, Colors.white];
+  }
+}
+
+// --- DÜZELTME: PLAYER SINIFI İÇİN EKLENTİ (EXTENSION) ---
+// player_data.dart dosyasında olmayan metodları buraya ekliyoruz.
+extension PlayerCardUtils on Player {
+  int get kitNumber {
+    if (position.contains("GK")) return 1;
+    if (position.contains("CDM")) return 6;
+    if (position.contains("CAM")) return 10;
+    if (position.contains("RW")) return 7;
+    if (position.contains("LW")) return 11;
+    return 9;
+  }
+
+  int getCardTierStars() {
+    switch (cardType) {
+      case "TOTS":
+        return 5;
+      case "BALLOND'OR":
+      case "STAR":
+        return 4;
+      case "MVP":
+        return 3;
+      case "TOTW":
+      case "TOTM":
+        return 1;
+      default:
+        return 0;
+    }
   }
 }

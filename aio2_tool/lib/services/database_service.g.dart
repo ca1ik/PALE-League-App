@@ -22,10 +22,7 @@ class $PlayerTablesTable extends PlayerTables
   @override
   late final GeneratedColumn<String> name = GeneratedColumn<String>(
       'name', aliasedName, false,
-      additionalChecks:
-          GeneratedColumn.checkTextLength(minTextLength: 1, maxTextLength: 100),
-      type: DriftSqlType.string,
-      requiredDuringInsert: true);
+      type: DriftSqlType.string, requiredDuringInsert: true);
   static const VerificationMeta _ratingMeta = const VerificationMeta('rating');
   @override
   late final GeneratedColumn<int> rating = GeneratedColumn<int>(
@@ -52,15 +49,13 @@ class $PlayerTablesTable extends PlayerTables
   @override
   late final GeneratedColumn<String> role = GeneratedColumn<String>(
       'role', aliasedName, false,
-      type: DriftSqlType.string,
-      requiredDuringInsert: false,
-      defaultValue: const Constant('Yok'));
-  static const VerificationMeta _playerImageMeta =
-      const VerificationMeta('playerImage');
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _marketValueMeta =
+      const VerificationMeta('marketValue');
   @override
-  late final GeneratedColumn<Uint8List> playerImage =
-      GeneratedColumn<Uint8List>('player_image', aliasedName, true,
-          type: DriftSqlType.blob, requiredDuringInsert: false);
+  late final GeneratedColumn<String> marketValue = GeneratedColumn<String>(
+      'market_value', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
   static const VerificationMeta _statsJsonMeta =
       const VerificationMeta('statsJson');
   @override
@@ -73,14 +68,6 @@ class $PlayerTablesTable extends PlayerTables
   late final GeneratedColumn<String> playStylesJson = GeneratedColumn<String>(
       'play_styles_json', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _marketValueMeta =
-      const VerificationMeta('marketValue');
-  @override
-  late final GeneratedColumn<String> marketValue = GeneratedColumn<String>(
-      'market_value', aliasedName, false,
-      type: DriftSqlType.string,
-      requiredDuringInsert: false,
-      defaultValue: const Constant('N/A'));
   static const VerificationMeta _recLinkMeta =
       const VerificationMeta('recLink');
   @override
@@ -120,10 +107,9 @@ class $PlayerTablesTable extends PlayerTables
         team,
         cardType,
         role,
-        playerImage,
+        marketValue,
         statsJson,
         playStylesJson,
-        marketValue,
         recLink,
         manualGoals,
         manualAssists,
@@ -175,12 +161,16 @@ class $PlayerTablesTable extends PlayerTables
     if (data.containsKey('role')) {
       context.handle(
           _roleMeta, role.isAcceptableOrUnknown(data['role']!, _roleMeta));
+    } else if (isInserting) {
+      context.missing(_roleMeta);
     }
-    if (data.containsKey('player_image')) {
+    if (data.containsKey('market_value')) {
       context.handle(
-          _playerImageMeta,
-          playerImage.isAcceptableOrUnknown(
-              data['player_image']!, _playerImageMeta));
+          _marketValueMeta,
+          marketValue.isAcceptableOrUnknown(
+              data['market_value']!, _marketValueMeta));
+    } else if (isInserting) {
+      context.missing(_marketValueMeta);
     }
     if (data.containsKey('stats_json')) {
       context.handle(_statsJsonMeta,
@@ -195,12 +185,6 @@ class $PlayerTablesTable extends PlayerTables
               data['play_styles_json']!, _playStylesJsonMeta));
     } else if (isInserting) {
       context.missing(_playStylesJsonMeta);
-    }
-    if (data.containsKey('market_value')) {
-      context.handle(
-          _marketValueMeta,
-          marketValue.isAcceptableOrUnknown(
-              data['market_value']!, _marketValueMeta));
     }
     if (data.containsKey('rec_link')) {
       context.handle(_recLinkMeta,
@@ -247,14 +231,12 @@ class $PlayerTablesTable extends PlayerTables
           .read(DriftSqlType.string, data['${effectivePrefix}card_type'])!,
       role: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}role'])!,
-      playerImage: attachedDatabase.typeMapping
-          .read(DriftSqlType.blob, data['${effectivePrefix}player_image']),
+      marketValue: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}market_value'])!,
       statsJson: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}stats_json'])!,
       playStylesJson: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}play_styles_json'])!,
-      marketValue: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}market_value'])!,
       recLink: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}rec_link']),
       manualGoals: attachedDatabase.typeMapping
@@ -280,10 +262,9 @@ class PlayerTable extends DataClass implements Insertable<PlayerTable> {
   final String team;
   final String cardType;
   final String role;
-  final Uint8List? playerImage;
+  final String marketValue;
   final String statsJson;
   final String playStylesJson;
-  final String marketValue;
   final String? recLink;
   final int manualGoals;
   final int manualAssists;
@@ -296,10 +277,9 @@ class PlayerTable extends DataClass implements Insertable<PlayerTable> {
       required this.team,
       required this.cardType,
       required this.role,
-      this.playerImage,
+      required this.marketValue,
       required this.statsJson,
       required this.playStylesJson,
-      required this.marketValue,
       this.recLink,
       required this.manualGoals,
       required this.manualAssists,
@@ -314,12 +294,9 @@ class PlayerTable extends DataClass implements Insertable<PlayerTable> {
     map['team'] = Variable<String>(team);
     map['card_type'] = Variable<String>(cardType);
     map['role'] = Variable<String>(role);
-    if (!nullToAbsent || playerImage != null) {
-      map['player_image'] = Variable<Uint8List>(playerImage);
-    }
+    map['market_value'] = Variable<String>(marketValue);
     map['stats_json'] = Variable<String>(statsJson);
     map['play_styles_json'] = Variable<String>(playStylesJson);
-    map['market_value'] = Variable<String>(marketValue);
     if (!nullToAbsent || recLink != null) {
       map['rec_link'] = Variable<String>(recLink);
     }
@@ -338,12 +315,9 @@ class PlayerTable extends DataClass implements Insertable<PlayerTable> {
       team: Value(team),
       cardType: Value(cardType),
       role: Value(role),
-      playerImage: playerImage == null && nullToAbsent
-          ? const Value.absent()
-          : Value(playerImage),
+      marketValue: Value(marketValue),
       statsJson: Value(statsJson),
       playStylesJson: Value(playStylesJson),
-      marketValue: Value(marketValue),
       recLink: recLink == null && nullToAbsent
           ? const Value.absent()
           : Value(recLink),
@@ -364,10 +338,9 @@ class PlayerTable extends DataClass implements Insertable<PlayerTable> {
       team: serializer.fromJson<String>(json['team']),
       cardType: serializer.fromJson<String>(json['cardType']),
       role: serializer.fromJson<String>(json['role']),
-      playerImage: serializer.fromJson<Uint8List?>(json['playerImage']),
+      marketValue: serializer.fromJson<String>(json['marketValue']),
       statsJson: serializer.fromJson<String>(json['statsJson']),
       playStylesJson: serializer.fromJson<String>(json['playStylesJson']),
-      marketValue: serializer.fromJson<String>(json['marketValue']),
       recLink: serializer.fromJson<String?>(json['recLink']),
       manualGoals: serializer.fromJson<int>(json['manualGoals']),
       manualAssists: serializer.fromJson<int>(json['manualAssists']),
@@ -385,10 +358,9 @@ class PlayerTable extends DataClass implements Insertable<PlayerTable> {
       'team': serializer.toJson<String>(team),
       'cardType': serializer.toJson<String>(cardType),
       'role': serializer.toJson<String>(role),
-      'playerImage': serializer.toJson<Uint8List?>(playerImage),
+      'marketValue': serializer.toJson<String>(marketValue),
       'statsJson': serializer.toJson<String>(statsJson),
       'playStylesJson': serializer.toJson<String>(playStylesJson),
-      'marketValue': serializer.toJson<String>(marketValue),
       'recLink': serializer.toJson<String?>(recLink),
       'manualGoals': serializer.toJson<int>(manualGoals),
       'manualAssists': serializer.toJson<int>(manualAssists),
@@ -404,10 +376,9 @@ class PlayerTable extends DataClass implements Insertable<PlayerTable> {
           String? team,
           String? cardType,
           String? role,
-          Value<Uint8List?> playerImage = const Value.absent(),
+          String? marketValue,
           String? statsJson,
           String? playStylesJson,
-          String? marketValue,
           Value<String?> recLink = const Value.absent(),
           int? manualGoals,
           int? manualAssists,
@@ -420,10 +391,9 @@ class PlayerTable extends DataClass implements Insertable<PlayerTable> {
         team: team ?? this.team,
         cardType: cardType ?? this.cardType,
         role: role ?? this.role,
-        playerImage: playerImage.present ? playerImage.value : this.playerImage,
+        marketValue: marketValue ?? this.marketValue,
         statsJson: statsJson ?? this.statsJson,
         playStylesJson: playStylesJson ?? this.playStylesJson,
-        marketValue: marketValue ?? this.marketValue,
         recLink: recLink.present ? recLink.value : this.recLink,
         manualGoals: manualGoals ?? this.manualGoals,
         manualAssists: manualAssists ?? this.manualAssists,
@@ -438,14 +408,12 @@ class PlayerTable extends DataClass implements Insertable<PlayerTable> {
       team: data.team.present ? data.team.value : this.team,
       cardType: data.cardType.present ? data.cardType.value : this.cardType,
       role: data.role.present ? data.role.value : this.role,
-      playerImage:
-          data.playerImage.present ? data.playerImage.value : this.playerImage,
+      marketValue:
+          data.marketValue.present ? data.marketValue.value : this.marketValue,
       statsJson: data.statsJson.present ? data.statsJson.value : this.statsJson,
       playStylesJson: data.playStylesJson.present
           ? data.playStylesJson.value
           : this.playStylesJson,
-      marketValue:
-          data.marketValue.present ? data.marketValue.value : this.marketValue,
       recLink: data.recLink.present ? data.recLink.value : this.recLink,
       manualGoals:
           data.manualGoals.present ? data.manualGoals.value : this.manualGoals,
@@ -468,10 +436,9 @@ class PlayerTable extends DataClass implements Insertable<PlayerTable> {
           ..write('team: $team, ')
           ..write('cardType: $cardType, ')
           ..write('role: $role, ')
-          ..write('playerImage: $playerImage, ')
+          ..write('marketValue: $marketValue, ')
           ..write('statsJson: $statsJson, ')
           ..write('playStylesJson: $playStylesJson, ')
-          ..write('marketValue: $marketValue, ')
           ..write('recLink: $recLink, ')
           ..write('manualGoals: $manualGoals, ')
           ..write('manualAssists: $manualAssists, ')
@@ -489,10 +456,9 @@ class PlayerTable extends DataClass implements Insertable<PlayerTable> {
       team,
       cardType,
       role,
-      $driftBlobEquality.hash(playerImage),
+      marketValue,
       statsJson,
       playStylesJson,
-      marketValue,
       recLink,
       manualGoals,
       manualAssists,
@@ -508,10 +474,9 @@ class PlayerTable extends DataClass implements Insertable<PlayerTable> {
           other.team == this.team &&
           other.cardType == this.cardType &&
           other.role == this.role &&
-          $driftBlobEquality.equals(other.playerImage, this.playerImage) &&
+          other.marketValue == this.marketValue &&
           other.statsJson == this.statsJson &&
           other.playStylesJson == this.playStylesJson &&
-          other.marketValue == this.marketValue &&
           other.recLink == this.recLink &&
           other.manualGoals == this.manualGoals &&
           other.manualAssists == this.manualAssists &&
@@ -526,10 +491,9 @@ class PlayerTablesCompanion extends UpdateCompanion<PlayerTable> {
   final Value<String> team;
   final Value<String> cardType;
   final Value<String> role;
-  final Value<Uint8List?> playerImage;
+  final Value<String> marketValue;
   final Value<String> statsJson;
   final Value<String> playStylesJson;
-  final Value<String> marketValue;
   final Value<String?> recLink;
   final Value<int> manualGoals;
   final Value<int> manualAssists;
@@ -542,10 +506,9 @@ class PlayerTablesCompanion extends UpdateCompanion<PlayerTable> {
     this.team = const Value.absent(),
     this.cardType = const Value.absent(),
     this.role = const Value.absent(),
-    this.playerImage = const Value.absent(),
+    this.marketValue = const Value.absent(),
     this.statsJson = const Value.absent(),
     this.playStylesJson = const Value.absent(),
-    this.marketValue = const Value.absent(),
     this.recLink = const Value.absent(),
     this.manualGoals = const Value.absent(),
     this.manualAssists = const Value.absent(),
@@ -558,11 +521,10 @@ class PlayerTablesCompanion extends UpdateCompanion<PlayerTable> {
     required String position,
     required String team,
     required String cardType,
-    this.role = const Value.absent(),
-    this.playerImage = const Value.absent(),
+    required String role,
+    required String marketValue,
     required String statsJson,
     required String playStylesJson,
-    this.marketValue = const Value.absent(),
     this.recLink = const Value.absent(),
     this.manualGoals = const Value.absent(),
     this.manualAssists = const Value.absent(),
@@ -572,6 +534,8 @@ class PlayerTablesCompanion extends UpdateCompanion<PlayerTable> {
         position = Value(position),
         team = Value(team),
         cardType = Value(cardType),
+        role = Value(role),
+        marketValue = Value(marketValue),
         statsJson = Value(statsJson),
         playStylesJson = Value(playStylesJson);
   static Insertable<PlayerTable> custom({
@@ -582,10 +546,9 @@ class PlayerTablesCompanion extends UpdateCompanion<PlayerTable> {
     Expression<String>? team,
     Expression<String>? cardType,
     Expression<String>? role,
-    Expression<Uint8List>? playerImage,
+    Expression<String>? marketValue,
     Expression<String>? statsJson,
     Expression<String>? playStylesJson,
-    Expression<String>? marketValue,
     Expression<String>? recLink,
     Expression<int>? manualGoals,
     Expression<int>? manualAssists,
@@ -599,10 +562,9 @@ class PlayerTablesCompanion extends UpdateCompanion<PlayerTable> {
       if (team != null) 'team': team,
       if (cardType != null) 'card_type': cardType,
       if (role != null) 'role': role,
-      if (playerImage != null) 'player_image': playerImage,
+      if (marketValue != null) 'market_value': marketValue,
       if (statsJson != null) 'stats_json': statsJson,
       if (playStylesJson != null) 'play_styles_json': playStylesJson,
-      if (marketValue != null) 'market_value': marketValue,
       if (recLink != null) 'rec_link': recLink,
       if (manualGoals != null) 'manual_goals': manualGoals,
       if (manualAssists != null) 'manual_assists': manualAssists,
@@ -618,10 +580,9 @@ class PlayerTablesCompanion extends UpdateCompanion<PlayerTable> {
       Value<String>? team,
       Value<String>? cardType,
       Value<String>? role,
-      Value<Uint8List?>? playerImage,
+      Value<String>? marketValue,
       Value<String>? statsJson,
       Value<String>? playStylesJson,
-      Value<String>? marketValue,
       Value<String?>? recLink,
       Value<int>? manualGoals,
       Value<int>? manualAssists,
@@ -634,10 +595,9 @@ class PlayerTablesCompanion extends UpdateCompanion<PlayerTable> {
       team: team ?? this.team,
       cardType: cardType ?? this.cardType,
       role: role ?? this.role,
-      playerImage: playerImage ?? this.playerImage,
+      marketValue: marketValue ?? this.marketValue,
       statsJson: statsJson ?? this.statsJson,
       playStylesJson: playStylesJson ?? this.playStylesJson,
-      marketValue: marketValue ?? this.marketValue,
       recLink: recLink ?? this.recLink,
       manualGoals: manualGoals ?? this.manualGoals,
       manualAssists: manualAssists ?? this.manualAssists,
@@ -669,17 +629,14 @@ class PlayerTablesCompanion extends UpdateCompanion<PlayerTable> {
     if (role.present) {
       map['role'] = Variable<String>(role.value);
     }
-    if (playerImage.present) {
-      map['player_image'] = Variable<Uint8List>(playerImage.value);
+    if (marketValue.present) {
+      map['market_value'] = Variable<String>(marketValue.value);
     }
     if (statsJson.present) {
       map['stats_json'] = Variable<String>(statsJson.value);
     }
     if (playStylesJson.present) {
       map['play_styles_json'] = Variable<String>(playStylesJson.value);
-    }
-    if (marketValue.present) {
-      map['market_value'] = Variable<String>(marketValue.value);
     }
     if (recLink.present) {
       map['rec_link'] = Variable<String>(recLink.value);
@@ -706,10 +663,9 @@ class PlayerTablesCompanion extends UpdateCompanion<PlayerTable> {
           ..write('team: $team, ')
           ..write('cardType: $cardType, ')
           ..write('role: $role, ')
-          ..write('playerImage: $playerImage, ')
+          ..write('marketValue: $marketValue, ')
           ..write('statsJson: $statsJson, ')
           ..write('playStylesJson: $playStylesJson, ')
-          ..write('marketValue: $marketValue, ')
           ..write('recLink: $recLink, ')
           ..write('manualGoals: $manualGoals, ')
           ..write('manualAssists: $manualAssists, ')
@@ -738,11 +694,10 @@ typedef $$PlayerTablesTableCreateCompanionBuilder = PlayerTablesCompanion
   required String position,
   required String team,
   required String cardType,
-  Value<String> role,
-  Value<Uint8List?> playerImage,
+  required String role,
+  required String marketValue,
   required String statsJson,
   required String playStylesJson,
-  Value<String> marketValue,
   Value<String?> recLink,
   Value<int> manualGoals,
   Value<int> manualAssists,
@@ -757,10 +712,9 @@ typedef $$PlayerTablesTableUpdateCompanionBuilder = PlayerTablesCompanion
   Value<String> team,
   Value<String> cardType,
   Value<String> role,
-  Value<Uint8List?> playerImage,
+  Value<String> marketValue,
   Value<String> statsJson,
   Value<String> playStylesJson,
-  Value<String> marketValue,
   Value<String?> recLink,
   Value<int> manualGoals,
   Value<int> manualAssists,
@@ -797,8 +751,8 @@ class $$PlayerTablesTableFilterComposer
   ColumnFilters<String> get role => $composableBuilder(
       column: $table.role, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<Uint8List> get playerImage => $composableBuilder(
-      column: $table.playerImage, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get marketValue => $composableBuilder(
+      column: $table.marketValue, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get statsJson => $composableBuilder(
       column: $table.statsJson, builder: (column) => ColumnFilters(column));
@@ -806,9 +760,6 @@ class $$PlayerTablesTableFilterComposer
   ColumnFilters<String> get playStylesJson => $composableBuilder(
       column: $table.playStylesJson,
       builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get marketValue => $composableBuilder(
-      column: $table.marketValue, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get recLink => $composableBuilder(
       column: $table.recLink, builder: (column) => ColumnFilters(column));
@@ -853,8 +804,8 @@ class $$PlayerTablesTableOrderingComposer
   ColumnOrderings<String> get role => $composableBuilder(
       column: $table.role, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<Uint8List> get playerImage => $composableBuilder(
-      column: $table.playerImage, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get marketValue => $composableBuilder(
+      column: $table.marketValue, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get statsJson => $composableBuilder(
       column: $table.statsJson, builder: (column) => ColumnOrderings(column));
@@ -862,9 +813,6 @@ class $$PlayerTablesTableOrderingComposer
   ColumnOrderings<String> get playStylesJson => $composableBuilder(
       column: $table.playStylesJson,
       builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get marketValue => $composableBuilder(
-      column: $table.marketValue, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get recLink => $composableBuilder(
       column: $table.recLink, builder: (column) => ColumnOrderings(column));
@@ -911,17 +859,14 @@ class $$PlayerTablesTableAnnotationComposer
   GeneratedColumn<String> get role =>
       $composableBuilder(column: $table.role, builder: (column) => column);
 
-  GeneratedColumn<Uint8List> get playerImage => $composableBuilder(
-      column: $table.playerImage, builder: (column) => column);
+  GeneratedColumn<String> get marketValue => $composableBuilder(
+      column: $table.marketValue, builder: (column) => column);
 
   GeneratedColumn<String> get statsJson =>
       $composableBuilder(column: $table.statsJson, builder: (column) => column);
 
   GeneratedColumn<String> get playStylesJson => $composableBuilder(
       column: $table.playStylesJson, builder: (column) => column);
-
-  GeneratedColumn<String> get marketValue => $composableBuilder(
-      column: $table.marketValue, builder: (column) => column);
 
   GeneratedColumn<String> get recLink =>
       $composableBuilder(column: $table.recLink, builder: (column) => column);
@@ -969,10 +914,9 @@ class $$PlayerTablesTableTableManager extends RootTableManager<
             Value<String> team = const Value.absent(),
             Value<String> cardType = const Value.absent(),
             Value<String> role = const Value.absent(),
-            Value<Uint8List?> playerImage = const Value.absent(),
+            Value<String> marketValue = const Value.absent(),
             Value<String> statsJson = const Value.absent(),
             Value<String> playStylesJson = const Value.absent(),
-            Value<String> marketValue = const Value.absent(),
             Value<String?> recLink = const Value.absent(),
             Value<int> manualGoals = const Value.absent(),
             Value<int> manualAssists = const Value.absent(),
@@ -986,10 +930,9 @@ class $$PlayerTablesTableTableManager extends RootTableManager<
             team: team,
             cardType: cardType,
             role: role,
-            playerImage: playerImage,
+            marketValue: marketValue,
             statsJson: statsJson,
             playStylesJson: playStylesJson,
-            marketValue: marketValue,
             recLink: recLink,
             manualGoals: manualGoals,
             manualAssists: manualAssists,
@@ -1002,11 +945,10 @@ class $$PlayerTablesTableTableManager extends RootTableManager<
             required String position,
             required String team,
             required String cardType,
-            Value<String> role = const Value.absent(),
-            Value<Uint8List?> playerImage = const Value.absent(),
+            required String role,
+            required String marketValue,
             required String statsJson,
             required String playStylesJson,
-            Value<String> marketValue = const Value.absent(),
             Value<String?> recLink = const Value.absent(),
             Value<int> manualGoals = const Value.absent(),
             Value<int> manualAssists = const Value.absent(),
@@ -1020,10 +962,9 @@ class $$PlayerTablesTableTableManager extends RootTableManager<
             team: team,
             cardType: cardType,
             role: role,
-            playerImage: playerImage,
+            marketValue: marketValue,
             statsJson: statsJson,
             playStylesJson: playStylesJson,
-            marketValue: marketValue,
             recLink: recLink,
             manualGoals: manualGoals,
             manualAssists: manualAssists,

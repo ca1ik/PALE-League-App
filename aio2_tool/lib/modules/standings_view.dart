@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/scraper_service.dart';
-import 'pale_webview.dart';
+import 'pale_webview.dart'; // Bu dosyanın aşağıda verdiğim kodla oluşturulduğundan emin ol
 
 class StandingsView extends StatefulWidget {
   const StandingsView({super.key});
@@ -11,6 +11,7 @@ class StandingsView extends StatefulWidget {
 
 class _StandingsViewState extends State<StandingsView> {
   bool isWeb = false;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -37,61 +38,107 @@ class _StandingsViewState extends State<StandingsView> {
         ),
         Expanded(
             child: isWeb
+                // DÜZELTME: 'const' kelimesi kaldırıldı.
                 ? const PaleWebView(url: "https://palehaxball.com/puan")
                 : FutureBuilder<List<Map<String, dynamic>>>(
                     future: ScraperService.fetchStandings(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting)
+                      if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(
                             child: CircularProgressIndicator(
                                 color: Colors.cyanAccent));
-                      if (!snapshot.hasData || snapshot.data!.isEmpty)
+                      }
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
                         return const Center(
-                            child: Text("Veri alınamadı.",
+                            child: Text("Veri alınamadı veya liste boş.",
                                 style: TextStyle(color: Colors.white)));
+                      }
 
                       return SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
                         padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Theme(
-                          data: Theme.of(context)
-                              .copyWith(dividerColor: Colors.white10),
-                          child: DataTable(
-                            headingRowColor: MaterialStateProperty.all(
-                                Colors.cyanAccent.withOpacity(0.1)),
-                            columns: const [
-                              DataColumn(label: Text("#")),
-                              DataColumn(label: Text("TAKIM")),
-                              DataColumn(label: Text("O")),
-                              DataColumn(label: Text("G")),
-                              DataColumn(label: Text("B")),
-                              DataColumn(label: Text("M")),
-                              DataColumn(label: Text("AV")),
-                              DataColumn(label: Text("P")),
-                            ],
-                            rows: snapshot.data!
-                                .map((row) => DataRow(cells: [
-                                      DataCell(Text(row['rank'] ?? "",
-                                          style: const TextStyle(
-                                              color: Colors.white70))),
-                                      DataCell(Text(row['team'] ?? "",
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold))),
-                                      DataCell(Text(row['played'] ?? "")),
-                                      DataCell(Text(row['won'] ?? "",
-                                          style: const TextStyle(
-                                              color: Colors.greenAccent))),
-                                      DataCell(Text(row['drawn'] ?? "")),
-                                      DataCell(Text(row['lost'] ?? "",
-                                          style: const TextStyle(
-                                              color: Colors.redAccent))),
-                                      DataCell(Text(row['gd'] ?? "")),
-                                      DataCell(Text(row['points'] ?? "",
-                                          style: GoogleFonts.orbitron(
-                                              color: Colors.cyanAccent,
-                                              fontWeight: FontWeight.bold))),
-                                    ]))
-                                .toList(),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Theme(
+                            data: Theme.of(context)
+                                .copyWith(dividerColor: Colors.white10),
+                            child: DataTable(
+                              headingRowColor: MaterialStateProperty.all(
+                                  Colors.cyanAccent.withOpacity(0.1)),
+                              columns: const [
+                                DataColumn(
+                                    label: Text("#",
+                                        style: TextStyle(
+                                            color: Colors.cyanAccent))),
+                                DataColumn(
+                                    label: Text("TAKIM",
+                                        style: TextStyle(
+                                            color: Colors.cyanAccent))),
+                                DataColumn(
+                                    label: Text("O",
+                                        style: TextStyle(
+                                            color: Colors.cyanAccent))),
+                                DataColumn(
+                                    label: Text("G",
+                                        style: TextStyle(
+                                            color: Colors.cyanAccent))),
+                                DataColumn(
+                                    label: Text("B",
+                                        style: TextStyle(
+                                            color: Colors.cyanAccent))),
+                                DataColumn(
+                                    label: Text("M",
+                                        style: TextStyle(
+                                            color: Colors.cyanAccent))),
+                                DataColumn(
+                                    label: Text("AV",
+                                        style: TextStyle(
+                                            color: Colors.cyanAccent))),
+                                DataColumn(
+                                    label: Text("P",
+                                        style: TextStyle(
+                                            color: Colors.cyanAccent))),
+                              ],
+                              rows: snapshot.data!
+                                  .map((row) => DataRow(cells: [
+                                        // DÜZELTME: .toString() eklenerek tip güvenliği sağlandı
+                                        DataCell(Text(
+                                            row['rank']?.toString() ?? "-",
+                                            style: const TextStyle(
+                                                color: Colors.white70))),
+                                        DataCell(Text(
+                                            row['team']?.toString() ?? "-",
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold))),
+                                        DataCell(Text(
+                                            row['played']?.toString() ?? "0",
+                                            style: const TextStyle(
+                                                color: Colors.white70))),
+                                        DataCell(Text(
+                                            row['won']?.toString() ?? "0",
+                                            style: const TextStyle(
+                                                color: Colors.greenAccent))),
+                                        DataCell(Text(
+                                            row['drawn']?.toString() ?? "0",
+                                            style: const TextStyle(
+                                                color: Colors.white70))),
+                                        DataCell(Text(
+                                            row['lost']?.toString() ?? "0",
+                                            style: const TextStyle(
+                                                color: Colors.redAccent))),
+                                        DataCell(Text(
+                                            row['gd']?.toString() ?? "0",
+                                            style: const TextStyle(
+                                                color: Colors.white70))),
+                                        DataCell(Text(
+                                            row['points']?.toString() ?? "0",
+                                            style: GoogleFonts.orbitron(
+                                                color: Colors.cyanAccent,
+                                                fontWeight: FontWeight.bold))),
+                                      ]))
+                                  .toList(),
+                            ),
                           ),
                         ),
                       );

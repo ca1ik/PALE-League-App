@@ -34,7 +34,7 @@ class CustomSidebar extends StatelessWidget {
   }
 }
 
-// --- YENİ PROFESYONEL HAXBALL BUTONU ---
+// --- YENİ MODERN HAXBALL BUTONU TASARIMI ---
 class HaxBallProButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool isCompact;
@@ -45,16 +45,15 @@ class HaxBallProButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      // Dar sidebar için daha küçük margin
       margin: isCompact
-          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 15)
+          ? const EdgeInsets.symmetric(horizontal: 5, vertical: 10)
           : const EdgeInsets.fromLTRB(15, 20, 15, 10),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6C63FF).withOpacity(0.4),
-            blurRadius: 12,
+            color: const Color(0xFF6C63FF).withOpacity(0.3),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
@@ -63,14 +62,13 @@ class HaxBallProButton extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 5),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              // Şık Gradyan
+              borderRadius: BorderRadius.circular(12),
               gradient: const LinearGradient(
-                colors: [Color(0xFF2E3192), Color(0xFF1BFFFF)],
+                colors: [Color(0xFF1A2980), Color(0xFF26D0CE)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -79,20 +77,19 @@ class HaxBallProButton extends StatelessWidget {
             ),
             child: isCompact
                 ? Column(
-                    // Dar modda ikon üstte
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.gamepad, color: Colors.white, size: 24),
+                      const Icon(Icons.gamepad, color: Colors.white, size: 22),
                       const SizedBox(height: 4),
                       Text("HAXBALL",
                           style: GoogleFonts.orbitron(
                               color: Colors.white,
                               fontSize: 10,
-                              fontWeight: FontWeight.bold)),
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1)),
                     ],
                   )
                 : Row(
-                    // Geniş modda yan yana
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Icon(Icons.gamepad, color: Colors.white, size: 20),
@@ -100,8 +97,8 @@ class HaxBallProButton extends StatelessWidget {
                       Text("HAXBALL",
                           style: GoogleFonts.orbitron(
                               color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
                               letterSpacing: 2)),
                     ],
                   ),
@@ -144,7 +141,6 @@ class _ClassicSidebarState extends State<_ClassicSidebar> {
       child: Column(
         children: [
           const SizedBox(height: 10),
-          // YENİ BUTON
           HaxBallProButton(onTap: widget.onHaxBallClick, isCompact: true),
           const SizedBox(height: 5),
           const ProfileAvatar(),
@@ -359,7 +355,6 @@ class _ModernSidebarState extends State<_ModernSidebar> {
                           fontSize: 12,
                           letterSpacing: 2,
                           fontWeight: FontWeight.bold)),
-                  // YENİ BUTON
                   HaxBallProButton(
                       onTap: widget.onHaxBallClick, isCompact: false),
                   const SizedBox(height: 10),
@@ -503,7 +498,6 @@ class _ModernSidebarState extends State<_ModernSidebar> {
   }
 }
 
-// --- EKSİK OLAN SINIFLAR EKLENDİ ---
 class SidebarItem extends StatefulWidget {
   final IconData icon;
   final String label;

@@ -1,350 +1,385 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../data/player_data.dart';
+import '../data/player_data.dart'; // ARTIK TÜM LİSTELER BURADAN GELİYOR
+import '../ui/fc_animated_card.dart';
+
+// Sadece bu dosyaya özel kısıtlanmış mevki listesi
+const List<String> allowedPositions = [
+  "(1) GK",
+  "(3-6) CDM",
+  "(10) CAM",
+  "(7) RW",
+  "(11) LW",
+  "(9) ST"
+];
 
 class CreatePlayerDialog extends StatefulWidget {
   final Player? playerToEdit;
   final bool isNewVersion;
-  final Function? onSave;
+  final Function(Player?) onSave;
+
   const CreatePlayerDialog(
-      {super.key, this.playerToEdit, this.isNewVersion = false, this.onSave});
+      {super.key,
+      this.playerToEdit,
+      this.isNewVersion = false,
+      required this.onSave});
+
   @override
   State<CreatePlayerDialog> createState() => _CreatePlayerDialogState();
 }
 
-class _CreatePlayerDialogState extends State<CreatePlayerDialog>
-    with SingleTickerProviderStateMixin {
-  final _nameController = TextEditingController();
-  final _valueController = TextEditingController();
-  final _recLinkController = TextEditingController();
-  late String _pos, _team, _role, _chem, _type;
-  int _skillMoves = 3;
-  int _mGoals = 0, _mAssists = 0, _mMatches = 0;
-  late TabController _tabController;
-  final Map<String, int> _stats = {};
-  final Map<String, bool> _ps = {};
+class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  late String name;
+  late int rating;
+  late String position;
+  late String team;
+  late String role;
+  late String cardType;
+  late String marketValue;
+  late String recLink;
+
+  Map<String, int> stats = {};
+  List<PlayStyle> playstyles = [];
+  final TextEditingController _quickRatingCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    // Varsayılanları player_data.dart'tan çekiyoruz (HATA ÇÖZÜLDÜ)
+    String defaultPosition = allowedPositions.first;
+    String defaultTeam = teamLogos.keys.first;
+    String defaultRole = roleCategories[defaultPosition]?.first ?? "Belirsiz";
+    String defaultCardType = globalCardTypes.first;
+
     if (widget.playerToEdit != null) {
-      var p = widget.playerToEdit!;
-      _nameController.text = p.name;
-      _valueController.text = p.marketValue;
-      _recLinkController.text = p.recLink;
-      _pos = p.position;
-      _team = p.team;
-      _role = p.role;
-      _skillMoves = p.skillMoves;
-      _chem = p.chemistryStyle;
-      _type = p.cardType;
-      _mGoals = p.manualGoals;
-      _mAssists = p.manualAssists;
-      _mMatches = p.manualMatches;
-      _stats.addAll(p.stats);
-      for (var s in p.playstyles) _ps[s.name] = s.isGold;
+      final p = widget.playerToEdit!;
+      name = p.name;
+      rating = p.rating;
+      position =
+          allowedPositions.contains(p.position) ? p.position : defaultPosition;
+      team = teamLogos.keys.contains(p.team) ? p.team : defaultTeam;
+
+      List<String> validRoles = roleCategories[position] ?? [];
+      role = validRoles.contains(p.role)
+          ? p.role
+          : (validRoles.isNotEmpty ? validRoles.first : "Belirsiz");
+
+      cardType = widget.isNewVersion ? "TOTW" : p.cardType;
+      marketValue = p.marketValue;
+      recLink = p.recLink;
+      stats = Map.from(p.stats);
+      playstyles = List.from(p.playstyles);
     } else {
-      _pos =
-          availablePositions.isNotEmpty ? availablePositions.first : "(9) ST";
-      _team = availableTeams.isNotEmpty ? availableTeams.first : "Takımsız";
-      var validRoles = roleCategories[_pos] ?? ["Yok"];
-      _role = validRoles.isNotEmpty ? validRoles.first : "Yok";
-      _chem = chemistryBonuses.keys.isNotEmpty
-          ? chemistryBonuses.keys.first
-          : "Temel";
-      _type = cardTypes.isNotEmpty ? cardTypes.first : "Temel";
-      for (var l in statSegments.values) for (var s in l) _stats[s] = 50;
+      name = "";
+      rating = 75;
+      position = defaultPosition;
+      team = defaultTeam;
+      role = defaultRole;
+      cardType = defaultCardType;
+      marketValue = "€1M";
+      recLink = "";
+      _initializeStats();
     }
   }
 
-  void _save() {
-    if (_nameController.text.isEmpty) return;
-    List<PlayStyle> ps =
-        _ps.entries.map((e) => PlayStyle(e.key, isGold: e.value)).toList();
-    Player p = Player(
-        name: _nameController.text,
+  void _initializeStats() {
+    for (var s in gkSkillStats) stats[s] = 75;
+    for (var s in gkPassStats) stats[s] = 75;
+    statSegments.forEach((key, list) {
+      for (var s in list) stats[s] = 75;
+    });
+  }
+
+  void _applyQuickRating(String val) {
+    int? r = int.tryParse(val);
+    if (r != null) {
+      setState(() {
+        if (position.contains("GK") || position.contains("(1)")) {
+          for (var s in gkSkillStats) stats[s] = r;
+          for (var s in gkPassStats) stats[s] = r;
+        } else {
+          statSegments.forEach((key, list) {
+            for (var s in list) stats[s] = r;
+          });
+        }
+        rating = r;
+      });
+    }
+  }
+
+  void _recalculateRating() {
+    Player temp = Player(
+        name: name,
         rating: 0,
-        position: _pos,
-        playstyles: ps,
-        team: _team,
-        role: _role,
-        skillMoves: _skillMoves,
-        chemistryStyle: _chem,
-        cardType: _type,
-        marketValue: _valueController.text,
-        recLink: _recLinkController.text,
-        stats: Map.from(_stats),
-        manualGoals: _mGoals,
-        manualAssists: _mAssists,
-        manualMatches: _mMatches);
-    p.calculateRating();
-    if (widget.onSave != null) widget.onSave!(p);
-    Navigator.pop(context);
+        position: position,
+        playstyles: [],
+        cardType: cardType,
+        team: team,
+        stats: stats,
+        role: role);
+    temp.calculateSmartRating();
+    setState(() {
+      rating = temp.rating;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    // FIX: LayoutBuilder ile taşma engelleme
-    return LayoutBuilder(builder: (context, constraints) {
-      return Dialog(
-        backgroundColor: const Color(0xFF101014),
-        child: Container(
-          width: 900,
-          constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.9),
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Text(
-                  widget.playerToEdit == null || widget.isNewVersion
-                      ? "YENİ KART OLUŞTUR"
-                      : "KARTI DÜZENLE",
-                  style: GoogleFonts.orbitron(
-                      color: Colors.cyanAccent,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              TabBar(
-                  controller: _tabController,
-                  indicatorColor: Colors.cyanAccent,
-                  labelColor: Colors.cyanAccent,
-                  unselectedLabelColor: Colors.grey,
-                  isScrollable: true,
-                  tabs: const [
-                    Tab(text: "KİMLİK"),
-                    Tab(text: "İSTATİSTİK"),
-                    Tab(text: "FİZİK & TOP"),
-                    Tab(text: "ŞUT"),
-                    Tab(text: "DEFANS"),
-                    Tab(text: "PAS")
-                  ]),
-              Expanded(
-                  child: TabBarView(controller: _tabController, children: [
-                SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(children: [
-                      _field(_nameController, "Ad Soyad"),
-                      const SizedBox(height: 10),
-                      Row(children: [
-                        Expanded(
-                            child: DropdownButtonFormField<String>(
-                                value: _team,
-                                items: availableTeams
-                                    .map((e) => DropdownMenuItem(
-                                        value: e,
-                                        child: Row(children: [
-                                          if (teamLogos[e] != null &&
-                                              teamLogos[e]!.isNotEmpty)
-                                            Image.asset(teamLogos[e]!,
-                                                width: 20),
-                                          const SizedBox(width: 5),
-                                          Text(e,
-                                              overflow: TextOverflow.ellipsis)
-                                        ])))
-                                    .toList(),
-                                onChanged: (v) => _team = v!,
-                                dropdownColor: const Color(0xFF1E1E24),
-                                style: const TextStyle(color: Colors.white),
-                                decoration: const InputDecoration(
-                                    labelText: "Takım",
-                                    filled: true,
-                                    fillColor: Colors.white10))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: _field(_valueController, "Piyasa Değeri"))
-                      ]),
-                      const SizedBox(height: 20),
-                      Row(children: [
-                        Expanded(
-                            child: _dropdown(
-                                "Mevki",
-                                availablePositions,
-                                _pos,
-                                (v) => setState(() {
-                                      _pos = v!;
-                                      var r = roleCategories[_pos];
-                                      _role = (r != null && r.isNotEmpty)
-                                          ? r.first
-                                          : "Yok";
-                                    }))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: _dropdown(
-                                "Rol",
-                                roleCategories[_pos] ?? ["Yok"],
-                                _role,
-                                (v) => _role = v!)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: _dropdown(
-                                "Kimya",
-                                chemistryBonuses.keys.toList(),
-                                _chem,
-                                (v) => _chem = v!)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: _dropdown("Kart Tipi", cardTypes, _type,
-                                (v) => _type = v!))
-                      ]),
-                      const SizedBox(height: 20),
-                      _field(
-                          _recLinkController, "Maç Kaydı Linki (İsteğe Bağlı)"),
-                      const SizedBox(height: 20),
-                      const Text("YETENEK YILDIZI",
-                          style: TextStyle(color: Colors.amber)),
-                      Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(
-                              5,
-                              (i) => IconButton(
-                                  icon: Icon(
-                                      i < _skillMoves
-                                          ? Icons.star
-                                          : Icons.star_border,
-                                      color: Colors.amber),
-                                  onPressed: () =>
-                                      setState(() => _skillMoves = i + 1)))),
-                      const Divider(color: Colors.white24),
-                      const Text("OYUN STİLLERİ",
-                          style: TextStyle(color: Colors.white70)),
-                      Wrap(
-                          spacing: 5,
-                          runSpacing: 5,
-                          children: availablePlayStyles
-                              .map((ps) => _psChip(ps))
-                              .toList())
-                    ])),
-                SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(children: [
-                      const Text("VERİ GİRİŞİ",
-                          style: TextStyle(
-                              color: Colors.cyanAccent, fontSize: 18)),
-                      const SizedBox(height: 20),
-                      Row(children: [
-                        Expanded(
-                            child: _counterRow("MAÇ", _mMatches,
-                                (v) => setState(() => _mMatches = v))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: _counterRow("GOL", _mGoals,
-                                (v) => setState(() => _mGoals = v))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: _counterRow("ASİST", _mAssists,
-                                (v) => setState(() => _mAssists = v)))
-                      ]),
-                    ])),
-                _statPage("1. Top Sürme & Fizik"),
-                _statPage("2. Şut & Zihinsel"),
-                _statPage("3. Savunma & Güç"),
-                _statPage("4. Pas & Vizyon")
-              ])),
-              const SizedBox(height: 10),
-              ElevatedButton(
-                  onPressed: _save,
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.cyanAccent,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 50, vertical: 15)),
-                  child: const Text("KAYDET",
-                      style: TextStyle(
-                          color: Colors.black, fontWeight: FontWeight.bold)))
-            ],
-          ),
-        ),
-      );
-    });
-  }
+    bool isGK = position.contains("GK") || position.contains("(1)");
+    List<String> currentRoles = roleCategories[position] ?? ["Belirsiz"];
 
-  Widget _counterRow(String label, int value, Function(int) onChanged) =>
-      Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-              color: Colors.white10, borderRadius: BorderRadius.circular(10)),
-          child: Column(children: [
-            Text(label,
-                style: const TextStyle(color: Colors.white70, fontSize: 10)),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              IconButton(
-                  onPressed: () => value > 0 ? onChanged(value - 1) : null,
-                  icon: const Icon(Icons.remove,
-                      color: Colors.redAccent, size: 20)),
-              Text("$value",
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold)),
-              IconButton(
-                  onPressed: () => onChanged(value + 1),
-                  icon: const Icon(Icons.add,
-                      color: Colors.greenAccent, size: 20))
-            ])
-          ]));
-  Widget _statPage(String k) => SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Wrap(
-          spacing: 30,
-          runSpacing: 20,
-          children: (statSegments[k] ?? [])
-              .map((s) => SizedBox(
-                  width: 200,
-                  child: Column(children: [
-                    Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(s,
-                              style: const TextStyle(color: Colors.white70)),
-                          Text("${_stats[s]}",
+    return Dialog(
+      backgroundColor: const Color(0xFF15151E),
+      insetPadding: const EdgeInsets.all(20),
+      child: Container(
+        width: 1300,
+        height: 850,
+        padding: const EdgeInsets.all(20),
+        child: Row(children: [
+          Expanded(
+              flex: 3,
+              child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text("ÖNİZLEME",
+                        style: GoogleFonts.orbitron(
+                            color: Colors.cyanAccent,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 20),
+                    FCAnimatedCard(
+                        player: Player(
+                            name: name.isEmpty ? "OYUNCU" : name,
+                            rating: rating,
+                            position: position,
+                            playstyles: playstyles,
+                            cardType: cardType,
+                            team: team,
+                            stats: stats,
+                            role: role)),
+                    const SizedBox(height: 20),
+                    Container(
+                        width: 200,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                            color: Colors.black45,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.amber)),
+                        child: Column(children: [
+                          const Text("HIZLI REYTİNG SETİ",
+                              style: TextStyle(
+                                  color: Colors.amber,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 5),
+                          TextField(
+                              controller: _quickRatingCtrl,
                               style: const TextStyle(
                                   color: Colors.white,
-                                  fontWeight: FontWeight.bold))
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                  hintText: "82",
+                                  hintStyle: TextStyle(color: Colors.white24),
+                                  border: InputBorder.none,
+                                  isDense: true),
+                              onChanged: _applyQuickRating)
+                        ]))
+                  ])),
+          const VerticalDivider(color: Colors.white10, width: 40),
+          Expanded(
+              flex: 5,
+              child: Form(
+                  key: _formKey,
+                  child: SingleChildScrollView(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text("KİMLİK BİLGİLERİ",
+                            style: GoogleFonts.orbitron(
+                                color: Colors.white, fontSize: 16)),
+                        const Divider(color: Colors.white24),
+                        Row(children: [
+                          Expanded(
+                              child: _buildTextField("Ad Soyad", name,
+                                  (v) => setState(() => name = v))),
+                          const SizedBox(width: 15),
+                          Expanded(
+                              child: _buildDropdown(
+                                  "Pozisyon", position, allowedPositions, (v) {
+                            setState(() {
+                              position = v!;
+                              List<String> newRoles =
+                                  roleCategories[position] ?? ["Belirsiz"];
+                              role = newRoles.first;
+                              _recalculateRating();
+                            });
+                          }))
                         ]),
-                    Slider(
-                        value: _stats[s]!.toDouble(),
-                        min: 1,
-                        max: 99,
-                        activeColor: Colors.cyanAccent,
-                        onChanged: (v) => setState(() => _stats[s] = v.toInt()))
-                  ])))
-              .toList()));
-  Widget _field(TextEditingController c, String l) => TextField(
-      controller: c,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-          labelText: l, filled: true, fillColor: Colors.white10));
-  Widget _dropdown(String l, List<String> i, String v, Function(String?) c) =>
-      DropdownButtonFormField<String>(
-          value: v,
-          items:
-              i.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-          onChanged: c,
-          dropdownColor: const Color(0xFF1E1E24),
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-              labelText: l, filled: true, fillColor: Colors.white10));
-  Widget _psChip(String n) {
-    bool s = _ps.containsKey(n);
-    bool g = s && _ps[n]!;
-    return GestureDetector(
-        onTap: () => setState(() => s ? _ps.remove(n) : _ps[n] = false),
-        onLongPress: () => setState(() => _ps[n] = true),
-        child: Container(
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(
-                color: s
-                    ? (g ? Colors.amber.withOpacity(0.2) : Colors.white24)
-                    : Colors.transparent,
-                border: Border.all(
-                    color:
-                        s ? (g ? Colors.amber : Colors.white) : Colors.white12),
-                borderRadius: BorderRadius.circular(5)),
-            child: Image.asset("assets/Playstyles/${g ? "${n}Plus" : n}.png",
-                width: 30,
-                height: 30,
-                errorBuilder: (c, e, x) =>
-                    const Icon(Icons.help, size: 30, color: Colors.white54))));
+                        const SizedBox(height: 10),
+                        Row(children: [
+                          Expanded(
+                              child: _buildDropdown(
+                                  "Takım",
+                                  team,
+                                  teamLogos.keys.toList(),
+                                  (v) => setState(() => team = v!))),
+                          const SizedBox(width: 15),
+                          Expanded(
+                              child: _buildDropdown(
+                                  "Kart Tipi",
+                                  cardType,
+                                  globalCardTypes,
+                                  (v) => setState(() => cardType = v!))),
+                          const SizedBox(width: 15),
+                          Expanded(
+                              child: _buildDropdown("Rol", role, currentRoles,
+                                  (v) => setState(() => role = v!)))
+                        ]),
+                        const SizedBox(height: 30),
+                        Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(isGK ? "KALECİ STATLARI" : "OYUNCU STATLARI",
+                                  style: GoogleFonts.orbitron(
+                                      color: Colors.greenAccent, fontSize: 16)),
+                              ElevatedButton.icon(
+                                  onPressed: _recalculateRating,
+                                  icon: const Icon(Icons.calculate),
+                                  label: const Text("OTO-HESAPLA"),
+                                  style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blueAccent))
+                            ]),
+                        const Divider(color: Colors.white24),
+                        if (isGK) _buildGKSliders() else _buildNormalSliders(),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton(
+                                onPressed: () {
+                                  if (_formKey.currentState!.validate()) {
+                                    widget.onSave(Player(
+                                        name: name,
+                                        rating: rating,
+                                        position: position,
+                                        playstyles: playstyles,
+                                        cardType: cardType,
+                                        team: team,
+                                        stats: stats,
+                                        role: role,
+                                        marketValue: marketValue,
+                                        recLink: recLink));
+                                    Navigator.pop(context);
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.greenAccent),
+                                child: const Text("KAYDET",
+                                    style: TextStyle(
+                                        color: Colors.black,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18))))
+                      ]))))
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildGKSliders() {
+    return Column(children: [
+      _buildStatGroup("KALECİ BECERİLERİ", gkSkillStats, Colors.orange),
+      _buildStatGroup("PAS & MENTAL", gkPassStats, Colors.blue)
+    ]);
+  }
+
+  Widget _buildNormalSliders() {
+    return Column(
+        children: statSegments.entries
+            .map((e) => _buildStatGroup(e.key, e.value, Colors.cyanAccent))
+            .toList());
+  }
+
+  Widget _buildStatGroup(String t, List<String> l, Color c) {
+    return Container(
+        margin: const EdgeInsets.only(bottom: 15),
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+            color: c.withOpacity(0.1),
+            border: Border.all(color: c.withOpacity(0.3)),
+            borderRadius: BorderRadius.circular(10)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(t, style: TextStyle(color: c, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          Wrap(
+              spacing: 20,
+              runSpacing: 10,
+              children: l
+                  .map((k) => SizedBox(
+                      width: 180,
+                      child: Row(children: [
+                        Expanded(
+                            child: Text(k,
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 12))),
+                        SizedBox(
+                            width: 80,
+                            child: TextFormField(
+                                initialValue: (stats[k] ?? 75).toString(),
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold),
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.all(8),
+                                    border: OutlineInputBorder(),
+                                    filled: true,
+                                    fillColor: Colors.black26),
+                                onChanged: (v) {
+                                  int? val = int.tryParse(v);
+                                  if (val != null) stats[k] = val;
+                                }))
+                      ])))
+                  .toList())
+        ]));
+  }
+
+  Widget _buildTextField(String l, String i, Function(String) c) {
+    return TextFormField(
+        initialValue: i,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+            labelText: l,
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.05),
+            border:
+                OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
+        onChanged: c);
+  }
+
+  Widget _buildDropdown(
+      String l, String v, List<String> i, Function(String?) c) {
+    String safeVal = i.contains(v) ? v : (i.isNotEmpty ? i.first : "");
+    return DropdownButtonFormField<String>(
+        value: safeVal,
+        dropdownColor: const Color(0xFF1E1E24),
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+            labelText: l,
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.05),
+            border:
+                OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
+        items: i
+            .map((e) => DropdownMenuItem(
+                value: e, child: Text(e, overflow: TextOverflow.ellipsis)))
+            .toList(),
+        onChanged: c);
   }
 }

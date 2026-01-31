@@ -34,7 +34,6 @@ import 'modules/extras_module.dart';
 import 'modules/keyboard_module.dart';
 import 'modules/turkey_map_module.dart';
 import 'modules/palehax_players_view.dart';
-import 'modules/pale_webview.dart';
 import 'modules/challenge_hub.dart';
 import 'modules/squad_builder_module.dart';
 
@@ -151,10 +150,8 @@ class _MainWindowState extends State<MainWindow> {
     if (_historyIndex < _history.length - 1) setState(() => _historyIndex++);
   }
 
-  // --- HAXBALL BAŞLAT VE GÖM (GÜNCELLENDİ) ---
   void _launchHaxBall() {
     final int myHwnd = GetActiveWindow();
-    // 110: Sidebar genişliği, 40: Üst bar yüksekliği. Kalan alan oyunun.
     HaxBallService.launchAndEmbed(myHwnd, 110, 40, 1170, 810);
     setState(() {
       _showHelpIcon = true;

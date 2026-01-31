@@ -1,57 +1,44 @@
 import 'package:flutter/material.dart';
-import 'package:webview_windows/webview_windows.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-class PaleWebView extends StatefulWidget {
+class PaleWebView extends StatelessWidget {
   final String url;
   const PaleWebView({super.key, required this.url});
 
   @override
-  State<PaleWebView> createState() => _PaleWebViewState();
-}
-
-class _PaleWebViewState extends State<PaleWebView> {
-  final _controller = WebviewController();
-  bool _isInitialized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    initWebview();
-  }
-
-  Future<void> initWebview() async {
-    try {
-      await _controller.initialize();
-      await _controller.loadUrl(widget.url);
-      if (mounted) setState(() => _isInitialized = true);
-    } catch (e) {
-      debugPrint("WebView Hatası: $e");
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.white12),
-          borderRadius: BorderRadius.circular(15),
-          color: const Color(0xFF101014),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(15),
-          child: _isInitialized
-              ? Webview(_controller)
-              : const Center(
-                  child: CircularProgressIndicator(color: Colors.cyanAccent)),
-        ),
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.public, size: 60, color: Colors.white54),
+          const SizedBox(height: 20),
+          Text(
+            "Görüntülenen Sayfa:",
+            style: TextStyle(color: Colors.white.withOpacity(0.7)),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            url,
+            style: const TextStyle(
+                color: Colors.cyanAccent, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: () async {
+              final Uri uri = Uri.parse(url);
+              if (!await launchUrl(uri)) {
+                debugPrint('Could not launch $uri');
+              }
+            },
+            icon: const Icon(Icons.open_in_browser),
+            label: const Text("Tarayıcıda Aç"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.cyanAccent,
+              foregroundColor: Colors.black,
+            ),
+          )
+        ],
       ),
     );
   }
