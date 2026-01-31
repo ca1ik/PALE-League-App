@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../data/player_data.dart'; // ARTIK TÜM LİSTELER BURADAN GELİYOR
-import '../ui/fc_animated_card.dart';
+import '../data/player_data.dart'; // Ana veri kaynağı (Buradaki teamLogos kullanılacak)
+// DÜZELTME: 'hide teamLogos' eklenerek çakışma engellendi.
+import '../ui/fc_animated_card.dart' hide teamLogos;
 
-// Sadece bu dosyaya özel kısıtlanmış mevki listesi
+// Sadece bu dosyada kullanılan özel kısıtlama
 const List<String> allowedPositions = [
   "(1) GK",
   "(3-6) CDM",
@@ -48,11 +49,14 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
   @override
   void initState() {
     super.initState();
-    // Varsayılanları player_data.dart'tan çekiyoruz (HATA ÇÖZÜLDÜ)
+    // Varsayılanları player_data.dart'tan çekiyoruz
     String defaultPosition = allowedPositions.first;
-    String defaultTeam = teamLogos.keys.first;
+    // teamLogos artık player_data.dart'tan geliyor
+    String defaultTeam =
+        teamLogos.keys.isNotEmpty ? teamLogos.keys.first : "Takımsız";
     String defaultRole = roleCategories[defaultPosition]?.first ?? "Belirsiz";
-    String defaultCardType = globalCardTypes.first;
+    String defaultCardType =
+        globalCardTypes.isNotEmpty ? globalCardTypes.first : "Temel";
 
     if (widget.playerToEdit != null) {
       final p = widget.playerToEdit!;
@@ -150,6 +154,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                             fontSize: 18,
                             fontWeight: FontWeight.bold)),
                     const SizedBox(height: 20),
+                    // FCAnimatedCard içindeki teamLogos'u hide ettiğimiz için sorun çıkmaz, kart kendi içindeki importu kullanır.
                     FCAnimatedCard(
                         player: Player(
                             name: name.isEmpty ? "OYUNCU" : name,
