@@ -34,7 +34,6 @@ class CustomSidebar extends StatelessWidget {
   }
 }
 
-// --- YENİ MODERN HAXBALL BUTONU TASARIMI ---
 class HaxBallProButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool isCompact;
@@ -146,127 +145,130 @@ class _ClassicSidebarState extends State<_ClassicSidebar> {
           const ProfileAvatar(),
           const SizedBox(height: 10),
           Expanded(
-              child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(children: [
-                    GestureDetector(
-                        onTap: () => setState(
-                            () => _isUpgradeExpanded = !_isUpgradeExpanded),
-                        child: Container(
-                            margin: const EdgeInsets.symmetric(
-                                vertical: 5, horizontal: 5),
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                                color: _isUpgradeExpanded
-                                    ? Colors.indigoAccent.withOpacity(0.2)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(10)),
-                            child: Column(children: [
-                              Icon(
-                                  _isUpgradeExpanded
-                                      ? Icons.keyboard_arrow_up
-                                      : Icons.grid_view_rounded,
-                                  color: isDark ? Colors.white : Colors.black,
-                                  size: 22),
-                              const SizedBox(height: 2),
-                              Text("Upgrade",
-                                  style: GoogleFonts.poppins(
-                                      color:
-                                          isDark ? Colors.white : Colors.black,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold))
-                            ]))),
-                    AnimatedCrossFade(
-                        firstChild: Container(),
-                        secondChild: Column(children: [
-                          _item(0, Icons.desktop_windows,
-                              lang.translate('mod_res'), isDark),
-                          _item(1, Icons.cleaning_services,
-                              lang.translate('mod_clean'), isDark),
-                          _item(
-                              2, Icons.dns, lang.translate('mod_dns'), isDark),
-                          _item(3, Icons.bolt, lang.translate('mod_power'),
-                              isDark),
-                          _item(4, Icons.keyboard, lang.translate('mod_key'),
-                              isDark),
-                          _item(5, Icons.wifi, lang.translate('mod_wifi'),
-                              isDark),
-                          _item(6, Icons.security, lang.translate('mod_sec'),
-                              isDark),
-                          _item(7, Icons.speed, lang.translate('mod_opt'),
-                              isDark),
-                          _item(8, Icons.history, lang.translate('mod_hist'),
-                              isDark),
-                          _item(9, Icons.info_outline,
-                              lang.translate('mod_about'), isDark),
-                          _item(10, Icons.auto_awesome,
-                              lang.translate('mod_ai'), isDark,
-                              isRgb: true),
-                          _item(11, Icons.currency_bitcoin,
-                              lang.translate('mod_chart'), isDark,
-                              isRgb: true),
-                          _item(12, Icons.map_outlined,
-                              lang.translate('weather_title'), isDark,
-                              isRgb: true),
-                          _item(13, Icons.settings, lang.translate('settings'),
-                              isDark)
-                        ]),
-                        crossFadeState: _isUpgradeExpanded
-                            ? CrossFadeState.showSecond
-                            : CrossFadeState.showFirst,
-                        duration: const Duration(milliseconds: 300)),
-                    Divider(
-                        color: isDark ? Colors.white24 : Colors.black12,
-                        indent: 20,
-                        endIndent: 20,
-                        height: 20),
-                    GestureDetector(
-                        onTap: () => setState(
-                            () => _isPaleHaxExpanded = !_isPaleHaxExpanded),
-                        child: Container(
-                            margin: const EdgeInsets.symmetric(
-                                vertical: 5, horizontal: 5),
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                                color: _isPaleHaxExpanded
-                                    ? Colors.cyan.withOpacity(0.2)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(10)),
-                            child: Column(children: [
-                              Icon(
-                                  _isPaleHaxExpanded
-                                      ? Icons.keyboard_arrow_up
-                                      : Icons.sports_soccer,
-                                  color: isDark ? Colors.white : Colors.black,
-                                  size: 22),
-                              const SizedBox(height: 2),
-                              Text("PaleHax",
-                                  style: GoogleFonts.poppins(
-                                      color:
-                                          isDark ? Colors.white : Colors.black,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold))
-                            ]))),
-                    AnimatedCrossFade(
-                        firstChild: Container(),
-                        secondChild: Column(children: [
-                          _item(14, Icons.home, "Anasayfa", isDark,
-                              isRgb: true),
-                          _item(15, Icons.groups, "Oyuncular", isDark,
-                              isRgb: true),
-                          _item(16, Icons.table_chart_rounded, "Puan Durumu",
-                              isDark,
-                              isRgb: true),
-                          _item(17, Icons.emoji_events, "Challenge", isDark,
-                              isRgb: true),
-                          _item(18, Icons.construction, "Kadro Kur", isDark,
-                              isRgb: true)
-                        ]),
-                        crossFadeState: _isPaleHaxExpanded
-                            ? CrossFadeState.showSecond
-                            : CrossFadeState.showFirst,
-                        duration: const Duration(milliseconds: 300))
-                  ]))),
+            child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(children: [
+                  GestureDetector(
+                      onTap: () => setState(
+                          () => _isUpgradeExpanded = !_isUpgradeExpanded),
+                      child: Container(
+                          margin: const EdgeInsets.symmetric(
+                              vertical: 5, horizontal: 5),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                              color: _isUpgradeExpanded
+                                  ? Colors.indigoAccent.withOpacity(0.2)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10)),
+                          child: Column(children: [
+                            Icon(
+                                _isUpgradeExpanded
+                                    ? Icons.keyboard_arrow_up
+                                    : Icons.grid_view_rounded,
+                                color: isDark ? Colors.white : Colors.black,
+                                size: 22),
+                            const SizedBox(height: 2),
+                            Text("Upgrade",
+                                style: GoogleFonts.poppins(
+                                    color: isDark ? Colors.white : Colors.black,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold))
+                          ]))),
+                  AnimatedCrossFade(
+                      firstChild: Container(),
+                      secondChild: Column(children: [
+                        _item(0, Icons.desktop_windows,
+                            lang.translate('mod_res'), isDark),
+                        _item(1, Icons.cleaning_services,
+                            lang.translate('mod_clean'), isDark),
+                        _item(2, Icons.dns, lang.translate('mod_dns'), isDark),
+                        _item(
+                            3, Icons.bolt, lang.translate('mod_power'), isDark),
+                        _item(4, Icons.keyboard, lang.translate('mod_key'),
+                            isDark),
+                        _item(
+                            5, Icons.wifi, lang.translate('mod_wifi'), isDark),
+                        _item(6, Icons.security, lang.translate('mod_sec'),
+                            isDark),
+                        _item(
+                            7, Icons.speed, lang.translate('mod_opt'), isDark),
+                        _item(8, Icons.history, lang.translate('mod_hist'),
+                            isDark),
+                        _item(9, Icons.info_outline,
+                            lang.translate('mod_about'), isDark),
+                        _item(10, Icons.auto_awesome, lang.translate('mod_ai'),
+                            isDark,
+                            isRgb: true),
+                        _item(11, Icons.currency_bitcoin,
+                            lang.translate('mod_chart'), isDark,
+                            isRgb: true),
+                        _item(12, Icons.map_outlined,
+                            lang.translate('weather_title'), isDark,
+                            isRgb: true),
+                        _item(13, Icons.settings, lang.translate('settings'),
+                            isDark)
+                      ]),
+                      crossFadeState: _isUpgradeExpanded
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 300)),
+                  Divider(
+                      color: isDark ? Colors.white24 : Colors.black12,
+                      indent: 20,
+                      endIndent: 20,
+                      height: 20),
+                  GestureDetector(
+                      onTap: () => setState(
+                          () => _isPaleHaxExpanded = !_isPaleHaxExpanded),
+                      child: Container(
+                          margin: const EdgeInsets.symmetric(
+                              vertical: 5, horizontal: 5),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                              color: _isPaleHaxExpanded
+                                  ? Colors.cyan.withOpacity(0.2)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10)),
+                          child: Column(children: [
+                            Icon(
+                                _isPaleHaxExpanded
+                                    ? Icons.keyboard_arrow_up
+                                    : Icons.sports_soccer,
+                                color: isDark ? Colors.white : Colors.black,
+                                size: 22),
+                            const SizedBox(height: 2),
+                            Text("PaleHax",
+                                style: GoogleFonts.poppins(
+                                    color: isDark ? Colors.white : Colors.black,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold))
+                          ]))),
+                  AnimatedCrossFade(
+                      firstChild: Container(),
+                      secondChild: Column(children: [
+                        _item(14, Icons.home, "Anasayfa", isDark, isRgb: true),
+                        _item(15, Icons.groups, "Oyuncular", isDark,
+                            isRgb: true),
+                        _item(16, Icons.table_chart_rounded, "Puan Durumu",
+                            isDark,
+                            isRgb: true),
+                        _item(17, Icons.emoji_events, "Challenge", isDark,
+                            isRgb: true),
+                        _item(18, Icons.construction, "Kadro Kur", isDark,
+                            isRgb: true),
+                        // YENİ EKLENEN BUTONLAR
+                        _item(19, Icons.list_alt, "Tier List", isDark,
+                            isRgb: true),
+                        _item(20, Icons.sports_soccer, "Ultimate", isDark,
+                            isRgb: true),
+                        _item(21, Icons.games, "Oyunlar", isDark, isRgb: true),
+                      ]),
+                      crossFadeState: _isPaleHaxExpanded
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 300))
+                ])),
+          ),
           Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: GlowingKeyButton(
@@ -442,7 +444,14 @@ class _ModernSidebarState extends State<_ModernSidebar> {
                               _modernItem(context, Icons.emoji_events,
                                   "Challenge", 17, isDark),
                               _modernItem(context, Icons.construction,
-                                  "Kadro Kur", 18, isDark)
+                                  "Kadro Kur", 18, isDark),
+                              // YENİ BUTONLAR
+                              _modernItem(context, Icons.list_alt, "Tier List",
+                                  19, isDark),
+                              _modernItem(context, Icons.sports_soccer,
+                                  "Ultimate", 20, isDark),
+                              _modernItem(
+                                  context, Icons.games, "Oyunlar", 21, isDark),
                             ])),
                         crossFadeState: _isPaleHaxExpanded
                             ? CrossFadeState.showSecond
