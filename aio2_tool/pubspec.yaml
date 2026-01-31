@@ -23,6 +23,8 @@ dependencies:
   window_manager: ^0.3.7  
   video_player: ^2.8.1
   video_player_win: ^2.0.0
+  screenshot: ^3.0.0
+  intl: ^0.18.0
 
 
   # System Logic
