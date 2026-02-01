@@ -36,13 +36,13 @@ import 'modules/turkey_map_module.dart';
 import 'modules/palehax_players_view.dart';
 import 'modules/challenge_hub.dart';
 import 'modules/squad_builder_module.dart';
-import 'modules/custom_browser_module.dart';
 
-// --- YENİ EKLENEN MODÜLLER ---
+// --- MODÜLLER ---
 import 'modules/palehax_tierlist.dart';
 import 'modules/palehax_ultimate.dart';
-import 'modules/palehax_games.dart'; // EKSİK OLAN BUYDU
+import 'modules/palehax_games.dart';
 import 'modules/pale_webview.dart';
+import 'modules/custom_browser_module.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -88,7 +88,6 @@ void main() async {
     ChangeNotifierProvider(create: (_) => MusicProvider()),
     ChangeNotifierProvider(create: (_) => LanguageProvider()),
     ChangeNotifierProvider(create: (_) => UIProvider()),
-    // Ultimate Team Provider Eklendi
     ChangeNotifierProvider(create: (_) => UltimateTeamProvider()..startTimer()),
   ], child: const AioApp()));
 }
@@ -169,11 +168,17 @@ class _MainWindowState extends State<MainWindow> {
     });
   }
 
-  void _handleKeyEvent(RawKeyEvent event) {
+  void _handleKeyEvent(RawKeyEvent event) async {
     if (event is RawKeyDownEvent) {
       if (event.logicalKey == LogicalKeyboardKey.f11) {
         setState(() {
           _isFullScreenMode = !_isFullScreenMode;
+          // Tam ekran geçişinde pencereyi de maksimize/restore et
+          if (_isFullScreenMode) {
+            windowManager.setFullScreen(true);
+          } else {
+            windowManager.setFullScreen(false);
+          }
           if (_isFullScreenMode) _showHelpIcon = false;
         });
       }
@@ -189,7 +194,6 @@ class _MainWindowState extends State<MainWindow> {
     final isDark = themeProv.isDark;
     int activeIdx = _history[_historyIndex];
 
-    // --- SAYFA LİSTESİ DÜZELTİLDİ ---
     final List<Widget> pages = [
       /* 0 */ const ResolutionModule(),
       /* 1 */ const CleaningModule(),
@@ -213,8 +217,8 @@ class _MainWindowState extends State<MainWindow> {
       /* 18 */ const SquadBuilderModule(isTOTWMode: true),
       /* 19 */ TierListView(database: database),
       /* 20 */ UltimateTeamView(database: database),
-      /* 21 */ const GamesHubView(), // const eklenebilir stateful olsa bile constructor const ise
-      /* 22 */ const CustomBrowserModule(),
+      /* 21 */ const GamesHubView(),
+      /* 22 */ CustomBrowserModule(isFullScreen: _isFullScreenMode),
     ];
 
     Widget activeModule;
@@ -231,15 +235,17 @@ class _MainWindowState extends State<MainWindow> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Stack(children: [
-          if (_isFullScreenMode)
-            Positioned.fill(child: Container(color: Colors.black))
-          else ...[
-            if (!uiProv.isSpatialMode && isDark)
-              const Positioned.fill(child: ParticleBackground()),
-            if (!uiProv.isSpatialMode && !isDark)
-              Positioned.fill(child: Container(color: Colors.grey[200])),
-            if (!uiProv.isSpatialMode)
-              Column(children: [
+          // 1. KATMAN: ARKA PLAN
+          if (!uiProv.isSpatialMode && isDark)
+            const Positioned.fill(child: ParticleBackground()),
+          if (!uiProv.isSpatialMode && !isDark)
+            Positioned.fill(child: Container(color: Colors.grey[200])),
+
+          // 2. KATMAN: ANA İÇERİK (Siyah ekran yerine artık burası var)
+          if (!uiProv.isSpatialMode)
+            Column(children: [
+              // ÜST BAR: Tam ekranda GİZLENİR
+              if (!_isFullScreenMode)
                 Container(
                     height: 40,
                     color: isDark ? Colors.black26 : Colors.white,
@@ -292,55 +298,72 @@ class _MainWindowState extends State<MainWindow> {
                           onPressed: () => _navigateTo(13)),
                       const WindowButtons()
                     ])),
-                Expanded(
-                    child: Row(children: [
+
+              // İÇERİK ALANI
+              Expanded(
+                  child: Row(children: [
+                // SIDEBAR: Tam ekranda GİZLENİR
+                if (!_isFullScreenMode)
                   CustomSidebar(
                       selectedIndex: activeIdx,
                       onIndexChanged: (i) => _navigateTo(i),
                       onHaxBallClick: _launchHaxBall),
-                  Expanded(
-                      child: Container(
-                          margin: const EdgeInsets.all(20),
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
-                              color: isDark
-                                  ? const Color(0xFF1E1E24).withOpacity(0.6)
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                  color: isDark
-                                      ? Colors.white12
-                                      : Colors.black12)),
-                          child: activeModule))
-                ]))
-              ]),
-            if (uiProv.isSpatialMode) ...[
-              Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 40,
-                  child: GestureDetector(
-                      onPanStart: (_) => windowManager.startDragging(),
-                      child: Container(color: Colors.transparent))),
-              MovableWindow(
-                  initialX: 20,
-                  initialY: 100,
-                  child: SpatialSidebar(
-                      selectedIndex: activeIdx,
-                      onIndexChanged: (i) => _navigateTo(i))),
-              MovableWindow(
-                  initialX: 140,
-                  initialY: 80,
-                  child: GlassBox(
-                      width: 900,
-                      height: 650,
-                      child: ClipRRect(
-                          borderRadius: BorderRadius.circular(30),
-                          child: activeModule))),
-              const Positioned(
-                  top: 10, right: 10, child: WindowButtons(isSpatial: true))
-            ],
+
+                // AKTİF MODÜL: Her zaman görünür, tam ekranda genişler
+                Expanded(
+                    child: Container(
+                        // Tam ekranda margin ve border'ı sıfırla
+                        margin: _isFullScreenMode
+                            ? EdgeInsets.zero
+                            : const EdgeInsets.all(20),
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF1E1E24).withOpacity(0.6)
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(
+                                _isFullScreenMode ? 0 : 20),
+                            border: _isFullScreenMode
+                                ? null
+                                : Border.all(
+                                    color: isDark
+                                        ? Colors.white12
+                                        : Colors.black12)),
+                        child: activeModule))
+              ]))
+            ]),
+
+          // SPATIAL MOD KATMANLARI (Tam ekranda zaten gizli olması beklenir ama kodda bırakıldı)
+          if (uiProv.isSpatialMode) ...[
+            Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 40,
+                child: GestureDetector(
+                    onPanStart: (_) => windowManager.startDragging(),
+                    child: Container(color: Colors.transparent))),
+            MovableWindow(
+                initialX: 20,
+                initialY: 100,
+                child: SpatialSidebar(
+                    selectedIndex: activeIdx,
+                    onIndexChanged: (i) => _navigateTo(i))),
+            MovableWindow(
+                initialX: 140,
+                initialY: 80,
+                child: GlassBox(
+                    width: 900,
+                    height: 650,
+                    child: ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: activeModule))),
+            const Positioned(
+                top: 10, right: 10, child: WindowButtons(isSpatial: true))
+          ],
+
+          // CHATBOT
+          if (!_isFullScreenMode) // Tam ekranda Chatbot gizlensin
             uiProv.isSpatialMode
                 ? MovableWindow(
                     initialX: 1000,
@@ -354,7 +377,8 @@ class _MainWindowState extends State<MainWindow> {
                     child: FloatingChatbot(
                         currentLang: langProv.currentLocale.languageCode,
                         onSystemControl: (c, v) => {})),
-          ],
+
+          // YARDIM İKONU
           if (_showHelpIcon && !_isFullScreenMode)
             Positioned(
                 top: 50,
@@ -401,7 +425,7 @@ class WindowButtons extends StatelessWidget {
           child: Icon(icon, size: 16, color: color)));
 }
 
-// Dummy WebviewModule (Hata vermesin diye)
+// Dummy WebviewModule
 class WebviewModule extends StatelessWidget {
   final String url;
   const WebviewModule({super.key, required this.url});
