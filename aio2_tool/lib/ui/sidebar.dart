@@ -207,6 +207,7 @@ class _ClassicSidebarState extends State<_ClassicSidebar> {
                             isRgb: true),
                         _item(13, Icons.settings, lang.translate('settings'),
                             isDark)
+                            _modernItem(context, Icons.rocket, "FPS Tarayıcı", 22, isDark),
                       ]),
                       crossFadeState: _isUpgradeExpanded
                           ? CrossFadeState.showSecond
