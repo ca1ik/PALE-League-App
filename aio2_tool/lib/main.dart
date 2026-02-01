@@ -36,6 +36,7 @@ import 'modules/turkey_map_module.dart';
 import 'modules/palehax_players_view.dart';
 import 'modules/challenge_hub.dart';
 import 'modules/squad_builder_module.dart';
+import 'modules/custom_browser_module.dart';
 
 // --- YENİ EKLENEN MODÜLLER ---
 import 'modules/palehax_tierlist.dart';
@@ -213,6 +214,7 @@ class _MainWindowState extends State<MainWindow> {
       /* 19 */ TierListView(database: database),
       /* 20 */ UltimateTeamView(database: database),
       /* 21 */ const GamesHubView(), // const eklenebilir stateful olsa bile constructor const ise
+      /* 22 */ const CustomBrowserModule(),
     ];
 
     Widget activeModule;
