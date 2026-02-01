@@ -1046,11 +1046,10 @@ class SubTabCardTypes extends StatelessWidget {
     return GridView.builder(
         padding: const EdgeInsets.all(40),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            childAspectRatio:
-                0.60, // ORAN DÜŞÜRÜLDÜ Kİ KARTLAR SIKIŞMASIN (Daha uzun alan)
-            crossAxisSpacing: 35,
-            mainAxisSpacing: 35),
+            crossAxisCount: 5, // Yan yana daha fazla kart sığsın (küçülsün)
+            childAspectRatio: 0.65,
+            crossAxisSpacing: 20,
+            mainAxisSpacing: 20),
         itemCount: pd.globalCardTypes.length,
         itemBuilder: (c, i) {
           String t = pd.globalCardTypes[i];
@@ -1082,16 +1081,26 @@ class SubTabCardTypes extends StatelessWidget {
                             fontSize: 13,
                             fontWeight: FontWeight.bold))),
                 Expanded(
-                    // Scale 1.0 yapıldı çünkü FittedBox zaten sığdıracak
-                    child: FCAnimatedCard(
-                        player: Player(
-                            name: "ÖRNEK",
-                            rating: 90,
-                            position: "(9) ST",
-                            playstyles: [],
-                            cardType: t,
-                            team: "Takımsız"),
-                        animateOnHover: true))
+                  // DÜZELTME BURADA: Kartı ortalayıp, taşmasını engelliyoruz.
+                  // FittedBox + Center kombinasyonu kartın orijinal oranını korur.
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: SizedBox(
+                          width: 350, // Orijinal tasarım boyutu
+                          height: 480,
+                          child: FCAnimatedCard(
+                              player: Player(
+                                  name: "ÖRNEK",
+                                  rating: 90,
+                                  position: "(9) ST",
+                                  playstyles: [],
+                                  cardType: t,
+                                  team: "Takımsız"),
+                              animateOnHover: true)),
+                    ),
+                  ),
+                )
               ]));
         });
   }
