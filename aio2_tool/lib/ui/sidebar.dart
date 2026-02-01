@@ -37,73 +37,62 @@ class CustomSidebar extends StatelessWidget {
 class HaxBallProButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool isCompact;
-
   const HaxBallProButton(
       {super.key, required this.onTap, this.isCompact = false});
-
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: isCompact
           ? const EdgeInsets.symmetric(horizontal: 5, vertical: 10)
           : const EdgeInsets.fromLTRB(15, 20, 15, 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
+      decoration:
+          BoxDecoration(borderRadius: BorderRadius.circular(12), boxShadow: [
+        BoxShadow(
             color: const Color(0xFF6C63FF).withOpacity(0.3),
             blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+            offset: const Offset(0, 4))
+      ]),
       child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 5),
-            decoration: BoxDecoration(
+          color: Colors.transparent,
+          child: InkWell(
+              onTap: onTap,
               borderRadius: BorderRadius.circular(12),
-              gradient: const LinearGradient(
-                colors: [Color(0xFF1A2980), Color(0xFF26D0CE)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              border:
-                  Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-            ),
-            child: isCompact
-                ? Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.gamepad, color: Colors.white, size: 22),
-                      const SizedBox(height: 4),
-                      Text("HAXBALL",
-                          style: GoogleFonts.orbitron(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1)),
-                    ],
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.gamepad, color: Colors.white, size: 20),
-                      const SizedBox(width: 10),
-                      Text("HAXBALL",
-                          style: GoogleFonts.orbitron(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 2)),
-                    ],
-                  ),
-          ),
-        ),
-      ),
+              child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 12, horizontal: 5),
+                  decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFF1A2980), Color(0xFF26D0CE)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight),
+                      border: Border.all(
+                          color: Colors.white.withOpacity(0.2), width: 1)),
+                  child: isCompact
+                      ? Column(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.gamepad,
+                              color: Colors.white, size: 22),
+                          const SizedBox(height: 4),
+                          Text("HAXBALL",
+                              style: GoogleFonts.orbitron(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1))
+                        ])
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                              const Icon(Icons.gamepad,
+                                  color: Colors.white, size: 20),
+                              const SizedBox(width: 10),
+                              Text("HAXBALL",
+                                  style: GoogleFonts.orbitron(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 2))
+                            ])))),
     );
   }
 }
@@ -121,8 +110,8 @@ class _ClassicSidebar extends StatefulWidget {
 }
 
 class _ClassicSidebarState extends State<_ClassicSidebar> {
-  bool _isUpgradeExpanded = false;
-  bool _isPaleHaxExpanded = true;
+  bool _isUpgradeExpanded = false; // KAPALI BAŞLIYOR
+  bool _isPaleHaxExpanded = true; // AÇIK BAŞLIYOR
 
   @override
   Widget build(BuildContext context) {
@@ -148,6 +137,7 @@ class _ClassicSidebarState extends State<_ClassicSidebar> {
             child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 child: Column(children: [
+                  // UPGRADE
                   GestureDetector(
                       onTap: () => setState(
                           () => _isUpgradeExpanded = !_isUpgradeExpanded),
@@ -206,35 +196,20 @@ class _ClassicSidebarState extends State<_ClassicSidebar> {
                             lang.translate('weather_title'), isDark,
                             isRgb: true),
                         _item(13, Icons.settings, lang.translate('settings'),
-                            isDark),
-                        _item(14, Icons.home, "Anasayfa", isDark, isRgb: true),
-                        _item(15, Icons.groups, "Oyuncular", isDark,
-                            isRgb: true),
-                        _item(16, Icons.table_chart_rounded, "Puan Durumu",
-                            isDark,
-                            isRgb: true),
-                        _item(17, Icons.emoji_events, "Challenge", isDark,
-                            isRgb: true),
-                        _item(18, Icons.construction, "Kadro Kur", isDark,
-                            isRgb: true),
-                        // YENİ EKLENENLER (Virgüllere dikkat!)
-                        _item(19, Icons.list_alt, "Tier List", isDark,
-                            isRgb: true),
-                        _item(20, Icons.sports_soccer, "Ultimate", isDark,
-                            isRgb: true),
-                        _item(21, Icons.games, "Oyunlar", isDark, isRgb: true),
-                        _item(22, Icons.rocket, "FPS Tarayıcı", isDark,
-                            isRgb: true), // Buraya virgül koymayı unutma
+                            isDark)
                       ]),
-                      crossFadeState: _isPaleHaxExpanded
+                      crossFadeState: _isUpgradeExpanded
                           ? CrossFadeState.showSecond
                           : CrossFadeState.showFirst,
                       duration: const Duration(milliseconds: 300)),
+
                   Divider(
                       color: isDark ? Colors.white24 : Colors.black12,
                       indent: 20,
                       endIndent: 20,
                       height: 20),
+
+                  // PALEHAX
                   GestureDetector(
                       onTap: () => setState(
                           () => _isPaleHaxExpanded = !_isPaleHaxExpanded),
@@ -274,12 +249,14 @@ class _ClassicSidebarState extends State<_ClassicSidebar> {
                             isRgb: true),
                         _item(18, Icons.construction, "Kadro Kur", isDark,
                             isRgb: true),
-                        // YENİ EKLENEN BUTONLAR
                         _item(19, Icons.list_alt, "Tier List", isDark,
                             isRgb: true),
                         _item(20, Icons.sports_soccer, "Ultimate", isDark,
                             isRgb: true),
                         _item(21, Icons.games, "Oyunlar", isDark, isRgb: true),
+                        // FPS TARAYICI BURADA (En Altta)
+                        _item(22, Icons.rocket_launch, "FPS Tarayıcı", isDark,
+                            isRgb: true),
                       ]),
                       crossFadeState: _isPaleHaxExpanded
                           ? CrossFadeState.showSecond
@@ -287,6 +264,7 @@ class _ClassicSidebarState extends State<_ClassicSidebar> {
                       duration: const Duration(milliseconds: 300))
                 ])),
           ),
+          // ... Alt butonlar ...
           Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: GlowingKeyButton(
@@ -463,13 +441,15 @@ class _ModernSidebarState extends State<_ModernSidebar> {
                                   "Challenge", 17, isDark),
                               _modernItem(context, Icons.construction,
                                   "Kadro Kur", 18, isDark),
-                              // YENİ BUTONLAR
                               _modernItem(context, Icons.list_alt, "Tier List",
                                   19, isDark),
                               _modernItem(context, Icons.sports_soccer,
                                   "Ultimate", 20, isDark),
                               _modernItem(
                                   context, Icons.games, "Oyunlar", 21, isDark),
+                              // FPS TARAYICI BURADA (En Altta)
+                              _modernItem(context, Icons.rocket_launch,
+                                  "FPS Tarayıcı", 22, isDark),
                             ])),
                         crossFadeState: _isPaleHaxExpanded
                             ? CrossFadeState.showSecond
