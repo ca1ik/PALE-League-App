@@ -1,184 +1,162 @@
-import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:webview_windows/webview_windows.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:hive/hive.dart';
-import 'package:file_picker/file_picker.dart'; // Dosya seçimi için
-import 'package:process_run/shell.dart'; // Çalıştırmak için
 
 class CustomBrowserModule extends StatefulWidget {
-  const CustomBrowserModule({super.key});
+  final bool isFullScreen; // Main.dart'tan gelen bilgi
+  const CustomBrowserModule({super.key, this.isFullScreen = false});
 
   @override
   State<CustomBrowserModule> createState() => _CustomBrowserModuleState();
 }
 
 class _CustomBrowserModuleState extends State<CustomBrowserModule> {
-  String? _browserPath;
-  final Box _box = Hive.box('natroff_memory');
-  bool _isLoading = false;
+  final _controller = WebviewController();
+  final _textController = TextEditingController();
+  bool _isInitialized = false;
+  Timer? _hackTimer;
 
   @override
   void initState() {
     super.initState();
-    _browserPath = _box.get('custom_browser_path');
+    _initWebview();
   }
 
-  Future<void> _pickBrowser() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['exe'],
-      dialogTitle: "Tarayıcınızın .exe dosyasını seçin (Örn: chrome.exe)",
-    );
-
-    if (result != null) {
-      String path = result.files.single.path!;
-      setState(() {
-        _browserPath = path;
+  // Tam ekran değişikliğinde WebView'i zorla yenile (Donmayı önler)
+  @override
+  void didUpdateWidget(CustomBrowserModule oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isFullScreen != oldWidget.isFullScreen) {
+      // Boyut değişimini algılaması için kısa bir gecikme
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) setState(() {});
       });
-      _box.put('custom_browser_path', path);
     }
   }
 
-  void _resetBrowser() {
-    _box.delete('custom_browser_path');
-    setState(() {
-      _browserPath = null;
-    });
-  }
-
-  Future<void> _launchBrowser() async {
-    if (_browserPath == null) return;
-
-    setState(() => _isLoading = true);
-
-    // Haxball için Sınırsız FPS Argümanları
-    var shell = Shell();
-    // Tırnak içine alarak boşluklu dosya yollarını koruyoruz
-    String cmd =
-        '"$_browserPath" --disable-frame-rate-limit --disable-gpu-vsync --args --disable-features=UseSkiaRenderer';
-
+  Future<void> _initWebview() async {
     try {
-      await shell.run(cmd);
+      await _controller.initialize();
+      await _controller.setBackgroundColor(Colors.transparent);
+      await _controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
+
+      // Haxball yüklendiğinde üst barı silen kod
+      _controller.loadingState.listen((state) {
+        if (state == LoadingState.navigationCompleted) {
+          _injectHaxballHacks();
+        }
+      });
+
+      await _controller.loadUrl('https://www.haxball.com');
+      _textController.text = 'https://www.haxball.com';
+
+      if (!mounted) return;
+      setState(() {
+        _isInitialized = true;
+      });
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text("Başlatma hatası: $e"), backgroundColor: Colors.red));
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      debugPrint("Webview Başlatma Hatası: $e");
     }
+  }
+
+  // Siyah Barı Silen Javascript Kodu
+  void _injectHaxballHacks() {
+    // Haxball'ın üstündeki 'header' class'lı div'i siler.
+    const script = '''
+      function removeHeader() {
+        var headers = document.getElementsByClassName('header');
+        if(headers.length > 0) {
+          headers[0].style.display = 'none';
+        }
+        // Reklamları da temizle
+        var ads = document.getElementsByClassName('adsbygoogle');
+        for(var i=0; i<ads.length; i++) { ads[i].style.display='none'; }
+      }
+      // Yüklenme gecikmesi ihtimaline karşı tekrarla
+      removeHeader();
+      setInterval(removeHeader, 1000);
+    ''';
+    _controller.executeScript(script);
+  }
+
+  void _loadUrl() {
+    String url = _textController.text;
+    if (!url.startsWith('http')) {
+      url = 'https://$url';
+    }
+    _controller.loadUrl(url);
+  }
+
+  @override
+  void dispose() {
+    _hackTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Center(
-        child: Container(
-          width: 600,
-          padding: const EdgeInsets.all(40),
-          decoration: BoxDecoration(
-              color: const Color(0xFF101014).withOpacity(0.9),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.cyanAccent.withOpacity(0.3)),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.cyan.withOpacity(0.1),
-                    blurRadius: 30,
-                    spreadRadius: 5)
-              ]),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.rocket_launch,
-                  size: 80, color: Colors.cyanAccent),
-              const SizedBox(height: 20),
-              Text(
-                "SINIRSIZ FPS BAŞLATICI",
-                style: GoogleFonts.orbitron(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                "Seçtiğiniz tarayıcıyı V-Sync kapalı ve FPS kilidi olmadan başlatır.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white54),
-              ),
-              const SizedBox(height: 40),
-              if (_browserPath == null) ...[
-                ElevatedButton.icon(
-                  onPressed: _pickBrowser,
-                  icon: const Icon(Icons.folder_open),
-                  label: const Text("TARAYICI SEÇ (.exe)"),
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 30, vertical: 20),
-                      textStyle: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
-                )
-              ] else ...[
-                Container(
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                      color: Colors.white10,
-                      borderRadius: BorderRadius.circular(10)),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.check_circle, color: Colors.green),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          _browserPath!,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.amber),
-                        tooltip: "Değiştir",
-                        onPressed: _pickBrowser,
-                      )
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 30),
-                SizedBox(
-                  width: double.infinity,
-                  height: 60,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _launchBrowser,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.greenAccent,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15)),
-                      shadowColor: Colors.greenAccent.withOpacity(0.5),
-                      elevation: 10,
+      backgroundColor: Colors.black,
+      body: Column(
+        children: [
+          // ÜST BAR (Sadece Tam Ekran DEĞİLSE göster)
+          if (!widget.isFullScreen)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              color: const Color(0xFF1E1E24),
+              child: Row(
+                children: [
+                  IconButton(
+                      icon: const Icon(Icons.refresh, color: Colors.white),
+                      onPressed: () {
+                        _controller.reload();
+                        // Yenileyince hack'i tekrar çalıştır
+                        Future.delayed(
+                            const Duration(seconds: 1), _injectHaxballHacks);
+                      }),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _textController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.black54,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 15, vertical: 10),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              borderSide: BorderSide.none),
+                          hintText: "URL Girin...",
+                          hintStyle: const TextStyle(color: Colors.white30),
+                          prefixIcon:
+                              const Icon(Icons.link, color: Colors.cyanAccent)),
+                      onSubmitted: (_) => _loadUrl(),
                     ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.black)
-                        : Text(
-                            "OYUNU BAŞLAT",
-                            style: GoogleFonts.orbitron(
-                                color: Colors.black,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 2),
-                          ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                TextButton(
-                  onPressed: _resetBrowser,
-                  child: const Text("Sıfırla",
-                      style: TextStyle(color: Colors.redAccent)),
-                )
-              ]
-            ],
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: _loadUrl,
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.greenAccent),
+                    child: const Text("GİT",
+                        style: TextStyle(
+                            color: Colors.black, fontWeight: FontWeight.bold)),
+                  )
+                ],
+              ),
+            ),
+
+          // TARAYICI ALANI
+          Expanded(
+            child: _isInitialized
+                ? Webview(_controller)
+                : const Center(
+                    child: CircularProgressIndicator(color: Colors.cyanAccent)),
           ),
-        ),
+        ],
       ),
     );
   }
