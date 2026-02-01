@@ -53,16 +53,16 @@ class _TierListViewState extends State<TierListView> {
       ),
       body: Row(
         children: [
-          // SOL TARAF: TIER LIST (DÜZELTİLDİ: Column + Expanded yapısı)
+          // SOL TARAF: TIER LIST
           Expanded(
-            flex: 4,
+            flex: 5, // Tier List alanını daha da genişlettim
             child: Screenshot(
               controller: screenshotController,
               child: Container(
                 color: const Color(0xFF15151E),
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(
+                    5), // Padding azaltıldı, siyahlık azalsın diye
                 child: SingleChildScrollView(
-                  // Donmayı engellemek için
                   child: Column(
                     children:
                         tiers.keys.map((key) => _buildTierRow(key)).toList(),
@@ -73,7 +73,7 @@ class _TierListViewState extends State<TierListView> {
           ),
           // SAĞ TARAF: OYUNCU HAVUZU
           Container(
-            width: 350,
+            width: 320, // Sağ paneli biraz daralttım ki sola yer kalsın
             decoration: const BoxDecoration(
                 border: Border(left: BorderSide(color: Colors.white10)),
                 color: Color(0xFF101014)),
@@ -102,7 +102,7 @@ class _TierListViewState extends State<TierListView> {
                         if (!snapshot.hasData)
                           return const Center(
                               child: CircularProgressIndicator());
-                        // Filtreleme
+
                         var playerList = snapshot.data!
                             .map((t) => _convertToPlayer(t))
                             .toList();
@@ -120,20 +120,18 @@ class _TierListViewState extends State<TierListView> {
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: 2,
-                                  childAspectRatio:
-                                      0.72, // FCAnimatedCard AspectRatio ile uyumlu
+                                  childAspectRatio: 0.72,
                                   crossAxisSpacing: 10,
                                   mainAxisSpacing: 10),
                           itemCount: players.length,
                           itemBuilder: (c, i) {
                             pd.Player p = players[i];
-                            // Draggable feedback'i sadeleştirerek MouseTracker hatasını önlüyoruz
                             return Draggable<pd.Player>(
                               data: p,
                               feedback: Material(
                                   color: Colors.transparent,
                                   child: SizedBox(
-                                      width: 120,
+                                      width: 160, // Sürüklerken BÜYÜK görünsün
                                       child: FCAnimatedCard(
                                           player: p, animateOnHover: false))),
                               childWhenDragging: Opacity(
@@ -166,48 +164,55 @@ class _TierListViewState extends State<TierListView> {
       builder: (context, candidateData, rejectedData) {
         bool isHovering = candidateData.isNotEmpty;
         return Container(
-          margin: const EdgeInsets.only(bottom: 5),
-          constraints: const BoxConstraints(minHeight: 130),
+          // Margin'i azalttım ki siyah boşluklar kapansın, sadece çizgi kalsın
+          margin: const EdgeInsets.only(bottom: 2),
+          // YÜKSEKLİĞİ ARTTIRDIM: Kartlar sığsın ve büyük dursun
+          constraints: const BoxConstraints(minHeight: 240),
           decoration: BoxDecoration(
               border: isHovering
                   ? Border.all(color: Colors.cyanAccent, width: 2)
-                  : Border.all(color: Colors.white10),
-              boxShadow: isHovering
-                  ? [
-                      BoxShadow(
-                          color: Colors.cyanAccent.withOpacity(0.5),
-                          blurRadius: 10)
-                    ]
-                  : [],
-              color: Colors.white.withOpacity(0.02)),
+                  : null,
+              color: Colors.white.withOpacity(0.02) // Hafif gri arka plan
+              ),
           child: IntrinsicHeight(
-            // Row yüksekliğini eşitlemek için
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // TIER HARFİ KUTUSU
                 Container(
-                  width: 80,
-                  decoration: BoxDecoration(
-                      color: tierColors[tierKey],
-                      borderRadius: const BorderRadius.horizontal(
-                          left: Radius.circular(5))),
+                  width: 140, // Genişletildi
+                  color: tierColors[tierKey],
                   child: Center(
                       child: Text(tierKey,
                           style: GoogleFonts.russoOne(
-                              fontSize: 40, color: Colors.black))),
+                              fontSize: 90, // HARF BOYUTU DEVASA
+                              color: Colors.black,
+                              shadows: [
+                                const Shadow(
+                                    color: Colors.white54, blurRadius: 10)
+                              ]))),
                 ),
+                // KART ALANI
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                        border: Border(
+                            left: BorderSide(
+                                color: Colors.black.withOpacity(0.5),
+                                width: 2))),
+                    padding: const EdgeInsets.all(10.0),
                     child: Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
+                      spacing: 15,
+                      runSpacing: 15,
                       children: tiers[tierKey]!
                           .map((p) => GestureDetector(
                                 onTap: () =>
                                     setState(() => tiers[tierKey]!.remove(p)),
                                 child: SizedBox(
-                                    width: 90,
+                                    // --- BURASI ÖNEMLİ ---
+                                    // Kart boyutunu büyüttük. FittedBox bu boyuta göre içini dolduracak.
+                                    width: 150,
+                                    height: 210,
                                     child: FCAnimatedCard(
                                         player: p, animateOnHover: false)),
                               ))
@@ -224,7 +229,6 @@ class _TierListViewState extends State<TierListView> {
   }
 
   pd.Player _convertToPlayer(dynamic t) {
-    // Veritabanı objesinden pd.Player modeline dönüşüm
     return pd.Player(
         name: t.name,
         rating: t.rating,
