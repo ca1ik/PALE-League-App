@@ -206,10 +206,27 @@ class _ClassicSidebarState extends State<_ClassicSidebar> {
                             lang.translate('weather_title'), isDark,
                             isRgb: true),
                         _item(13, Icons.settings, lang.translate('settings'),
-                            isDark)
-                            _modernItem(context, Icons.rocket, "FPS Tarayıcı", 22, isDark),
+                            isDark),
+                        _item(14, Icons.home, "Anasayfa", isDark, isRgb: true),
+                        _item(15, Icons.groups, "Oyuncular", isDark,
+                            isRgb: true),
+                        _item(16, Icons.table_chart_rounded, "Puan Durumu",
+                            isDark,
+                            isRgb: true),
+                        _item(17, Icons.emoji_events, "Challenge", isDark,
+                            isRgb: true),
+                        _item(18, Icons.construction, "Kadro Kur", isDark,
+                            isRgb: true),
+                        // YENİ EKLENENLER (Virgüllere dikkat!)
+                        _item(19, Icons.list_alt, "Tier List", isDark,
+                            isRgb: true),
+                        _item(20, Icons.sports_soccer, "Ultimate", isDark,
+                            isRgb: true),
+                        _item(21, Icons.games, "Oyunlar", isDark, isRgb: true),
+                        _item(22, Icons.rocket, "FPS Tarayıcı", isDark,
+                            isRgb: true), // Buraya virgül koymayı unutma
                       ]),
-                      crossFadeState: _isUpgradeExpanded
+                      crossFadeState: _isPaleHaxExpanded
                           ? CrossFadeState.showSecond
                           : CrossFadeState.showFirst,
                       duration: const Duration(milliseconds: 300)),
