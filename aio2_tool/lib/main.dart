@@ -48,7 +48,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await Hive.initFlutter();
-    // Adapter kayıtları
     if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(PlayerAdapter());
     if (!Hive.isAdapterRegistered(2)) Hive.registerAdapter(PlayStyleAdapter());
     if (!Hive.isAdapterRegistered(3)) Hive.registerAdapter(MatchStatAdapter());
@@ -168,21 +167,44 @@ class _MainWindowState extends State<MainWindow> {
     });
   }
 
-  void _handleKeyEvent(RawKeyEvent event) async {
+  // --- TUŞ DİNLEME VE EYLEM ---
+  void _handleKeyEvent(RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
       if (event.logicalKey == LogicalKeyboardKey.f11) {
-        setState(() {
-          _isFullScreenMode = !_isFullScreenMode;
-          // Tam ekran geçişinde pencereyi de maksimize/restore et
-          if (_isFullScreenMode) {
-            windowManager.setFullScreen(true);
-          } else {
-            windowManager.setFullScreen(false);
-          }
-          if (_isFullScreenMode) _showHelpIcon = false;
-        });
+        _toggleFullScreen();
       }
     }
+  }
+
+  void _toggleFullScreen() {
+    setState(() {
+      _isFullScreenMode = !_isFullScreenMode;
+
+      if (_isFullScreenMode) {
+        windowManager.setFullScreen(true);
+        _showHelpIcon = false;
+
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.speed, color: Colors.greenAccent),
+              const SizedBox(width: 10),
+              Text("Sınırsız FPS Moduna Geçildi!",
+                  style: GoogleFonts.orbitron(
+                      color: Colors.white, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          backgroundColor: Colors.black.withOpacity(0.8),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(bottom: 20, left: 20, right: 20),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ));
+      } else {
+        windowManager.setFullScreen(false);
+      }
+    });
   }
 
   @override
@@ -218,7 +240,11 @@ class _MainWindowState extends State<MainWindow> {
       /* 19 */ TierListView(database: database),
       /* 20 */ UltimateTeamView(database: database),
       /* 21 */ const GamesHubView(),
-      /* 22 */ CustomBrowserModule(isFullScreen: _isFullScreenMode),
+      /* 22 */ CustomBrowserModule(
+          isFullScreen: _isFullScreenMode,
+          onToggleFullScreen:
+              _toggleFullScreen // Tarayıcıdan gelen sinyali bağladık
+          ),
     ];
 
     Widget activeModule;
@@ -235,84 +261,107 @@ class _MainWindowState extends State<MainWindow> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Stack(children: [
-          // 1. KATMAN: ARKA PLAN
           if (!uiProv.isSpatialMode && isDark)
             const Positioned.fill(child: ParticleBackground()),
           if (!uiProv.isSpatialMode && !isDark)
             Positioned.fill(child: Container(color: Colors.grey[200])),
 
-          // 2. KATMAN: ANA İÇERİK (Siyah ekran yerine artık burası var)
+          // 2. KATMAN: ANA İÇERİK (STABİL YAPILDI)
           if (!uiProv.isSpatialMode)
             Column(children: [
-              // ÜST BAR: Tam ekranda GİZLENİR
-              if (!_isFullScreenMode)
-                Container(
-                    height: 40,
-                    color: isDark ? Colors.black26 : Colors.white,
-                    child: Row(children: [
-                      Expanded(
-                          child: GestureDetector(
-                              onPanStart: (_) => windowManager.startDragging(),
-                              child: Container(
-                                  color: Colors.transparent,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10),
-                                  child: Row(children: [
-                                    IconButton(
-                                        icon: Icon(
-                                            Icons.arrow_back_ios_new_rounded,
-                                            size: 16,
-                                            color: _historyIndex > 0
-                                                ? (isDark
-                                                    ? Colors.white
-                                                    : Colors.black)
-                                                : Colors.grey.withOpacity(0.3)),
-                                        onPressed:
-                                            _historyIndex > 0 ? _goBack : null),
-                                    IconButton(
-                                        icon: Icon(
-                                            Icons.arrow_forward_ios_rounded,
-                                            size: 16,
-                                            color: _historyIndex <
-                                                    _history.length - 1
-                                                ? (isDark
-                                                    ? Colors.white
-                                                    : Colors.black)
-                                                : Colors.grey.withOpacity(0.3)),
-                                        onPressed:
-                                            _historyIndex < _history.length - 1
-                                                ? _goForward
-                                                : null),
-                                    const SizedBox(width: 15),
-                                    Text(langProv.translate('app_title'),
-                                        style: TextStyle(
-                                            color: isDark
-                                                ? Colors.white
-                                                : Colors.black,
-                                            fontWeight: FontWeight.bold))
-                                  ])))),
-                      IconButton(
-                          icon: Icon(Icons.settings,
-                              color: isDark ? Colors.white70 : Colors.black54,
-                              size: 20),
-                          onPressed: () => _navigateTo(13)),
-                      const WindowButtons()
-                    ])),
+              // ÜST BAR: Yükseklik animasyonu ile gizleniyor (Yok edilmiyor)
+              AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  height: _isFullScreenMode ? 0 : 40,
+                  child: SingleChildScrollView(
+                      // Overflow hatasını önler
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: Container(
+                          height: 40,
+                          color: isDark ? Colors.black26 : Colors.white,
+                          child: Row(children: [
+                            Expanded(
+                                child: GestureDetector(
+                                    onPanStart: (_) =>
+                                        windowManager.startDragging(),
+                                    child: Container(
+                                        color: Colors.transparent,
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10),
+                                        child: Row(children: [
+                                          IconButton(
+                                              icon: Icon(
+                                                  Icons
+                                                      .arrow_back_ios_new_rounded,
+                                                  size: 16,
+                                                  color: _historyIndex > 0
+                                                      ? (isDark
+                                                          ? Colors.white
+                                                          : Colors.black)
+                                                      : Colors.grey
+                                                          .withOpacity(0.3)),
+                                              onPressed: _historyIndex > 0
+                                                  ? _goBack
+                                                  : null),
+                                          IconButton(
+                                              icon: Icon(
+                                                  Icons
+                                                      .arrow_forward_ios_rounded,
+                                                  size: 16,
+                                                  color: _historyIndex <
+                                                          _history.length - 1
+                                                      ? (isDark
+                                                          ? Colors.white
+                                                          : Colors.black)
+                                                      : Colors.grey
+                                                          .withOpacity(0.3)),
+                                              onPressed: _historyIndex <
+                                                      _history.length - 1
+                                                  ? _goForward
+                                                  : null),
+                                          const SizedBox(width: 15),
+                                          Text(langProv.translate('app_title'),
+                                              style: TextStyle(
+                                                  color: isDark
+                                                      ? Colors.white
+                                                      : Colors.black,
+                                                  fontWeight: FontWeight.bold))
+                                        ])))),
+                            IconButton(
+                                icon: Icon(Icons.settings,
+                                    color: isDark
+                                        ? Colors.white70
+                                        : Colors.black54,
+                                    size: 20),
+                                onPressed: () => _navigateTo(13)),
+                            const WindowButtons()
+                          ])))),
 
               // İÇERİK ALANI
               Expanded(
                   child: Row(children: [
-                // SIDEBAR: Tam ekranda GİZLENİR
-                if (!_isFullScreenMode)
-                  CustomSidebar(
-                      selectedIndex: activeIdx,
-                      onIndexChanged: (i) => _navigateTo(i),
-                      onHaxBallClick: _launchHaxBall),
+                // SIDEBAR: Genişlik animasyonu ile gizleniyor (Yok edilmiyor)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: _isFullScreenMode ? 0 : 110,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const NeverScrollableScrollPhysics(),
+                    child: SizedBox(
+                      // İçeriği sabit tutup sadece containerı daraltıyoruz
+                      width: 110,
+                      child: CustomSidebar(
+                          selectedIndex: activeIdx,
+                          onIndexChanged: (i) => _navigateTo(i),
+                          onHaxBallClick: _launchHaxBall),
+                    ),
+                  ),
+                ),
 
-                // AKTİF MODÜL: Her zaman görünür, tam ekranda genişler
+                // AKTİF MODÜL
                 Expanded(
-                    child: Container(
-                        // Tam ekranda margin ve border'ı sıfırla
+                    child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
                         margin: _isFullScreenMode
                             ? EdgeInsets.zero
                             : const EdgeInsets.all(20),
@@ -333,7 +382,6 @@ class _MainWindowState extends State<MainWindow> {
               ]))
             ]),
 
-          // SPATIAL MOD KATMANLARI (Tam ekranda zaten gizli olması beklenir ama kodda bırakıldı)
           if (uiProv.isSpatialMode) ...[
             Positioned(
                 top: 0,
@@ -362,8 +410,8 @@ class _MainWindowState extends State<MainWindow> {
                 top: 10, right: 10, child: WindowButtons(isSpatial: true))
           ],
 
-          // CHATBOT
-          if (!_isFullScreenMode) // Tam ekranda Chatbot gizlensin
+          // CHATBOT (Tam ekranda gizle)
+          if (!_isFullScreenMode)
             uiProv.isSpatialMode
                 ? MovableWindow(
                     initialX: 1000,
@@ -378,7 +426,6 @@ class _MainWindowState extends State<MainWindow> {
                         currentLang: langProv.currentLocale.languageCode,
                         onSystemControl: (c, v) => {})),
 
-          // YARDIM İKONU
           if (_showHelpIcon && !_isFullScreenMode)
             Positioned(
                 top: 50,
@@ -425,7 +472,6 @@ class WindowButtons extends StatelessWidget {
           child: Icon(icon, size: 16, color: color)));
 }
 
-// Dummy WebviewModule
 class WebviewModule extends StatelessWidget {
   final String url;
   const WebviewModule({super.key, required this.url});
