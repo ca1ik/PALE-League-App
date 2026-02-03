@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// --- YENİ KLASÖR YAPISINA GÖRE IMPORTLAR ---
-import 'games/okey101_game.dart';
-import 'games/uno_game.dart';
-import 'games/batak_game.dart';
-import 'games/papazkacti_game.dart';
-import 'games/speed_clicker_game.dart';
-import 'games/vampire_villager.dart'; // Vampir Köylü de games klasöründe
+// --- OYUN MODÜLLERİ ---
+import '../games/okey101_game.dart';
+import '../games/uno_game.dart';
+import '../games/batak_game.dart';
+import '../games/papazkacti_game.dart';
+import '../games/speed_clicker_game.dart';
+import '../games/vampire_villager.dart';
 
 class GamesHubView extends StatefulWidget {
   const GamesHubView({super.key});
@@ -37,12 +37,6 @@ class _GamesHubViewState extends State<GamesHubView> {
             style: GoogleFonts.orbitron(
                 color: Colors.purpleAccent, fontWeight: FontWeight.bold)),
         centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            // Eğer sidebar kullanıyorsan burası boş kalabilir veya sidebar kontrolü eklenebilir
-          },
-        ),
       ),
       body: _buildGameMenu(),
     );
@@ -63,7 +57,8 @@ class _GamesHubViewState extends State<GamesHubView> {
         _gameCard("SPEED CLICKER", Icons.touch_app, Colors.blue, true),
         _gameCard("OKEY 101", Icons.apps, Colors.orange, true),
         _gameCard("UNO", Icons.style, Colors.red, true),
-        _gameCard("BATAK", Icons.spades, Colors.green, true),
+        // DÜZELTME BURADA: Icons.spades yerine Icons.style kullanıldı (Kart destesi ikonu)
+        _gameCard("BATAK", Icons.style, Colors.green, true),
         _gameCard("VAMPİR KÖYLÜ", Icons.nightlight_round, Colors.purple, true),
         _gameCard("PAPAZ KAÇTI", Icons.person_off, Colors.pink, true),
       ],
