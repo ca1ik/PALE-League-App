@@ -62,7 +62,9 @@ class _BatakGameState extends State<BatakGame> {
                               child: const Text("BAŞLA",
                                   style: TextStyle(color: Colors.black)))
                       ])
-                    : const Icon(Icons.spades, size: 80, color: Colors.black26),
+                    // DÜZELTME: Icons.spades yerine Emoji
+                    : const Text("♠",
+                        style: TextStyle(fontSize: 100, color: Colors.black26)),
               ),
             ),
           ),
@@ -121,21 +123,6 @@ class _BatakGameState extends State<BatakGame> {
               ),
             ),
           ),
-          const Positioned(
-              top: 20,
-              left: 0,
-              right: 0,
-              child: Icon(Icons.person, color: Colors.white, size: 40)),
-          const Positioned(
-              left: 20,
-              top: 0,
-              bottom: 0,
-              child: Icon(Icons.person, color: Colors.white, size: 40)),
-          const Positioned(
-              right: 20,
-              top: 0,
-              bottom: 0,
-              child: Icon(Icons.person, color: Colors.white, size: 40)),
         ],
       ),
     );
