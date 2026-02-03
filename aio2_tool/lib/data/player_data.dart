@@ -25,7 +25,8 @@ class PlayerAdapter extends TypeAdapter<Player> {
       recLink: reader.read() ?? "",
       manualGoals: reader.read() ?? 0,
       manualAssists: reader.read() ?? 0,
-      manualMatches: reader.read() ?? 0);
+      manualMatches: reader.read() ?? 0,
+      instruction: reader.read() ?? "Balanced"); // EKLENDİ
   @override
   void write(BinaryWriter writer, Player obj) {
     writer
@@ -46,7 +47,8 @@ class PlayerAdapter extends TypeAdapter<Player> {
       ..write(obj.recLink)
       ..write(obj.manualGoals)
       ..write(obj.manualAssists)
-      ..write(obj.manualMatches);
+      ..write(obj.manualMatches)
+      ..write(obj.instruction); // EKLENDİ
   }
 }
 
@@ -159,6 +161,7 @@ class Player extends HiveObject {
   String recLink;
   List<SeasonStat> seasons;
   int manualGoals, manualAssists, manualMatches;
+  String instruction; // YENİ EKLENEN ÖZELLİK
 
   Player(
       {required this.name,
@@ -178,7 +181,8 @@ class Player extends HiveObject {
       this.recLink = "",
       this.manualGoals = 0,
       this.manualAssists = 0,
-      this.manualMatches = 0});
+      this.manualMatches = 0,
+      this.instruction = "Balanced"}); // Varsayılan
 
   // --- EKSİK OLAN GETTER'LAR BURAYA EKLENDİ ---
   int get kitNumber {
