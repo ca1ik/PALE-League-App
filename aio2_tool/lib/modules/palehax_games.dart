@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'vampire_villager.dart';
 
 class GamesHubView extends StatefulWidget {
   const GamesHubView({super.key});
@@ -37,8 +38,6 @@ class _GamesHubViewState extends State<GamesHubView> {
         _gameCard("OKEY 101", Icons.table_restaurant, Colors.green, false),
         _gameCard("UNO", Icons.style, Colors.red, false),
         _gameCard("BATAK", Icons.videogame_asset, Colors.grey, false),
-        _gameCard("VAMPİR KÖYLÜ", Icons.nightlight_round, Colors.purple, false),
-        _gameCard("PAPAZ KAÇTI", Icons.person_off, Colors.orange, false),
         _gameCard("VAMPİR KÖYLÜ", Icons.nightlight_round, Colors.purple,
             true), // true yaptık        _gameCard("PAPAZ KAÇTI", Icons.person_off, Colors.orange, false),
       ],
@@ -48,6 +47,16 @@ class _GamesHubViewState extends State<GamesHubView> {
   Widget _gameCard(String title, IconData icon, Color color, bool isActive) {
     return GestureDetector(
       onTap: () {
+        if (title == "VAMPİR KÖYLÜ") {
+          // Sayfa yönlendirmesi
+          Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => const VampireVillagerGame()));
+          return;
+        }
+
+        // Diğer oyunlar için mevcut mantık
         if (isActive) {
           setState(() => activeGame = title);
         } else {
