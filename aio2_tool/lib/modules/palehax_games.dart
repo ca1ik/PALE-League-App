@@ -39,6 +39,8 @@ class _GamesHubViewState extends State<GamesHubView> {
         _gameCard("BATAK", Icons.videogame_asset, Colors.grey, false),
         _gameCard("VAMPİR KÖYLÜ", Icons.nightlight_round, Colors.purple, false),
         _gameCard("PAPAZ KAÇTI", Icons.person_off, Colors.orange, false),
+        _gameCard("VAMPİR KÖYLÜ", Icons.nightlight_round, Colors.purple,
+            true), // true yaptık        _gameCard("PAPAZ KAÇTI", Icons.person_off, Colors.orange, false),
       ],
     );
   }
