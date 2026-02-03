@@ -92,40 +92,9 @@ class _UltimateBodyState extends State<_UltimateBody> {
                   _buildPosition(context, 5, "RW", 0.8, 0.3),
                   _buildPosition(context, 6, "ST", 0.5, 0.15)
                 ]))),
-        Container(
-            width: 350,
-            color: const Color(0xFF15151E),
-            padding: const EdgeInsets.all(15),
-            child: Column(children: [
-              _buildPackSection(context, provider),
-              const Divider(color: Colors.white24),
-              const Text("KULÜBÜM",
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold)),
-              Expanded(
-                  child: GridView.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3, childAspectRatio: 0.7),
-                      itemCount: provider.myClub.length,
-                      itemBuilder: (c, i) {
-                        return Draggable<Player>(
-                            data: provider.myClub[i],
-                            feedback: SizedBox(
-                                width: 80,
-                                child:
-                                    FCAnimatedCard(player: provider.myClub[i])),
-                            child: GestureDetector(
-                                onTap: () {},
-                                child: Transform.scale(
-                                    scale: 0.8,
-                                    child: FCAnimatedCard(
-                                        player: provider.myClub[i]))));
-                      }))
-            ]))
-      ]),
-    );
-  }
+        }
+    
+  };
 
   Widget _buildPosition(
       BuildContext context, int index, String label, double x, double y) {
