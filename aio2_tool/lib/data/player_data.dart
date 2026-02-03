@@ -26,7 +26,7 @@ class PlayerAdapter extends TypeAdapter<Player> {
       manualGoals: reader.read() ?? 0,
       manualAssists: reader.read() ?? 0,
       manualMatches: reader.read() ?? 0,
-      instruction: reader.read() ?? "Balanced"); // EKLENDİ
+      instruction: reader.read() ?? "Balanced");
   @override
   void write(BinaryWriter writer, Player obj) {
     writer
@@ -48,7 +48,7 @@ class PlayerAdapter extends TypeAdapter<Player> {
       ..write(obj.manualGoals)
       ..write(obj.manualAssists)
       ..write(obj.manualMatches)
-      ..write(obj.instruction); // EKLENDİ
+      ..write(obj.instruction);
   }
 }
 
@@ -161,7 +161,7 @@ class Player extends HiveObject {
   String recLink;
   List<SeasonStat> seasons;
   int manualGoals, manualAssists, manualMatches;
-  String instruction; // YENİ EKLENEN ÖZELLİK
+  String instruction;
 
   Player(
       {required this.name,
@@ -182,15 +182,17 @@ class Player extends HiveObject {
       this.manualGoals = 0,
       this.manualAssists = 0,
       this.manualMatches = 0,
-      this.instruction = "Balanced"}); // Varsayılan
+      this.instruction = "Balanced"});
 
-  // --- EKSİK OLAN GETTER'LAR BURAYA EKLENDİ ---
+  // --- GETTERLAR VE HESAPLAMALAR ---
+
   int get kitNumber {
     if (position.contains("GK")) return 1;
     if (position.contains("CDM")) return 6;
     if (position.contains("CAM")) return 10;
     if (position.contains("RW")) return 7;
     if (position.contains("LW")) return 11;
+    if (position.contains("CB") || position.contains("DEF")) return 4;
     return 9;
   }
 
@@ -209,6 +211,27 @@ class Player extends HiveObject {
       default:
         return 0;
     }
+  }
+
+  // --- FM TARZI STATLAR (1-20) ---
+  Map<String, int> getFMStats() {
+    // Ham verileri 0-99 alıp 1-20'ye çeviriyoruz
+    var raw = getCardStats();
+
+    // Özel hesaplamalar (Karma özellikler)
+    int rawPos = ((raw['DEF']! + raw['PAS']!) / 2).round();
+    int rawVis = ((raw['PAS']! + raw['DRI']!) / 2).round();
+
+    return {
+      "Hız": (raw['PAC']! / 5).round().clamp(1, 20),
+      "Şut": (raw['SHO']! / 5).round().clamp(1, 20),
+      "Pas": (raw['PAS']! / 5).round().clamp(1, 20),
+      "Dripling": (raw['DRI']! / 5).round().clamp(1, 20),
+      "Defans": (raw['DEF']! / 5).round().clamp(1, 20),
+      "Fizik": (raw['PHY']! / 5).round().clamp(1, 20),
+      "Pozisyon": (rawPos / 5).round().clamp(1, 20),
+      "Vizyon": (rawVis / 5).round().clamp(1, 20),
+    };
   }
 
   void calculateSmartRating() {
@@ -266,8 +289,20 @@ class Player extends HiveObject {
   }
 
   Map<String, int> getCardStats() {
-    if (stats.isEmpty)
-      return {"PAC": 50, "SHO": 50, "PAS": 50, "DRI": 50, "DEF": 50, "PHY": 50};
+    if (stats.isEmpty) {
+      // Statlar boşsa Rating üzerinden tahmini değerler üret
+      int base = rating;
+      if (base < 40) base = 40;
+      return {
+        "PAC": base - 5,
+        "SHO": base - 10,
+        "PAS": base - 5,
+        "DRI": base,
+        "DEF": base - 30,
+        "PHY": base - 10
+      };
+    }
+
     if (position.contains("GK") || position.contains("(1)")) {
       return {
         "REF": stats["Reflex"] ?? 50,
