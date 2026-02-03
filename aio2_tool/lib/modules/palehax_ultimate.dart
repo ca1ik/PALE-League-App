@@ -6,9 +6,12 @@ import 'package:provider/provider.dart';
 import '../data/player_data.dart';
 import '../services/database_service.dart';
 import '../ui/fc_animated_card.dart';
+// Yeni eklediğimiz Maç Motoru importu
+import '../modules/palehax_match_engine.dart';
 
 class UltimateTeamProvider extends ChangeNotifier {
   List<Player> myClub = [];
+  // 7 Kişilik Halı Saha Düzeni
   List<Player> startingXI = List.filled(
       7, Player(name: "BOŞ", rating: 0, position: "", playstyles: []));
 
@@ -75,6 +78,7 @@ class _UltimateBodyState extends State<_UltimateBody> {
         ],
       ),
       body: Row(children: [
+        // SAHA ALANI (SOL)
         Expanded(
             flex: 3,
             child: Container(
@@ -92,9 +96,90 @@ class _UltimateBodyState extends State<_UltimateBody> {
                   _buildPosition(context, 5, "RW", 0.8, 0.3),
                   _buildPosition(context, 6, "ST", 0.5, 0.15)
                 ]))),
-        }
-    
-  };
+
+        // YAN MENÜ (SAĞ)
+        Container(
+            width: 350,
+            color: const Color(0xFF15151E),
+            padding: const EdgeInsets.all(15),
+            child: Column(children: [
+              _buildPackSection(context, provider),
+
+              // --- YENİ EKLENEN VS BUTONU ---
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.symmetric(vertical: 10),
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      padding: const EdgeInsets.all(15)),
+                  icon: const Icon(Icons.sports_esports, color: Colors.white),
+                  label: const Text("ONLİNE VS AT",
+                      style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    // İlk 11'deki boş olmayan oyuncuları al
+                    List<Player> myTeam =
+                        provider.startingXI.where((p) => p.rating > 0).toList();
+
+                    if (myTeam.length < 5) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text(
+                              "Maça çıkmak için en az 5 oyuncu yerleştir!"),
+                          backgroundColor: Colors.red));
+                      return;
+                    }
+
+                    // Rakip Takım Oluştur (Bot)
+                    List<Player> oppTeam = List.generate(
+                        7,
+                        (i) => Player(
+                            name: "Rakip $i",
+                            rating:
+                                75 + Random().nextInt(15), // 75-90 arası rating
+                            position: "(9) ST",
+                            playstyles: [],
+                            cardType: "Temel"));
+
+                    // Maç Motoruna Git
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (c) => MatchEngineView(
+                                myTeam: myTeam, oppTeam: oppTeam)));
+                  },
+                ),
+              ),
+              // ------------------------------
+
+              const Divider(color: Colors.white24),
+              const Text("KULÜBÜM",
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold)),
+              Expanded(
+                  child: GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3, childAspectRatio: 0.7),
+                      itemCount: provider.myClub.length,
+                      itemBuilder: (c, i) {
+                        return Draggable<Player>(
+                            data: provider.myClub[i],
+                            feedback: SizedBox(
+                                width: 80,
+                                child:
+                                    FCAnimatedCard(player: provider.myClub[i])),
+                            child: GestureDetector(
+                                onTap: () {},
+                                child: Transform.scale(
+                                    scale: 0.8,
+                                    child: FCAnimatedCard(
+                                        player: provider.myClub[i]))));
+                      }))
+            ]))
+      ]),
+    );
+  }
 
   Widget _buildPosition(
       BuildContext context, int index, String label, double x, double y) {
@@ -170,7 +255,7 @@ class _UltimateBodyState extends State<_UltimateBody> {
       int minRating,
       {bool isStarter = false, int? rewardId}) async {
     final db = Provider.of<AppDatabase>(context, listen: false);
-    // DÜZELTME: getAllPlayersFuture yerine watchAllPlayers().first kullanıyoruz
+    // Veritabanından oyuncuları çek
     final rawList = await db.watchAllPlayers().first;
 
     // Veritabanı tip dönüşümü (dynamic -> Player)
@@ -204,7 +289,6 @@ class _UltimateBodyState extends State<_UltimateBody> {
     List<Player> newCards = [];
     Random rnd = Random();
     for (int i = 0; i < count; i++) {
-      // Algoritma burada çalışır
       int roll = rnd.nextInt(100);
       int targetMin = minRating;
       int targetMax = minRating + 5;
