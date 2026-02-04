@@ -1,646 +1,398 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../data/player_data.dart';
-
-// --- GELİŞMİŞ FİZİK MODELLERİ ---
-
-class Vector2 {
-  double x, y;
-  Vector2(this.x, this.y);
-
-  void add(Vector2 v) {
-    x += v.x;
-    y += v.y;
 import '../services/database_service.dart';
+import '../ui/fc_animated_card.dart';
 import 'palehax_match_engine.dart';
 
 class UltimateTeamProvider extends ChangeNotifier {
-  }
-
-  void scale(double s) {
-    x *= s;
-    y *= s;
-  }
-
-  double distanceTo(Vector2 v) => sqrt(pow(x - v.x, 2) + pow(y - v.y, 2));
-
-  // Vektör normalizasyonu (Yön bulma)
-  Vector2 normalized() {
-    double len = sqrt(x * x + y * y);
-    if (len == 0) return Vector2(0, 0);
-    return Vector2(x / len, y / len);
-  }
-}
-
-class SimPlayer {
-  final Player data;
-  Vector2 pos; // Anlık Konum
-  Vector2 velocity; // Hız Vektörü
-  Vector2 target; // Gitmek istediği yer
-
-  bool isHome;
-  String role; // GK, DEF, MID, FWD
-
-  // FM Statları (1-20)
-  late int pac, sho, pas, dri, def, phy;
-
-  // Anlık Durum
-  double stamina = 100.0;
-  int actionCooldown = 0; // Yapay zeka düşünme süresi
-
-  SimPlayer(this.data, double x, double y, this.isHome, this.role)
-      : pos = Vector2(x, y),
-        velocity = Vector2(0, 0),
-        target = Vector2(x, y) {
-    var stats = data.getFMStats();
-    pac = stats['Hız']!;
-    sho = stats['Şut']!;
-    pas = stats['Pas']!;
-    dri = stats['Dripling']!;
-    def = stats['Defans']!;
-    phy = stats['Fizik']!;
-  }
-}
-
-class Ball {
-  Vector2 pos;
-  Vector2 velocity;
-  SimPlayer? owner; // Top kimde? (Null ise serbest)
-
-  Ball()
-      : pos = Vector2(0.5, 0.5),
-        velocity = Vector2(0, 0);
-}
-
-// --- ANA WIDGET ---
-
-class MatchEngineView extends StatefulWidget {
-  final List<Player> myTeam;
-  final List<Player> oppTeam;
-  final Function(bool isWin) onMatchEnd;
-
-  const MatchEngineView({
-    super.key,
-    required this.myTeam,
-    required this.oppTeam,
-    required this.onMatchEnd,
-  });
-
-  @override
-  State<MatchEngineView> createState() => _MatchEngineViewState();
-}
-
-class _MatchEngineViewState extends State<MatchEngineView>
-    with SingleTickerProviderStateMixin {
-  // Ayarlar
-  final int fps = 60; // Saniyedeki kare sayısı
-  final double friction = 0.96; // Zemin sürtünmesi (Top yavaşlar)
-  final double playerSpeedBase = 0.002; // Oyuncu temel hızı
-
-  late Timer _gameTimer;
-  int _ticks = 0;
-  int matchDurationSeconds = 45; // Maç süresi
-
-  // Oyun Nesneleri
-  List<SimPlayer> homeTeam = [];
-  List<SimPlayer> awayTeam = [];
-  Ball ball = Ball();
-
-  // Skor ve Durum
-  int homeScore = 0;
-  int awayScore = 0;
-  bool isGoalAnim = false;
-  String goalText = "";
-  List<String> logs = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _initMatch();
-  }
-
-  void _initMatch() {
-    // Takımları Sahaya Diz
-    _deploySquad(widget.myTeam, homeTeam, true);
-    _deploySquad(widget.oppTeam, awayTeam, false);
-
-    // Topu Santraya Koy
-    _resetKickOff(true);
-
-    // Oyun Döngüsünü Başlat
-    _gameTimer = Timer.periodic(Duration(milliseconds: 1000 ~/ fps), (timer) {
-      if (!mounted) return;
-      if (_ticks >= matchDurationSeconds * fps) {
-        _finishMatch();
-      } else {
-        _updatePhysics();
-        _updateAI();
-        setState(() {
-          _ticks++;
-        });
-      }
-    });
-
-    _addLog("MAÇ BAŞLADI! Başarılar...");
-  }
-
-  void _deploySquad(List<Player> source, List<SimPlayer> target, bool isHome) {
-    target.clear();
-    // Sıralama: GK -> DEF -> MID -> FWD
-    var sorted = List<Player>.from(source);
-    // Basit bir sıralama mantığı
-    sorted.sort((a, b) {
-      int scoreA = a.position.contains("GK")
-          ? 0
-          : a.position.contains("DEF")
-              ? 1
-              : a.position.contains("MID")
-                  ? 2
-                  : 3;
-      int scoreB = b.position.contains("GK")
-          ? 0
-          : b.position.contains("DEF")
-              ? 1
-              : b.position.contains("MID")
-                  ? 2
-                  : 3;
-      return scoreA.compareTo(scoreB);
-    });
-
-    for (int i = 0; i < min(sorted.length, 7); i++) {
-      Player p = sorted[i];
-      String role = i == 0
-          ? "GK"
-          : i < 3
-              ? "DEF"
-              : i < 5
-                  ? "MID"
-                  : "FWD";
-
-      // Başlangıç Koordinatları
-      double x = isHome ? 0.1 : 0.9;
-      double y = 0.5;
-
-      if (role == "GK") {
-        x = isHome ? 0.05 : 0.95;
-        y = 0.5;
-      } else if (role == "DEF") {
-        x = isHome ? 0.25 : 0.75;
-        y = (i % 2 == 0) ? 0.3 : 0.7;
-      } else if (role == "MID") {
-        x = isHome ? 0.5 : 0.5;
-        y = (i % 2 == 0) ? 0.4 : 0.6;
-      } // Santra
-      else {
-        x = isHome ? 0.75 : 0.25;
-        y = 0.5;
-      } // FWD
-
-      target.add(SimPlayer(p, x, y, isHome, role));
-    }
-  }
-
-  void _finishMatch() {
-    _gameTimer.cancel();
-    widget.onMatchEnd(homeScore > awayScore);
-  }
-
-  // --- FİZİK MOTORU ---
-  void _updatePhysics() {
-    if (isGoalAnim) return;
-
-    // 1. Top Hareketi
-    if (ball.owner == null) {
-      // Top serbest, fizik kurallarına uy
-      ball.pos.add(ball.velocity);
-      ball.velocity.scale(friction); // Sürtünme
-
-      // Duvarlardan Sekme (Wall Bounce)
-      if (ball.pos.y <= 0.02 || ball.pos.y >= 0.98) {
-        ball.velocity.y *= -0.8; // Esneklik kaybı ile sekme
-        ball.pos.y = ball.pos.y.clamp(0.02, 0.98);
-      }
-
-      // Kale Arkası (Korner yok, duvar var)
-      if ((ball.pos.x < 0.0 && (ball.pos.y < 0.35 || ball.pos.y > 0.65)) ||
-          (ball.pos.x > 1.0 && (ball.pos.y < 0.35 || ball.pos.y > 0.65))) {
-        ball.velocity.x *= -0.8;
-        ball.pos.x = ball.pos.x.clamp(0.0, 1.0);
-      }
-
-      // GOL KONTROLÜ
-      if (ball.pos.x < -0.05 && ball.pos.y > 0.35 && ball.pos.y < 0.65) {
-        _goalScored(false); // Deplasman attı
-      } else if (ball.pos.x > 1.05 && ball.pos.y > 0.35 && ball.pos.y < 0.65) {
-        _goalScored(true); // Ev sahibi attı
-      }
-    } else {
-      // Top oyuncuda, oyuncuyla beraber hareket et
-      // Oyuncu dribbling yaparken topu biraz önünde tutar
-      double offsetX = ball.owner!.isHome ? 0.015 : -0.015;
-      ball.pos.x = ball.owner!.pos.x + offsetX;
-      ball.pos.y = ball.owner!.pos.y;
-      ball.velocity.x = 0;
-      ball.velocity.y = 0;
-    }
-
-    // 2. Oyuncu Hareketi (İvmelenme mantığı)
-    for (var p in [...homeTeam, ...awayTeam]) {
-      // Hedefe doğru vektör
-      double dx = p.target.x - p.pos.x;
-      double dy = p.target.y - p.pos.y;
-      double dist = sqrt(dx * dx + dy * dy);
-
-      if (dist > 0.005) {
-        // Hız Statına Göre Hareket
-        // Hız 1 ise -> 0.002, Hız 20 ise -> 0.005
-        double speed = playerSpeedBase + (p.pac * 0.00015);
-        if (p == ball.owner) speed *= 0.85; // Topla koşan yavaşlar
-
-        p.pos.x += (dx / dist) * speed;
-        p.pos.y += (dy / dist) * speed;
-      }
-
-      // Saha Sınırları
-      p.pos.x = p.pos.x.clamp(0.01, 0.99);
-      p.pos.y = p.pos.y.clamp(0.01, 0.99);
-    }
-  }
-
-  // --- YAPAY ZEKA (AI) ---
-  void _updateAI() {
-    if (isGoalAnim) return;
-    Random rng = Random();
-    List<SimPlayer> allPlayers = [...homeTeam, ...awayTeam];
-
-    // 1. TOP KAPMA VE SAHİPLENME
-    if (ball.owner == null) {
-      // Topa en yakın oyuncuyu bul
-      SimPlayer? nearest;
-      double minDist = 100.0;
-      for (var p in allPlayers) {
-        double d = p.pos.distanceTo(ball.pos);
-        if (d < minDist) {
-          minDist = d;
-          nearest = p;
-        }
-      }
-
-      // Topa koş
-      if (nearest != null) {
-        nearest.target = Vector2(ball.pos.x, ball.pos.y);
-
-        // Topu alma mesafesi
-        if (minDist < 0.02) {
-          ball.owner = nearest;
-          // _addLog("${nearest.data.name} topu kontrol etti.");
-        }
-      }
-    }
-
-    // 2. TOP SAHİBİ KARARLARI
-    if (ball.owner != null) {
-      SimPlayer p = ball.owner!;
-      p.actionCooldown++;
-
-      // Rakip oyuncu yakınlığı (Pres)
-      SimPlayer? nearestOpponent;
-      double oppDist = 100.0;
-      for (var opp in allPlayers) {
-        if (opp.isHome != p.isHome) {
-          double d = p.pos.distanceTo(opp.pos);
-          if (d < oppDist) {
-            oppDist = d;
-            nearestOpponent = opp;
-          }
-        }
-      }
-
-      // TACKLE (Top Çalma)
-      if (oppDist < 0.02 && nearestOpponent != null) {
-        // Defans vs Dripling
-        int rollDef = nearestOpponent.def + rng.nextInt(10);
-        int rollDri = p.dri + rng.nextInt(10);
-
-        if (rollDef > rollDri) {
-          _addLog("⚔️ ${nearestOpponent.data.name} topu kazandı!");
-          ball.owner = nearestOpponent;
-          p.actionCooldown = -20; // Kaybeden afallar
-          return;
-        }
-      }
-
-      // Karar Verme (Her 10 frame'de bir veya baskı altındaysa)
-      if (p.actionCooldown > 20 || (oppDist < 0.1 && p.actionCooldown > 5)) {
-        p.actionCooldown = 0;
-
-        // Şut Mesafesi?
-        bool canShoot = p.isHome ? p.pos.x > 0.75 : p.pos.x < 0.25;
-
-        if (canShoot) {
-          // Şut Çek (%30 + Şut Statı)
-          if (rng.nextInt(40) < p.sho) {
-            _actionShoot(p);
-            return;
-          }
-        }
-
-        // Pas Ver (%50 + Vizyon)
-        if (rng.nextInt(30) < p.pas) {
-          _actionPass(p);
-          return;
-        }
-
-        // Dripling Yap (Hedef kale)
-        p.target.x = p.isHome ? 1.0 : 0.0;
-        p.target.y = 0.5;
-
-        // Önünde adam varsa kenara kay (Wall Dribble)
-        if (oppDist < 0.15 && nearestOpponent != null) {
-          if (p.pos.y > nearestOpponent.pos.y)
-            p.target.y = 0.9;
-          else
-            p.target.y = 0.1;
-        }
-      }
-    }
-
-    // 3. TOP SUZ OYUNCULARIN HAREKETİ
-    for (var p in allPlayers) {
-      if (p == ball.owner) continue;
-
-      // Varsayılan Formasyon Konumu (BaseX, BaseY)
-      // Bunu SimPlayer içinde tutmadık, burada dinamik hesaplayalım
-      double formX = 0.5, formY = 0.5;
-
-      // Basit rol konumu (setup kısmındaki gibi)
-      if (p.role == "GK") {
-        formX = p.isHome ? 0.05 : 0.95;
-      } else if (p.role == "DEF") {
-        formX = p.isHome ? 0.25 : 0.75;
-      } else if (p.role == "MID") {
-        formX = 0.5;
-      } else {
-        formX = p.isHome ? 0.75 : 0.25;
-      } // FWD
-
-      // Topun konumuna göre kayma (Shift)
-      double shiftX = (ball.pos.x - 0.5) * 0.5;
-
-      // Hücumdaysak ileri çık, defanstaysak geri gel
-      bool attacking = (ball.owner != null && ball.owner!.isHome == p.isHome);
-
-      if (p.role != "GK") {
-        if (attacking) {
-          // Boşa kaç
-          p.target.x = formX + shiftX + (p.isHome ? 0.1 : -0.1);
-          p.target.y =
-              ball.pos.y + (p.pos.y > 0.5 ? 0.2 : -0.2); // Pas kanalı aç
-        } else {
-          // Markaj / Kademe
-          p.target.x = formX + shiftX;
-          // Top ile kale arasına gir
-          p.target.y = ball.pos.y * 0.5 + 0.25;
-        }
-      } else {
-        // Kaleci topu takip eder
-        p.target.y = ball.pos.y.clamp(0.4, 0.6);
-      }
-    }
-  }
-
-  // --- AKSİYONLAR ---
-
-  void _actionPass(SimPlayer p) {
-    Random rng = Random();
-    List<SimPlayer> mates = p.isHome ? homeTeam : awayTeam;
-    // İlerideki boş arkadaşı bul
-    var candidates = mates
-        .where(
-            (m) => m != p && (p.isHome ? m.pos.x > p.pos.x : m.pos.x < p.pos.x))
-        .toList();
-
-    if (candidates.isNotEmpty) {
-      SimPlayer target = candidates[rng.nextInt(candidates.length)];
-
-      // Pas Hatası Hesabı (20 üzerinden stat)
-      // Pas=20 -> Hata 0.0, Pas=1 -> Hata 0.4 radyan
-      double error = (20 - p.pas) * 0.02;
-      double angle = atan2(target.pos.y - p.pos.y, target.pos.x - p.pos.x);
-      angle += (rng.nextDouble() - 0.5) * error;
-
-      double power = 0.025 + (p.phy * 0.0005); // Sert pas
-
-      ball.owner = null;
-      ball.velocity.x = cos(angle) * power;
-      ball.velocity.y = sin(angle) * power;
-
-      // _addLog("👟 ${p.data.name} pas verdi.");
-    }
-  }
-
-  void _actionShoot(SimPlayer p) {
-    Random rng = Random();
-
-    // Hedef Kale
-    double tx = p.isHome ? 1.0 : 0.0;
-    double ty = 0.5; // 90'a asmak ister
-
-    // Şut Hatası
-    double error = (20 - p.sho) * 0.015;
-    double angle = atan2(ty - p.pos.y, tx - p.pos.x);
-    angle += (rng.nextDouble() - 0.5) * error;
-
-    double power = 0.045 + (p.phy * 0.001); // Roket şut
-
-    ball.owner = null;
-    ball.velocity.x = cos(angle) * power;
-    ball.velocity.y = sin(angle) * power;
-
-    _addLog("🚀 ${p.data.name} kaleyi yokladı!");
-  }
-
-  void _goalScored(bool home) {
-    setState(() {
-      isGoalAnim = true;
-      if (home) {
-        homeScore++;
-        goalText = "GOOOL! EV SAHİBİ!";
-      } else {
-        awayScore++;
-        goalText = "GOOOL! DEPLASMAN!";
-      }
-      _addLog(goalText);
-    });
-
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          isGoalAnim = false;
-          _resetKickOff(!home);
-        });
-      }
+  List<Player> myClub = [];
+  List<Player> startingXI = List.filled(
+      7, Player(name: "BOŞ", rating: 0, position: "", playstyles: []));
+  int secondsActive = 0;
+  Timer? _timer;
+  bool claimedFirstPack = false;
+  bool claimed15m = false;
+  bool claimed30m = false;
+
+  void startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      secondsActive++;
+      if (!claimed15m && secondsActive >= 900) notifyListeners();
+      if (!claimed30m && secondsActive >= 1800) notifyListeners();
+      notifyListeners();
     });
   }
 
-  void _resetKickOff(bool homeStarts) {
-    ball.pos = Vector2(0.5, 0.5);
-    ball.velocity = Vector2(0, 0);
-    // Santra yapan takımın forvetine ver
-    ball.owner = homeStarts ? homeTeam.last : awayTeam.last;
-
-    // Herkesi resetle
-    for (var p in [...homeTeam, ...awayTeam]) {
-      // Setup'taki mantıkla yaklaşık yerlerine ışınla (Basitlik için)
-      // Gerçekçilik için koşarak dönmeleri lazım ama süre kısıtlı
-      if (p.role == "GK")
-        p.pos.x = p.isHome ? 0.05 : 0.95;
-      else if (p.role == "FWD")
-        p.pos.x = p.isHome ? 0.55 : 0.45; // Santra
-      else
-        p.pos.x = p.isHome ? 0.25 : 0.75;
-    }
-  }
-
-  void _addLog(String t) {
-    int min = (_ticks / fps / 60 * 90).toInt(); // Dakika hesabı
-    logs.insert(0, "$min' $t");
+  void stopTimer() {
+    _timer?.cancel();
   }
 
   @override
   void dispose() {
-    _gameTimer.cancel();
+    stopTimer();
     super.dispose();
+  }
+
+  void addPlayerToClub(Player p) {
+    if (!myClub.any((e) => e.name == p.name && e.cardType == p.cardType)) {
+      myClub.add(p);
+      notifyListeners();
+    }
+  }
+
+  void setStarter(int i, Player p) {
+    startingXI[i] = p;
+    notifyListeners();
+  }
+
+  void autoBuild() {
+    startingXI = List.filled(
+        7, Player(name: "BOŞ", rating: 0, position: "", playstyles: []));
+    Set<String> used = {};
+    var pool = List<Player>.from(myClub)
+      ..sort((a, b) => b.rating.compareTo(a.rating));
+
+    Player? find(List<String> pos, String stat) {
+      Player? best;
+      int m = -1;
+      for (var p in pool) {
+        if (used.contains(p.name)) continue;
+        // HATA DÜZELTME: (?? 10) eklendi. Stat null gelirse varsayılan 10 kullanır.
+        int s = p.rating +
+            (pos.any((x) => p.position.contains(x))
+                ? 50
+                : (p.getFMStats()[stat] ?? 10) * 2);
+        if (s > m) {
+          m = s;
+          best = p;
+        }
+      }
+      if (best != null) used.add(best.name);
+      return best;
+    }
+
+    startingXI[0] = find(["GK"], "Refleks") ?? startingXI[0];
+    startingXI[1] = find(["DEF", "CB"], "Defans") ?? startingXI[1];
+    startingXI[2] = find(["DEF", "LB", "RB"], "Defans") ?? startingXI[2];
+    startingXI[3] = find(["MID", "CDM"], "Pas") ?? startingXI[3];
+    startingXI[4] = find(["MID", "CAM"], "Vizyon") ?? startingXI[4];
+    startingXI[5] = find(["ST", "FWD"], "Şut") ?? startingXI[5];
+    startingXI[6] = find(["RW", "LW", "ST"], "Hız") ?? startingXI[6];
+    notifyListeners();
+  }
+}
+
+class UltimateTeamView extends StatelessWidget {
+  final AppDatabase database;
+  const UltimateTeamView({super.key, required this.database});
+  @override
+  Widget build(BuildContext context) => const _UltimateBody();
+}
+
+class _UltimateBody extends StatefulWidget {
+  const _UltimateBody();
+  @override
+  State<_UltimateBody> createState() => _UltimateBodyState();
+}
+
+class _UltimateBodyState extends State<_UltimateBody> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<UltimateTeamProvider>().startTimer();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    var prov = Provider.of<UltimateTeamProvider>(context);
+    if (prov.myClub.isEmpty && !prov.claimedFirstPack) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _openStarter(context, prov));
+    }
+
     return Scaffold(
-      backgroundColor: const Color(0xFF101010),
+      backgroundColor: const Color(0xFF0D0D12),
       appBar: AppBar(
-          title: const Text("PRO SİMÜLASYON"),
-          backgroundColor: Colors.transparent,
-          automaticallyImplyLeading: false),
-      body: Column(
-        children: [
-          // SKORBORD
-          Container(
-            height: 80,
-            color: const Color(0xFF202020),
-            child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Text("$homeScore",
-                      style: GoogleFonts.russoOne(
-                          fontSize: 50, color: Colors.cyan)),
-                  Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text("${(_ticks / fps / 60 * 90).toInt()}'",
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 20)),
-                        const Text("CANLI",
-                            style: TextStyle(color: Colors.green, fontSize: 10))
-                      ]),
-                  Text("$awayScore",
-                      style: GoogleFonts.russoOne(
-                          fontSize: 50, color: Colors.red)),
-                ]),
-          ),
-
-          // SAHA
-          Expanded(
-            flex: 5,
+          title: Text("ULTIMATE TEAM",
+              style: GoogleFonts.orbitron(color: Colors.amber)),
+          actions: [
+            ElevatedButton.icon(
+                onPressed: () {
+                  prov.autoBuild();
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text("En iyi kadro kuruldu!"),
+                      backgroundColor: Colors.green));
+                },
+                icon: const Icon(Icons.auto_fix_high),
+                label: const Text("OTOMATİK DİZ"),
+                style:
+                    ElevatedButton.styleFrom(backgroundColor: Colors.indigo)),
+            const SizedBox(width: 20)
+          ]),
+      body: Row(children: [
+        Expanded(
+            flex: 4,
             child: Container(
-              margin: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                  border: Border.all(color: Colors.white24, width: 4),
-                  borderRadius: BorderRadius.circular(10),
-                  image: const DecorationImage(
-                      image: AssetImage("assets/pitch_bg.png"),
-                      fit: BoxFit.cover)),
-              child: ClipRect(
-                child: Stack(
-                  children: [
-                    // OYUNCULAR
-                    ...homeTeam.map((p) => _buildPlayer(p, Colors.cyan)),
-                    ...awayTeam.map((p) => _buildPlayer(p, Colors.red)),
-
-                    // TOP
-                    AnimatedAlign(
-                      duration:
-                          const Duration(milliseconds: 16), // 60 FPS akıcılık
-                      alignment:
-                          Alignment(ball.pos.x * 2 - 1, ball.pos.y * 2 - 1),
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.black),
-                            boxShadow: const [
-                              BoxShadow(color: Colors.black54, blurRadius: 4)
-                            ]),
-                      ),
-                    ),
-
-                    // GOL OVERLAY
-                    if (isGoalAnim)
-                      Center(
-                          child: Text("GOL!",
-                              style: GoogleFonts.russoOne(
-                                  fontSize: 100, color: Colors.white)))
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // LOGLAR
-          Expanded(
-            flex: 2,
-            child: Container(
-              color: Colors.black,
-              child: ListView.builder(
-                itemCount: logs.length,
-                itemBuilder: (c, i) => Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                  child: Text(logs[i],
+                margin: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: Colors.white12),
+                    image: const DecorationImage(
+                        image: AssetImage("assets/pitch_bg.png"),
+                        fit: BoxFit.cover,
+                        opacity: 0.4,
+                        onError: (e, s) {})),
+                child: LayoutBuilder(builder: (c, cons) {
+                  double w = cons.maxWidth, h = cons.maxHeight;
+                  return Stack(children: [
+                    _pos(context, 0, "GK", w * 0.5, h * 0.85),
+                    _pos(context, 1, "DEF", w * 0.25, h * 0.65),
+                    _pos(context, 2, "DEF", w * 0.75, h * 0.65),
+                    _pos(context, 3, "MID", w * 0.4, h * 0.45),
+                    _pos(context, 4, "MID", w * 0.6, h * 0.45),
+                    _pos(context, 5, "FWD", w * 0.3, h * 0.25),
+                    _pos(context, 6, "FWD", w * 0.7, h * 0.25),
+                  ]);
+                }))),
+        Container(
+            width: 380,
+            color: const Color(0xFF15151E),
+            padding: const EdgeInsets.all(10),
+            child: Column(children: [
+              ElevatedButton(
+                  onPressed: () => _vs(context, prov),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      minimumSize: const Size(double.infinity, 60)),
+                  child: const Text("ONLİNE VS AT",
                       style: TextStyle(
-                          color: logs[i].contains("GOL")
-                              ? Colors.greenAccent
-                              : Colors.white70,
-                          fontSize: 12)),
-                ),
-              ),
-            ),
-          )
-        ],
-      ),
+                          fontSize: 20, fontWeight: FontWeight.bold))),
+              const Divider(color: Colors.white24, height: 30),
+              _packs(context, prov),
+              Expanded(
+                  child: GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3, childAspectRatio: 0.65),
+                      itemCount: prov.myClub.length,
+                      itemBuilder: (c, i) => Draggable<Player>(
+                          data: prov.myClub[i],
+                          feedback: SizedBox(
+                              width: 80,
+                              child: FCAnimatedCard(player: prov.myClub[i])),
+                          child: InkWell(
+                              onTap: () => _showFM(context, prov.myClub[i]),
+                              child: FCAnimatedCard(player: prov.myClub[i])))))
+            ]))
+      ]),
     );
   }
 
-  Widget _buildPlayer(SimPlayer p, Color c) {
-    return AnimatedAlign(
-      duration: const Duration(milliseconds: 100), // Hareket yumuşatma
-      alignment: Alignment(p.pos.x * 2 - 1, p.pos.y * 2 - 1),
-      child: Container(
-        width: 20,
-        height: 20,
-        decoration: BoxDecoration(
-            color: c,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white),
-            boxShadow: [BoxShadow(color: c.withOpacity(0.5), blurRadius: 5)]),
-        child: Center(
-            child: Text(p.role[0],
-                style:
-                    const TextStyle(fontSize: 8, fontWeight: FontWeight.bold))),
-      ),
-    );
+  Widget _packs(BuildContext c, UltimateTeamProvider p) => Column(children: [
+        if (!p.claimed15m && p.secondsActive >= 900)
+          ElevatedButton(
+              onPressed: () => _openPack(c, p, 1, 70, rid: 1),
+              child: const Text("15DK ÖDÜLÜ (+70)")),
+        if (!p.claimed30m && p.secondsActive >= 1800)
+          ElevatedButton(
+              onPressed: () => _openPack(c, p, 1, 75, rid: 2),
+              child: const Text("30DK ÖDÜLÜ (+75)")),
+      ]);
+
+  Widget _pos(BuildContext context, int i, String l, double x, double y) {
+    var p = context.watch<UltimateTeamProvider>().startingXI[i];
+    return Positioned(
+        left: x - 55,
+        top: y - 75,
+        child: DragTarget<Player>(
+            onAccept: (d) =>
+                context.read<UltimateTeamProvider>().setStarter(i, d),
+            builder: (c, cand, rej) => SizedBox(
+                width: 110,
+                height: 150,
+                child: p.rating > 0
+                    ? InkWell(
+                        onTap: () => _showFM(context, p),
+                        child: FCAnimatedCard(player: p))
+                    : Container(
+                        color: Colors.black45,
+                        child: Center(
+                            child: Text(l,
+                                style: const TextStyle(
+                                    color: Colors.white38)))))));
+  }
+
+  void _vs(BuildContext context, UltimateTeamProvider prov) {
+    var myTeam = prov.startingXI.where((p) => p.rating > 0).toList();
+    if (myTeam.length < 7) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Lütfen 7 oyuncuyu da dizin!")));
+      return;
+    }
+    double avg = myTeam.map((e) => e.rating).reduce((a, b) => a + b) / 7;
+    var opp = List.generate(
+        7,
+        (i) => Player(
+            name: "Rakip $i",
+            rating: (avg + Random().nextInt(4) - 2).toInt(),
+            position: i == 0 ? "GK" : "ST",
+            playstyles: [],
+            cardType: "Temel"));
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (c) => MatchEngineView(
+                myTeam: myTeam,
+                oppTeam: opp,
+                onMatchEnd: (w) {
+                  Navigator.pop(context);
+                  if (w)
+                    _openPack(context, prov, 1, 75);
+                  else
+                    _openPack(context, prov, 1, 70);
+                })));
+  }
+
+  void _showFM(BuildContext context, Player p) {
+    var s = p.getFMStats();
+    showDialog(
+        context: context,
+        builder: (c) => Dialog(
+            backgroundColor: const Color(0xFF1E1E24),
+            child: Container(
+                width: 700,
+                height: 500,
+                padding: const EdgeInsets.all(20),
+                child: Row(children: [
+                  SizedBox(width: 200, child: FCAnimatedCard(player: p)),
+                  const VerticalDivider(color: Colors.white12),
+                  Expanded(
+                      child: GridView.count(
+                          crossAxisCount: 2,
+                          childAspectRatio: 4,
+                          children: s.entries
+                              .map((e) => ListTile(
+                                  title: Text(e.key,
+                                      style: const TextStyle(
+                                          color: Colors.white70)),
+                                  trailing: Text("${e.value}",
+                                      style: TextStyle(
+                                          color: e.value > 15
+                                              ? Colors.green
+                                              : Colors.amber,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold))))
+                              .toList()))
+                ]))));
+  }
+
+  Player _convert(dynamic row) {
+    Map<String, int> st = {};
+    List<PlayStyle> ps = [];
+    try {
+      if (row.statsJson != null)
+        st = Map<String, int>.from(jsonDecode(row.statsJson));
+    } catch (e) {}
+    try {
+      if (row.playStylesJson != null)
+        ps = (jsonDecode(row.playStylesJson) as List)
+            .map((e) => PlayStyle(e.toString()))
+            .toList();
+    } catch (e) {}
+    return Player(
+        name: row.name,
+        rating: row.rating,
+        position: row.position,
+        playstyles: ps,
+        cardType: row.cardType,
+        team: row.team,
+        stats: st,
+        role: row.role ?? "Yok");
+  }
+
+  void _openStarter(BuildContext context, UltimateTeamProvider prov) async {
+    final db = Provider.of<AppDatabase>(context, listen: false);
+    final raw = await db.watchAllPlayers().first;
+    if (raw.isEmpty) return;
+    var all = raw.map((r) => _convert(r)).toList();
+    List<Player> pack = [];
+    Random r = Random();
+    void add(int n, int min, int max) {
+      var sub = all.where((p) => p.rating >= min && p.rating < max).toList();
+      for (int i = 0; i < n; i++)
+        if (sub.isNotEmpty) pack.add(sub.removeAt(r.nextInt(sub.length)));
+    }
+
+    add(7, 70, 75);
+    add(3, 75, 80);
+    add(2, 80, 99);
+    for (var p in pack) prov.addPlayerToClub(p);
+    prov.claimedFirstPack = true;
+    showDialog(
+        context: context,
+        builder: (c) => AlertDialog(
+            backgroundColor: Colors.black,
+            title: const Text("HOŞ GELDİN! 12 KART KAZANDIN",
+                style: TextStyle(color: Colors.amber)),
+            content: SizedBox(
+                width: 600,
+                height: 200,
+                child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: pack
+                        .map((p) => Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: FCAnimatedCard(player: p)))
+                        .toList()))));
+  }
+
+  void _openPack(
+      BuildContext context, UltimateTeamProvider prov, int count, int min,
+      {int? rid}) async {
+    final db = Provider.of<AppDatabase>(context, listen: false);
+    final raw = await db.watchAllPlayers().first;
+    var all = raw.map((r) => _convert(r)).toList();
+    List<Player> pack = [];
+    Random r = Random();
+    for (int i = 0; i < count; i++) {
+      var cand = all.where((p) => p.rating >= min).toList();
+      if (cand.isEmpty) cand = all;
+      pack.add(cand[r.nextInt(cand.length)]);
+    }
+    for (var p in pack) prov.addPlayerToClub(p);
+    if (rid == 1) prov.claimed15m = true;
+    if (rid == 2) prov.claimed30m = true;
+    showDialog(
+        context: context,
+        builder: (c) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                    color: Colors.black87,
+                    border: Border.all(color: Colors.amber)),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text("PAKET AÇILDI!",
+                      style: GoogleFonts.russoOne(
+                          color: Colors.amber, fontSize: 30)),
+                  SizedBox(
+                      height: 250,
+                      width: 400,
+                      child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: pack
+                              .map((p) => Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: FCAnimatedCard(player: p)))
+                              .toList()))
+                ]))));
   }
 }
