@@ -16,6 +16,7 @@ class PlayerAdapter extends TypeAdapter<Player> {
       matches: (reader.read() as List).cast<MatchStat>(),
       team: reader.read(),
       stats: (reader.read() as Map?)?.cast<String, int>() ?? {},
+  Player read(BinaryReader reader) {
       role: reader.read() ?? "Yok",
       skillMoves: reader.read() ?? 3,
       country: reader.read() ?? "Türkiye",
