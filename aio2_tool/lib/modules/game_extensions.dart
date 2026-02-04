@@ -1,3 +1,4 @@
+import '../data/player_data.dart';
 
 // Bu extension sayesinde player_data.dart dosyasına dokunmadan
 // oyunculara yeni özellikler kazandırıyoruz.
