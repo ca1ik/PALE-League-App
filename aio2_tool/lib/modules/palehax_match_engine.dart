@@ -13,6 +13,10 @@ class Vector2 {
   void add(Vector2 v) {
     x += v.x;
     y += v.y;
+import '../services/database_service.dart';
+import 'palehax_match_engine.dart';
+
+class UltimateTeamProvider extends ChangeNotifier {
   }
 
   void scale(double s) {
