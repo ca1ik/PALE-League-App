@@ -2,32 +2,44 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
-// --- HIVE ADAPTERLERİ ---
+// ============================================================================
+// HIVE ADAPTERLERİ (GÜVENLİ TİP DÖNÜŞÜMLÜ)
+// ============================================================================
+
 class PlayerAdapter extends TypeAdapter<Player> {
   @override
   final int typeId = 1;
+
   @override
-  Player read(BinaryReader reader) => Player(
-      name: reader.read(),
-      rating: reader.read(),
-      position: reader.read(),
-      playstyles: (reader.read() as List).cast<PlayStyle>(),
-      marketValue: reader.read(),
-      matches: (reader.read() as List).cast<MatchStat>(),
-      team: reader.read(),
-      stats: (reader.read() as Map?)?.cast<String, int>() ?? {},
   Player read(BinaryReader reader) {
+    return Player(
+      name: reader.read() ?? "İsimsiz",
+      rating: reader.read() ?? 50,
+      position: reader.read() ?? "GEN",
+      // LİSTE OKUMA DÜZELTİLDİ:
+      playstyles:
+          (reader.read() as List?)?.whereType<PlayStyle>().toList() ?? [],
+      marketValue: reader.read() ?? "N/A",
+      matches: (reader.read() as List?)?.whereType<MatchStat>().toList() ?? [],
+      team: reader.read() ?? "Takımsız",
+      // MAP OKUMA DÜZELTİLDİ:
+      stats: (reader.read() as Map?)
+              ?.map((k, v) => MapEntry(k.toString(), v as int)) ??
+          {},
       role: reader.read() ?? "Yok",
       skillMoves: reader.read() ?? 3,
       country: reader.read() ?? "Türkiye",
       chemistryStyle: reader.read() ?? "Temel",
       cardType: reader.read() ?? "Temel",
-      seasons: (reader.read() as List?)?.cast<SeasonStat>() ?? [],
+      seasons: (reader.read() as List?)?.whereType<SeasonStat>().toList() ?? [],
       recLink: reader.read() ?? "",
       manualGoals: reader.read() ?? 0,
       manualAssists: reader.read() ?? 0,
       manualMatches: reader.read() ?? 0,
-      instruction: reader.read() ?? "Balanced");
+      instruction: reader.read() ?? "Balanced",
+    );
+  }
+
   @override
   void write(BinaryWriter writer, Player obj) {
     writer
@@ -111,7 +123,10 @@ class StrategyAdapter extends TypeAdapter<StrategyModel> {
   }
 }
 
-// --- MODELLER ---
+// ============================================================================
+// VERİ MODELLERİ
+// ============================================================================
+
 class PlayStyle {
   final String name;
   final bool isGold;
@@ -185,133 +200,57 @@ class Player extends HiveObject {
       this.manualMatches = 0,
       this.instruction = "Balanced"});
 
-  // --- GETTERLAR VE HESAPLAMALAR ---
+  // --- HESAPLAMA METODLARI (Crash Proof) ---
 
-  int get kitNumber {
-    if (position.contains("GK")) return 1;
-    if (position.contains("CDM")) return 6;
-    if (position.contains("CAM")) return 10;
-    if (position.contains("RW")) return 7;
-    if (position.contains("LW")) return 11;
-    if (position.contains("CB") || position.contains("DEF")) return 4;
-    return 9;
-  }
-
-  int getCardTierStars() {
-    switch (cardType) {
-      case "TOTS":
-        return 5;
-      case "BALLOND'OR":
-      case "STAR":
-        return 4;
-      case "MVP":
-        return 3;
-      case "TOTW":
-      case "TOTM":
-        return 1;
-      default:
-        return 0;
-    }
-  }
-
-  // --- FM TARZI STATLAR (1-20) ---
   Map<String, int> getFMStats() {
-    // Ham verileri 0-99 alıp 1-20'ye çeviriyoruz
     var raw = getCardStats();
+    int toFM(int? val) => ((val ?? 50) / 5.0).round().clamp(1, 20);
 
-    // Özel hesaplamalar (Karma özellikler)
-    int rawPos = ((raw['DEF']! + raw['PAS']!) / 2).round();
-    int rawVis = ((raw['PAS']! + raw['DRI']!) / 2).round();
+    int pas = raw['PAS'] ?? 50;
+    int def = raw['DEF'] ?? 50;
+    int sho = raw['SHO'] ?? 50;
+    int dri = raw['DRI'] ?? 50;
+
+    int intelligence = ((pas + def) / 2).round();
+    int composure = ((sho + dri) / 2).round();
 
     return {
-      "Hız": (raw['PAC']! / 5).round().clamp(1, 20),
-      "Şut": (raw['SHO']! / 5).round().clamp(1, 20),
-      "Pas": (raw['PAS']! / 5).round().clamp(1, 20),
-      "Dripling": (raw['DRI']! / 5).round().clamp(1, 20),
-      "Defans": (raw['DEF']! / 5).round().clamp(1, 20),
-      "Fizik": (raw['PHY']! / 5).round().clamp(1, 20),
-      "Pozisyon": (rawPos / 5).round().clamp(1, 20),
-      "Vizyon": (rawVis / 5).round().clamp(1, 20),
+      "Hız": toFM(raw['PAC']),
+      "Şut": toFM(raw['SHO']),
+      "Pas": toFM(raw['PAS']),
+      "Dripling": toFM(raw['DRI']),
+      "Defans": toFM(raw['DEF']),
+      "Fizik": toFM(raw['PHY']),
+      "Pozisyon": toFM((intelligence * 0.7 + def * 0.3).toInt()),
+      "Vizyon": toFM((pas * 0.8 + dri * 0.2).toInt()),
+      "Refleks": position.contains("GK")
+          ? toFM(stats['Reflex'] ?? rating)
+          : toFM(rating - 40),
+      "Teknik": toFM((dri + pas) ~/ 2),
+      "Karar": toFM(composure),
     };
-  }
-
-  void calculateSmartRating() {
-    if (stats.isEmpty) {
-      rating = 50;
-      return;
-    }
-    if (position.contains("GK") || position.contains("(1)")) {
-      double gkSkillAvg = _getAvgDouble(gkSkillStats);
-      double gkPassAvg = _getAvgDouble(gkPassStats);
-      rating = ((gkSkillAvg * 0.70) + (gkPassAvg * 0.30)).round().clamp(1, 99);
-      return;
-    }
-    double dribbling = _getAvgDouble(
-        ["Top Sürme", "Teknik", "Çeviklik", "Denge", "Hız", "Hızlanma"]);
-    double shooting = _getAvgDouble(statSegments["2. Şut & Zihinsel"]!);
-    double defense = _getAvgDouble(statSegments["3. Savunma & Güç"]!);
-    double passing = _getAvgDouble(statSegments["4. Pas & Vizyon"]!);
-
-    String numStr = position.replaceAll(RegExp(r'[^0-9]'), '');
-    int pNum = int.tryParse(numStr) ?? 9;
-
-    double wDrib = 0.25, wShoot = 0.25, wDef = 0.25, wPass = 0.25;
-    if (pNum >= 3 && pNum <= 6) {
-      wDrib = 0.20;
-      wShoot = 0.10;
-      wDef = 0.50;
-      wPass = 0.30;
-    } else if (pNum == 10) {
-      wDrib = 0.25;
-      wShoot = 0.20;
-      wDef = 0.15;
-      wPass = 0.40;
-    } else if (pNum == 7 || pNum == 11) {
-      wDrib = 0.45;
-      wShoot = 0.25;
-      wDef = 0.05;
-      wPass = 0.25;
-    } else if (pNum == 9) {
-      wDrib = 0.28;
-      wShoot = 0.45;
-      wDef = 0.02;
-      wPass = 0.25;
-    }
-
-    double weightedTotal = (dribbling * wDrib) +
-        (shooting * wShoot) +
-        (defense * wDef) +
-        (passing * wPass);
-    double totalWeight = wDrib + wShoot + wDef + wPass;
-    rating = (weightedTotal / totalWeight).round().clamp(1, 99);
-    if (cardType == "TOTS" || cardType == "BALLOND'OR")
-      rating = (rating + 3).clamp(1, 99);
-    if (cardType == "BAD") rating = (rating - 25).clamp(1, 60);
   }
 
   Map<String, int> getCardStats() {
     if (stats.isEmpty) {
-      // Statlar boşsa Rating üzerinden tahmini değerler üret
-      int base = rating;
-      if (base < 40) base = 40;
+      int r = rating;
       return {
-        "PAC": base - 5,
-        "SHO": base - 10,
-        "PAS": base - 5,
-        "DRI": base,
-        "DEF": base - 30,
-        "PHY": base - 10
+        "PAC": r - 5,
+        "SHO": r - 10,
+        "PAS": r - 5,
+        "DRI": r,
+        "DEF": r - 30,
+        "PHY": r - 10
       };
     }
-
     if (position.contains("GK") || position.contains("(1)")) {
       return {
         "REF": stats["Reflex"] ?? 50,
-        "1v1": stats["1e1 Savunma"] ?? 50,
         "DIV": stats["Çizgide Kurtarış"] ?? 50,
         "HAN": stats["Top Kontrolü"] ?? 50,
         "KIC": stats["Güç"] ?? 50,
         "POS": stats["Pozisyon Alma"] ?? 50,
+        "1v1": stats["1e1 Savunma"] ?? 50,
       };
     }
     return {
@@ -326,38 +265,38 @@ class Player extends HiveObject {
 
   Offset getPitchPosition() {
     if (position.contains("GK")) return const Offset(0.5, 0.9);
-    if (position.contains("CDM")) return const Offset(0.5, 0.65);
-    if (position.contains("CAM")) return const Offset(0.5, 0.45);
-    if (position.contains("LW")) return const Offset(0.2, 0.25);
-    if (position.contains("RW")) return const Offset(0.8, 0.25);
-    if (position.contains("ST")) return const Offset(0.5, 0.15);
+    if (position.contains("DEF") || position.contains("CB"))
+      return const Offset(0.5, 0.75);
+    if (position.contains("MID") || position.contains("CM"))
+      return const Offset(0.5, 0.5);
+    if (position.contains("FWD") || position.contains("ST"))
+      return const Offset(0.5, 0.15);
     return const Offset(0.5, 0.5);
   }
 
   Map<String, String> getSimulationStats() {
-    var cs = getCardStats();
-    if (position.contains("GK")) {
-      return {
-        "Pas": "${stats['Pas'] ?? 50}",
-        "Refleks": "${stats['Reflex'] ?? 50}",
-        "Gol": "$manualGoals",
-        "Asist": "$manualAssists",
-        "Maç": "$manualMatches"
-      };
-    }
-    int passes = (cs['PAS']! * 1.5).toInt();
-    int shots = (cs['SHO']! / 4).toInt();
-    int possession = (cs['DRI']! / 1.8).toInt().clamp(30, 70);
     return {
-      "Pas": "$passes",
-      "İsabetli Pas": "${(passes * 0.8).toInt()}",
-      "Kilit Pas": "${(cs['PAS']! / 15).toStringAsFixed(1)}",
-      "Şut": "$shots",
       "Gol": "$manualGoals",
       "Asist": "$manualAssists",
       "Maç": "$manualMatches",
-      "Topla Oynama": "$possession%"
+      "Puan": matches.isNotEmpty
+          ? (matches.fold(0.0, (s, m) => s + m.rating) / matches.length)
+              .toStringAsFixed(1)
+          : "N/A"
     };
+  }
+
+  void calculateSmartRating() {
+    if (stats.isEmpty) return;
+    int total = 0;
+    int c = 0;
+    stats.forEach((k, v) {
+      if (v > 0) {
+        total += v;
+        c++;
+      }
+    });
+    if (c > 0) rating = (total / c).round().clamp(1, 99);
   }
 
   int _getAvg(List<String> keys) {
@@ -372,35 +311,17 @@ class Player extends HiveObject {
     return c == 0 ? 50 : (s / c).round();
   }
 
-  double _getAvgDouble(List<String> keys) {
-    if (stats.isEmpty) return 50.0;
-    int s = 0, c = 0;
-    for (var k in keys) {
-      s += stats[k] ?? 60;
-      c++;
-    }
-    return c == 0 ? 50.0 : (s / c);
+  int get kitNumber =>
+      position.contains("GK") ? 1 : (position.contains("ST") ? 9 : 10);
+
+  int getCardTierStars() {
+    if (["TOTS", "BALLOND'OR"].contains(cardType)) return 5;
+    if (["STAR", "MVP"].contains(cardType)) return 4;
+    return 1;
   }
 }
 
-// --- GLOBAL LİSTELER ---
-final List<String> gkSkillStats = [
-  "Reflex",
-  "1e1 Savunma",
-  "Çizgide Kurtarış",
-  "Sert Duruş",
-  "Güç"
-];
-final List<String> gkPassStats = [
-  "Pas",
-  "Top Kontrolü",
-  "Görüş",
-  "Topsuz Alan",
-  "Soğukkanlılık",
-  "Karar Alma",
-  "Pozisyon Alma"
-];
-
+// GLOBALLER
 final Map<String, List<String>> statSegments = {
   "1. Top Sürme & Fizik": [
     "Hız",
@@ -439,7 +360,22 @@ final Map<String, List<String>> statSegments = {
     "Top Kontrolü"
   ]
 };
-
+final List<String> gkSkillStats = [
+  "Reflex",
+  "1e1 Savunma",
+  "Çizgide Kurtarış",
+  "Sert Duruş",
+  "Güç"
+];
+final List<String> gkPassStats = [
+  "Pas",
+  "Top Kontrolü",
+  "Görüş",
+  "Topsuz Alan",
+  "Soğukkanlılık",
+  "Karar Alma",
+  "Pozisyon Alma"
+];
 final List<String> globalCardTypes = [
   "Temel",
   "TOTW",
@@ -457,42 +393,8 @@ final List<String> globalRoles = [
   "Yıldız",
   "Genç Yetenek"
 ];
-
-final Map<String, String> teamLogos = {
-  "Bursa Spor": "assets/takimlar/bursaspor.png",
-  "CA RIVER PLATE": "assets/takimlar/riverplate.png",
-  "Chelsea": "assets/takimlar/chelsea.png",
-  "Fenerbahçe": "assets/takimlar/fenerbahce.png",
-  "Invicta": "assets/takimlar/invicta.png",
-  "It Spor": "assets/takimlar/itspor.png",
-  "Juventus": "assets/takimlar/juventus.png",
-  "Livorno": "assets/takimlar/livorno.png",
-  "Maximilian": "assets/takimlar/maximilian.png",
-  "Shamrock Rovers": "assets/takimlar/shamrock.png",
-  "Tiyatro FC": "assets/takimlar/tiyatro.png",
-  "Toulouse": "assets/takimlar/toulouse.png",
-  "Werder Weremem": "assets/takimlar/werderweremem.png",
-  "Takımsız": ""
-};
-
+final Map<String, String> teamLogos = {"Takımsız": ""};
 final Map<String, List<String>> roleCategories = {
-  "(1) GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
-  "(3-6) CDM": [
-    "Savunmatik",
-    "Libero",
-    "Oyun Kurucu Stoper",
-    "Tutucu",
-    "Derin Oyun Kurucu",
-    "Savaşçı"
-  ],
-  "(10) CAM": [
-    "Oyun Kurucu",
-    "Box to Box",
-    "Mezzala",
-    "Gölge Forvet",
-    "Enganche"
-  ],
-  "(7) RW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
-  "(11) LW": ["İç Forvet", "Kanat Oyuncusu", "Gizli Forvet", "Avcı Forvet"],
-  "(9) ST": ["Hedef Forvet", "Avcı Forvet", "Yanlış 9", "Gölge Forvet"]
+  "(1) GK": ["Çizgi Kalecisi"],
+  "(9) ST": ["Hedef Forvet"]
 };
