@@ -81,8 +81,12 @@ class _GlowButtonState extends State<_GlowButton> {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true), // Mouse girdi
-      onExit: (_) => setState(() => _isHovered = false), // Mouse çıktı
+      onEnter: (_) => WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _isHovered = true);
+      }), // Mouse girdi
+      onExit: (_) => WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _isHovered = false);
+      }), // Mouse çıktı
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,

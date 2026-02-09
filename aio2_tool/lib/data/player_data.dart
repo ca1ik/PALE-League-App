@@ -341,6 +341,22 @@ class Player extends HiveObject {
     }
     return c == 0 ? 50.0 : (s / c);
   }
+
+  // Returns a simple numeric map of gameplay-relevant stats for the
+  // match engine (fallbacks to reasonable defaults when keys are missing).
+  Map<String, int> getFMStats() {
+    return {
+      'Hız': stats['Hız'] ?? 10,
+      'Dripling':
+          stats['Top Sürme'] ?? stats['Teknik'] ?? stats['Dripling'] ?? 10,
+      'Defans': stats['Savunma Farkındalığı'] ?? stats['Top Kapma'] ?? 10,
+      'Pozisyon': stats['Pozisyon Alma'] ?? 10,
+      'Şut': stats['Bitiricilik'] ?? stats['Şut Gücü'] ?? 10,
+      'Pas': stats['Pas'] ?? 10,
+      'Fizik': stats['Güç'] ?? 10,
+      'Refleks': stats['Reflex'] ?? stats['Refleks'] ?? 10,
+    };
+  }
 }
 
 // --- GLOBAL LİSTELER ---
@@ -410,6 +426,38 @@ final List<String> globalCardTypes = [
   "BALLOND'OR",
   "BAD"
 ];
+// Global chemistry styles available for quick selection in editor
+final List<String> globalChemistryStyles = [
+  "Temel",
+  "Omurga",
+  "Çapa",
+  "Mimar",
+  "Sanatçı",
+  "Katalizör",
+  "Gladyatör",
+  "Muhafız",
+  "Motor",
+  "Güçlü",
+  "Gözcü",
+  "Gölge",
+  "Bitirici",
+  "Oyun Kurucu",
+  "Keskin Nişancı",
+  "Şahin",
+  "Maestro",
+  "Avcı"
+];
+// Icon mapping for chemistry styles (used in editor UI)
+final Map<String, IconData> chemistryIcons = {
+  "Temel": Icons.circle_outlined,
+  "Mimar": Icons.engineering,
+  "Maestro": Icons.music_note,
+  "Playmaker": Icons.sports_soccer,
+  "Anchor": Icons.anchor,
+  "Engine": Icons.bolt,
+  "Hızlı": Icons.flash_on,
+  "Güçlü": Icons.fitness_center,
+};
 final List<String> globalRoles = [
   "Kaptan",
   "Yedek",

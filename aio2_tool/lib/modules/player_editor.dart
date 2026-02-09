@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../data/player_data.dart'; // Ana veri kaynağı (Buradaki teamLogos kullanılacak)
 // DÜZELTME: 'hide teamLogos' eklenerek çakışma engellendi.
@@ -41,6 +42,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
   late String cardType;
   late String marketValue;
   late String recLink;
+  late String chemistryStyle;
 
   Map<String, int> stats = {};
   List<PlayStyle> playstyles = [];
@@ -74,6 +76,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
       cardType = widget.isNewVersion ? "TOTW" : p.cardType;
       marketValue = p.marketValue;
       recLink = p.recLink;
+      chemistryStyle = p.chemistryStyle;
       stats = Map.from(p.stats);
       playstyles = List.from(p.playstyles);
     } else {
@@ -84,6 +87,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
       role = defaultRole;
       cardType = defaultCardType;
       marketValue = "€1M";
+      chemistryStyle = "Temel";
       recLink = "";
       _initializeStats();
     }
@@ -244,9 +248,40 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                           const SizedBox(width: 15),
                           Expanded(
                               child: _buildDropdown("Rol", role, currentRoles,
-                                  (v) => setState(() => role = v!)))
+                                  (v) => setState(() => role = v!))),
+                          const SizedBox(width: 15),
+                          Expanded(
+                              child: _buildDropdown(
+                                  "Kimya",
+                                  chemistryStyle,
+                                  globalChemistryStyles,
+                                  (v) => setState(() => chemistryStyle = v!)))
                         ]),
                         const SizedBox(height: 30),
+                        // Playstyles editor
+                        Text("OYUN STİLLERİ",
+                            style: GoogleFonts.orbitron(
+                                color: Colors.amber,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16)),
+                        const SizedBox(height: 10),
+                        Wrap(spacing: 8, runSpacing: 8, children: [
+                          ...playstyles.map((ps) => Chip(
+                              backgroundColor:
+                                  ps.isGold ? Colors.amber : Colors.white12,
+                              label: Text(
+                                (ps.isGold ? "${ps.name}+" : ps.name),
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              onDeleted: () =>
+                                  setState(() => playstyles.remove(ps)))),
+                          ActionChip(
+                              label: const Text("Ekle"),
+                              onPressed: () async {
+                                await _showPlaystylePicker();
+                              })
+                        ]),
+                        const SizedBox(height: 20),
                         Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -279,7 +314,8 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                                         stats: stats,
                                         role: role,
                                         marketValue: marketValue,
-                                        recLink: recLink));
+                                        recLink: recLink,
+                                        chemistryStyle: chemistryStyle));
                                     Navigator.pop(context);
                                   }
                                 },
@@ -366,6 +402,179 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
             border:
                 OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
         onChanged: c);
+  }
+
+  Future<void> _showPlaystylePicker() async {
+    final manifestContent =
+        await DefaultAssetBundle.of(context).loadString('AssetManifest.json');
+    final Map<String, dynamic> manifest = jsonDecode(manifestContent);
+    // collect base playstyle images (exclude plus folder)
+    final keys = manifest.keys
+        .where((k) =>
+            k.startsWith('assets/Playstyles/') &&
+            !k.contains('/plus/') &&
+            k.endsWith('.png'))
+        .toList()
+      ..sort();
+
+    await showDialog<void>(
+        context: context,
+        builder: (c) {
+          return Dialog(
+              backgroundColor: const Color(0xFF15151E),
+              child: Container(
+                  width: 700,
+                  height: 500,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Playstyle Seç',
+                            style:
+                                GoogleFonts.orbitron(color: Colors.cyanAccent)),
+                        IconButton(
+                            onPressed: () => Navigator.pop(c),
+                            icon: const Icon(Icons.close, color: Colors.white))
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                        child: GridView.count(
+                            crossAxisCount: 6,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                            children: keys.map((k) {
+                              final name =
+                                  k.split('/').last.replaceAll('.png', '');
+                              final plusPath =
+                                  'assets/Playstyles/plus/${name}Plus.png';
+                              final hasPlus = manifest.containsKey(plusPath);
+                              return GestureDetector(
+                                  onTap: () {
+                                    // add normal playstyle (avoid duplicate base)
+                                    bool exists = playstyles.any(
+                                        (ps) => ps.name == name && !ps.isGold);
+                                    if (!exists) {
+                                      setState(() =>
+                                          playstyles.add(PlayStyle(name)));
+                                    }
+                                    Navigator.pop(c);
+                                  },
+                                  onLongPress: () {
+                                    // add/upgrade to gold playstyle if plus exists
+                                    if (hasPlus) {
+                                      // remove any existing base or gold for this name
+                                      playstyles
+                                          .removeWhere((ps) => ps.name == name);
+                                      setState(() => playstyles
+                                          .add(PlayStyle(name, isGold: true)));
+                                    } else {
+                                      // fallback: add normal if not exists
+                                      bool exists = playstyles
+                                          .any((ps) => ps.name == name);
+                                      if (!exists)
+                                        setState(() =>
+                                            playstyles.add(PlayStyle(name)));
+                                    }
+                                    Navigator.pop(c);
+                                  },
+                                  child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                          color: Colors.white10,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
+                                              color: Colors.white12)),
+                                      child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Stack(children: [
+                                              ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                  child: Image.asset(k,
+                                                      width: 32,
+                                                      height: 32,
+                                                      fit: BoxFit.contain,
+                                                      errorBuilder: (c, e, s) =>
+                                                          const Icon(Icons.help,
+                                                              color: Colors
+                                                                  .white))),
+                                              if (hasPlus)
+                                                Positioned(
+                                                    right: 0,
+                                                    bottom: 0,
+                                                    child: Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .all(2),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                                color: Colors
+                                                                    .amber,
+                                                                shape: BoxShape
+                                                                    .circle),
+                                                        child: const Icon(
+                                                            Icons.add,
+                                                            size: 10,
+                                                            color:
+                                                                Colors.black)))
+                                            ]),
+                                            const SizedBox(height: 6),
+                                            Text(name,
+                                                style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 11),
+                                                textAlign: TextAlign.center)
+                                          ])));
+                            }).toList()))
+                  ])));
+        });
+  }
+
+  Future<String?> _askPlayStyleName() async {
+    String name = "";
+    return await showDialog<String>(
+        context: context,
+        builder: (c) {
+          return AlertDialog(
+              backgroundColor: const Color(0xFF1E1E24),
+              title: const Text("Playstyle adı"),
+              content: TextField(
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(hintText: "Örn: QuickStep"),
+                onChanged: (v) => name = v,
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(c, null),
+                    child: const Text("İptal")),
+                TextButton(
+                    onPressed: () => Navigator.pop(c, name),
+                    child: const Text("Ekle"))
+              ]);
+        });
+  }
+
+  Future<bool> _askIsGold() async {
+    final bool? res = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+              backgroundColor: const Color(0xFF1E1E24),
+              title: const Text("Altın versiyon mu?"),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(c, false),
+                    child: const Text("Hayır")),
+                TextButton(
+                    onPressed: () => Navigator.pop(c, true),
+                    child: const Text("Evet"))
+              ],
+            ));
+    return res ?? false;
   }
 
   Widget _buildDropdown(

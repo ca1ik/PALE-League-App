@@ -50,12 +50,15 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
   void _handleHover(bool hover) {
     if (!widget.animateOnHover || widget.player.cardType == "Temel") return;
     if (!mounted) return;
-    setState(() => _isHovering = hover);
-    if (hover) {
-      _pulseController.repeat(reverse: true);
-    } else {
-      _pulseController.stop();
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _isHovering = hover);
+      if (hover) {
+        _pulseController.repeat(reverse: true);
+      } else {
+        _pulseController.stop();
+      }
+    });
   }
 
   @override
@@ -261,7 +264,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                 letterSpacing: 1.2),
                                             overflow: TextOverflow.ellipsis))),
 
-                                // İstatistikler
+                                // İstatistikler (kaleci farklı gösterim)
                                 Positioned(
                                     top: 250,
                                     left: 10,
@@ -269,35 +272,94 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                     child: Column(children: [
                                       const Divider(color: Colors.white30),
                                       const SizedBox(height: 10),
-                                      Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            _cStat(
-                                                "PAC", cs["PAC"]!, type, isBad),
-                                            _cStat(
-                                                "DRI", cs["DRI"]!, type, isBad)
-                                          ]),
-                                      const SizedBox(height: 5),
-                                      Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            _cStat(
-                                                "SHO", cs["SHO"]!, type, isBad),
-                                            _cStat(
-                                                "DEF", cs["DEF"]!, type, isBad)
-                                          ]),
-                                      const SizedBox(height: 5),
-                                      Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            _cStat(
-                                                "PAS", cs["PAS"]!, type, isBad),
-                                            _cStat(
-                                                "PHY", cs["PHY"]!, type, isBad)
-                                          ]),
+                                      if (p.position.contains("GK") ||
+                                          cs.containsKey("REF"))
+                                        // GK layout
+                                        Column(children: [
+                                          Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                _cStat(
+                                                    "REF",
+                                                    cs["REF"] ??
+                                                        cs["Refleks"] ??
+                                                        50,
+                                                    type,
+                                                    isBad),
+                                                _cStat("1v1", cs["1v1"] ?? 50,
+                                                    type, isBad)
+                                              ]),
+                                          const SizedBox(height: 5),
+                                          Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                _cStat("DIV", cs["DIV"] ?? 50,
+                                                    type, isBad),
+                                                _cStat("HAN", cs["HAN"] ?? 50,
+                                                    type, isBad)
+                                              ]),
+                                          const SizedBox(height: 5),
+                                          Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                _cStat(
+                                                    "KIC",
+                                                    cs["KIC"] ??
+                                                        cs["Güç"] ??
+                                                        50,
+                                                    type,
+                                                    isBad),
+                                                _cStat(
+                                                    "POS",
+                                                    cs["POS"] ??
+                                                        cs["Pozisyon Alma"] ??
+                                                        50,
+                                                    type,
+                                                    isBad)
+                                              ])
+                                        ])
+                                      else
+                                        // Field player layout
+                                        Column(children: [
+                                          Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                _cStat("PAC", cs["PAC"]!, type,
+                                                    isBad),
+                                                _cStat("DRI", cs["DRI"]!, type,
+                                                    isBad)
+                                              ]),
+                                          const SizedBox(height: 5),
+                                          Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                _cStat("SHO", cs["SHO"]!, type,
+                                                    isBad),
+                                                _cStat("DEF", cs["DEF"]!, type,
+                                                    isBad)
+                                              ]),
+                                          const SizedBox(height: 5),
+                                          Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                _cStat("PAS", cs["PAS"]!, type,
+                                                    isBad),
+                                                _cStat("PHY", cs["PHY"]!, type,
+                                                    isBad)
+                                              ])
+                                        ]),
                                       const SizedBox(height: 15),
                                       const Divider(color: Colors.white30)
                                     ])),

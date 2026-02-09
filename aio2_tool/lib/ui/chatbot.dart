@@ -284,8 +284,12 @@ class FloatingChatbotState extends State<FloatingChatbot>
               ),
             ),
           MouseRegion(
-            onEnter: (_) => setState(() => _isHovering = true),
-            onExit: (_) => setState(() => _isHovering = false),
+            onEnter: (_) => WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _isHovering = true);
+            }),
+            onExit: (_) => WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _isHovering = false);
+            }),
             child: GestureDetector(
               onTap: () {
                 setState(() => _isOpen = !_isOpen);

@@ -533,8 +533,12 @@ class _SidebarItemState extends State<SidebarItem> {
         : (widget.isDark ? Colors.grey : Colors.grey[600]);
     final scale = (_hover || widget.isSelected) ? 1.1 : 1.0;
     return MouseRegion(
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
+        onEnter: (_) => WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _hover = true);
+            }),
+        onExit: (_) => WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _hover = false);
+            }),
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
             onTap: widget.onTap,
