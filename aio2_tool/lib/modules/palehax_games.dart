@@ -1,7 +1,13 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+// --- OYUN MODÜLLERİ ---
+import '../games/okey101_game.dart';
+import '../games/uno_game.dart';
+import '../games/batak_game.dart';
+import '../games/papazkacti_game.dart';
+import '../games/speed_clicker_game.dart';
+import '../games/vampire_villager.dart';
 
 class GamesHubView extends StatefulWidget {
   const GamesHubView({super.key});
@@ -10,10 +16,19 @@ class GamesHubView extends StatefulWidget {
 }
 
 class _GamesHubViewState extends State<GamesHubView> {
-  String activeGame = "";
+  String activeGame = ""; // Hangi oyunun açık olduğunu tutar
 
   @override
   Widget build(BuildContext context) {
+    // Seçilen oyuna göre ilgili dosyayı açar
+    if (activeGame == "OKEY 101") return Okey101Game(onExit: _exitGame);
+    if (activeGame == "UNO") return UnoGame(onExit: _exitGame);
+    if (activeGame == "BATAK") return BatakGame(onExit: _exitGame);
+    if (activeGame == "PAPAZ KAÇTI") return PapazKactiGame(onExit: _exitGame);
+    if (activeGame == "SPEED CLICKER")
+      return SpeedClickerGame(onExit: _exitGame);
+
+    // Eğer oyun seçilmemişse Ana Menüyü göster
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D12),
       appBar: AppBar(
@@ -21,24 +36,31 @@ class _GamesHubViewState extends State<GamesHubView> {
         title: Text("PALEHAX GAME HUB",
             style: GoogleFonts.orbitron(
                 color: Colors.purpleAccent, fontWeight: FontWeight.bold)),
+        centerTitle: true,
       ),
-      body: activeGame.isEmpty ? _buildGameMenu() : _buildActiveGameLobby(),
+      body: _buildGameMenu(),
     );
+  }
+
+  // Oyundan çıkıp menüye dönme fonksiyonu
+  void _exitGame() {
+    setState(() => activeGame = "");
   }
 
   Widget _buildGameMenu() {
     return GridView.count(
       crossAxisCount: 3,
-      padding: const EdgeInsets.all(20),
-      crossAxisSpacing: 20,
-      mainAxisSpacing: 20,
+      padding: const EdgeInsets.all(30),
+      crossAxisSpacing: 30,
+      mainAxisSpacing: 30,
       children: [
         _gameCard("SPEED CLICKER", Icons.touch_app, Colors.blue, true),
-        _gameCard("OKEY 101", Icons.table_restaurant, Colors.green, false),
-        _gameCard("UNO", Icons.style, Colors.red, false),
-        _gameCard("BATAK", Icons.videogame_asset, Colors.grey, false),
-        _gameCard("VAMPİR KÖYLÜ", Icons.nightlight_round, Colors.purple, false),
-        _gameCard("PAPAZ KAÇTI", Icons.person_off, Colors.orange, false),
+        _gameCard("OKEY 101", Icons.apps, Colors.orange, true),
+        _gameCard("UNO", Icons.style, Colors.red, true),
+        // DÜZELTME BURADA: Icons.spades yerine Icons.style kullanıldı (Kart destesi ikonu)
+        _gameCard("BATAK", Icons.style, Colors.green, true),
+        _gameCard("VAMPİR KÖYLÜ", Icons.nightlight_round, Colors.purple, true),
+        _gameCard("PAPAZ KAÇTI", Icons.person_off, Colors.pink, true),
       ],
     );
   }
@@ -46,30 +68,47 @@ class _GamesHubViewState extends State<GamesHubView> {
   Widget _gameCard(String title, IconData icon, Color color, bool isActive) {
     return GestureDetector(
       onTap: () {
+        // Vampir Köylü özel bir sayfa olduğu için Navigator ile açıyoruz
+        if (title == "VAMPİR KÖYLÜ") {
+          Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => const VampireVillagerGame()));
+          return;
+        }
+
+        // Diğer oyunlar widget değişimi ile açılıyor
         if (isActive) {
           setState(() => activeGame = title);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Bu oyun henüz yapım aşamasında!")));
+              const SnackBar(content: Text("Bu oyun yapım aşamasında!")));
         }
       },
       child: Container(
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.5)),
-        ),
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withOpacity(0.5), width: 2),
+            boxShadow: [
+              BoxShadow(
+                  color: color.withOpacity(0.2),
+                  blurRadius: 15,
+                  spreadRadius: 2)
+            ]),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 50, color: color),
-            const SizedBox(height: 10),
+            Icon(icon, size: 60, color: color),
+            const SizedBox(height: 15),
             Text(title,
-                style: GoogleFonts.russoOne(color: Colors.white, fontSize: 16)),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.russoOne(color: Colors.white, fontSize: 18)),
             if (!isActive)
               Container(
-                margin: const EdgeInsets.only(top: 5), // DÜZELTİLDİ
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                margin: const EdgeInsets.only(top: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                     color: Colors.black54,
                     borderRadius: BorderRadius.circular(5)),
@@ -78,177 +117,6 @@ class _GamesHubViewState extends State<GamesHubView> {
               )
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildActiveGameLobby() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          color: Colors.blueAccent.withOpacity(0.2),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text("$activeGame LOBİSİ",
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold)),
-              IconButton(
-                  icon: const Icon(Icons.close, color: Colors.red),
-                  onPressed: () => setState(() => activeGame = "")),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Row(
-            children: [
-              Expanded(
-                flex: 1,
-                child: Container(
-                  color: Colors.black12,
-                  child: ListView(
-                    children: [
-                      _roomItem("Oda #123", "3/4", true),
-                      _roomItem("PaleHax Turnuva", "1/10", false),
-                      ListTile(
-                        leading: const Icon(Icons.add_circle,
-                            color: Colors.greenAccent),
-                        title: const Text("Oda Kur",
-                            style: TextStyle(color: Colors.greenAccent)),
-                        onTap: () {},
-                      )
-                    ],
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 3,
-                child: Center(
-                  child: _SpeedClickerGame(),
-                ),
-              )
-            ],
-          ),
-        )
-      ],
-    );
-  }
-
-  Widget _roomItem(String name, String count, bool locked) {
-    return ListTile(
-      leading: Icon(locked ? Icons.lock : Icons.lock_open,
-          color: locked ? Colors.red : Colors.green),
-      title: Text(name, style: const TextStyle(color: Colors.white)),
-      trailing: Text(count, style: const TextStyle(color: Colors.white54)),
-      onTap: () {},
-    );
-  }
-}
-
-class _SpeedClickerGame extends StatefulWidget {
-  @override
-  State<_SpeedClickerGame> createState() => _SpeedClickerGameState();
-}
-
-class _SpeedClickerGameState extends State<_SpeedClickerGame> {
-  int score = 0;
-  bool isPlaying = false;
-  int timeLeft = 10;
-  Timer? _timer;
-  final FocusNode _gameFocus = FocusNode();
-
-  void startGame() {
-    setState(() {
-      score = 0;
-      timeLeft = 10;
-      isPlaying = true;
-    });
-    FocusScope.of(context).requestFocus(_gameFocus);
-    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (mounted) {
-        setState(() {
-          if (timeLeft > 0) {
-            timeLeft--;
-          } else {
-            isPlaying = false;
-            t.cancel();
-          }
-        });
-      } else {
-        t.cancel();
-      }
-    });
-  }
-
-  void _handleKeyPress(RawKeyEvent event) {
-    if (!isPlaying) return;
-    if (event is RawKeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.keyX) {
-      setState(() {
-        score++;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _gameFocus.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RawKeyboardListener(
-      focusNode: _gameFocus,
-      onKey: _handleKeyPress,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text("SKOR: $score",
-              style: GoogleFonts.russoOne(fontSize: 60, color: Colors.white)),
-          Text("SÜRE: $timeLeft",
-              style: const TextStyle(color: Colors.amber, fontSize: 30)),
-          const SizedBox(height: 30),
-          if (!isPlaying)
-            ElevatedButton(
-                onPressed: startGame,
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 40, vertical: 20)),
-                child: const Text("BAŞLA (X ile Oyna)",
-                    style:
-                        TextStyle(fontSize: 24, fontWeight: FontWeight.bold)))
-          else
-            Column(
-              children: [
-                const Text("Klavyedeki 'X' tuşuna bas!",
-                    style: TextStyle(color: Colors.white, fontSize: 20)),
-                const SizedBox(height: 20),
-                Container(
-                  width: 150,
-                  height: 150,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                      color: Colors.redAccent,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.red.withOpacity(0.5), blurRadius: 20)
-                      ]),
-                  child: const Text("X",
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 80,
-                          fontWeight: FontWeight.bold)),
-                ),
-              ],
-            )
-        ],
       ),
     );
   }

@@ -4,8 +4,11 @@ import 'package:webview_windows/webview_windows.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class CustomBrowserModule extends StatefulWidget {
-  final bool isFullScreen; // Main.dart'tan gelen bilgi
-  const CustomBrowserModule({super.key, this.isFullScreen = false});
+  final bool isFullScreen;
+  final VoidCallback onToggleFullScreen;
+
+  const CustomBrowserModule(
+      {super.key, this.isFullScreen = false, required this.onToggleFullScreen});
 
   @override
   State<CustomBrowserModule> createState() => _CustomBrowserModuleState();
@@ -15,7 +18,6 @@ class _CustomBrowserModuleState extends State<CustomBrowserModule> {
   final _controller = WebviewController();
   final _textController = TextEditingController();
   bool _isInitialized = false;
-  Timer? _hackTimer;
 
   @override
   void initState() {
@@ -23,15 +25,17 @@ class _CustomBrowserModuleState extends State<CustomBrowserModule> {
     _initWebview();
   }
 
-  // Tam ekran değişikliğinde WebView'i zorla yenile (Donmayı önler)
+  // --- STABİLİTE GÜNCELLEMESİ ---
+  // didUpdateWidget ile yeniden çizme zorlamıyoruz, main.dart'taki yapı
+  // webview'ı hayatta tutuyor. Sadece bildirim ve Javascript tetikliyoruz.
   @override
   void didUpdateWidget(CustomBrowserModule oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isFullScreen != oldWidget.isFullScreen) {
-      // Boyut değişimini algılaması için kısa bir gecikme
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted) setState(() {});
-      });
+      // Ekran boyutu değişti, webview'a haber verelim (isteğe bağlı)
+      if (_isInitialized) {
+        _controller.executeScript("window.dispatchEvent(new Event('resize'));");
+      }
     }
   }
 
@@ -41,10 +45,17 @@ class _CustomBrowserModuleState extends State<CustomBrowserModule> {
       await _controller.setBackgroundColor(Colors.transparent);
       await _controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
 
-      // Haxball yüklendiğinde üst barı silen kod
+      // Web'den gelen mesajları dinle (F11 için)
+      _controller.webMessage.listen((event) {
+        if (event == 'toggle_fullscreen') {
+          widget.onToggleFullScreen();
+        }
+      });
+
       _controller.loadingState.listen((state) {
         if (state == LoadingState.navigationCompleted) {
           _injectHaxballHacks();
+          _injectKeyListener();
         }
       });
 
@@ -60,22 +71,41 @@ class _CustomBrowserModuleState extends State<CustomBrowserModule> {
     }
   }
 
+  // F11 Tuşunu Dinleyen JS Kodu (Tarayıcı içindeyken)
+  void _injectKeyListener() {
+    const script = '''
+      window.addEventListener('keydown', function(e) {
+        if (e.key === 'F11') {
+          e.preventDefault(); // Tarayıcının varsayılan tam ekranını engelle
+          e.stopPropagation();
+          window.chrome.webview.postMessage('toggle_fullscreen'); // Flutter'a sinyal yolla
+        }
+      });
+    ''';
+    _controller.executeScript(script);
+  }
+
   // Siyah Barı Silen Javascript Kodu
   void _injectHaxballHacks() {
-    // Haxball'ın üstündeki 'header' class'lı div'i siler.
     const script = '''
       function removeHeader() {
         var headers = document.getElementsByClassName('header');
-        if(headers.length > 0) {
-          headers[0].style.display = 'none';
+        if(headers.length > 0) { 
+          headers[0].style.display = 'none'; 
         }
-        // Reklamları da temizle
         var ads = document.getElementsByClassName('adsbygoogle');
-        for(var i=0; i<ads.length; i++) { ads[i].style.display='none'; }
+        for(var i=0; i<ads.length; i++) { 
+          ads[i].style.display='none'; 
+        }
+        // Oyunu tam ortaya odakla
+        var game = document.getElementById('roomlink');
+        if(game) game.focus();
       }
-      // Yüklenme gecikmesi ihtimaline karşı tekrarla
+      // Garanti olsun diye birkaç kez çalıştır
       removeHeader();
-      setInterval(removeHeader, 1000);
+      setTimeout(removeHeader, 500);
+      setTimeout(removeHeader, 1500);
+      setTimeout(removeHeader, 3000);
     ''';
     _controller.executeScript(script);
   }
@@ -90,7 +120,6 @@ class _CustomBrowserModuleState extends State<CustomBrowserModule> {
 
   @override
   void dispose() {
-    _hackTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -112,9 +141,6 @@ class _CustomBrowserModuleState extends State<CustomBrowserModule> {
                       icon: const Icon(Icons.refresh, color: Colors.white),
                       onPressed: () {
                         _controller.reload();
-                        // Yenileyince hack'i tekrar çalıştır
-                        Future.delayed(
-                            const Duration(seconds: 1), _injectHaxballHacks);
                       }),
                   const SizedBox(width: 10),
                   Expanded(
