@@ -1,454 +1,397 @@
+import 'dart:async';
 import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../data/player_data.dart';
+import '../services/database_service.dart';
+import '../ui/fc_animated_card.dart';
+import 'palehax_match_engine.dart';
 
-// ============================================================================
-// YARDIMCI EXTENSION (LİSTE DÖNÜŞÜMÜ İÇİN)
-// ============================================================================
-extension ListDynamicCast on List<dynamic> {
-  List<T> dynamicCast<T>() {
-    return map((e) => e as T).toList();
+class UltimateTeamProvider extends ChangeNotifier {
+  List<Player> myClub = [];
+  List<Player> startingXI = List.generate(
+      7, (_) => Player(name: "BOŞ", rating: 0, position: "", playstyles: []));
+  int secondsActive = 0;
+  Timer? _timer;
+  bool claimedFirstPack = false;
+  bool claimed15m = false;
+  bool claimed30m = false;
+
+  void startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      secondsActive++;
+      if (!claimed15m && secondsActive >= 900) notifyListeners();
+      if (!claimed30m && secondsActive >= 1800) notifyListeners();
+      notifyListeners();
+    });
+  }
+
+  void stopTimer() {
+    _timer?.cancel();
+  }
+
+  @override
+  void dispose() {
+    stopTimer();
+    super.dispose();
+  }
+
+  void addPlayerToClub(Player p) {
+    if (!myClub.any((e) => e.name == p.name && e.cardType == p.cardType)) {
+      myClub.add(p);
+      notifyListeners();
+    }
+  }
+
+  void setStarter(int i, Player p) {
+    startingXI[i] = p;
+    notifyListeners();
+  }
+
+  void autoBuild() {
+    startingXI = List.generate(
+        7, (_) => Player(name: "BOŞ", rating: 0, position: "", playstyles: []));
+    Set<String> used = {};
+    var pool = List<Player>.from(myClub)
+      ..sort((a, b) => b.rating.compareTo(a.rating));
+
+    Player? find(List<String> pos, String stat) {
+      Player? best;
+      int m = -1;
+      for (var p in pool) {
+        if (used.contains(p.name)) continue;
+        int statVal = (p.getFMStats()[stat] ?? 10);
+        int posBonus = pos.any((x) => p.position.contains(x)) ? 50 : 0;
+        int s = p.rating + statVal + posBonus;
+        if (s > m) {
+          m = s;
+          best = p;
+        }
+      }
+      if (best != null) used.add(best.name);
+      return best;
+    }
+
+    startingXI[0] = find(["GK"], "Refleks") ?? startingXI[0];
+    startingXI[1] = find(["DEF", "CB"], "Defans") ?? startingXI[1];
+    startingXI[2] = find(["DEF", "LB", "RB"], "Defans") ?? startingXI[2];
+    startingXI[3] = find(["MID", "CDM"], "Pas") ?? startingXI[3];
+    startingXI[4] = find(["MID", "CAM"], "Vizyon") ?? startingXI[4];
+    startingXI[5] = find(["ST", "FWD"], "Şut") ?? startingXI[5];
+    startingXI[6] = find(["RW", "LW", "ST"], "Hız") ?? startingXI[6];
+    notifyListeners();
   }
 }
 
-// ============================================================================
-// HIVE ADAPTERLERİ (GÜVENLİ VERSİYON)
-// ============================================================================
-
-class PlayerAdapter extends TypeAdapter<Player> {
+class UltimateTeamView extends StatelessWidget {
+  final AppDatabase database;
+  const UltimateTeamView({super.key, required this.database});
   @override
-  final int typeId = 1;
+  Widget build(BuildContext context) => const _UltimateBody();
+}
+
+class _UltimateBody extends StatefulWidget {
+  const _UltimateBody();
+  @override
+  State<_UltimateBody> createState() => _UltimateBodyState();
+}
+
+class _UltimateBodyState extends State<_UltimateBody> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<UltimateTeamProvider>().startTimer();
+    });
+  }
 
   @override
-  Player read(BinaryReader reader) {
-    // Verileri sırayla okuyoruz
-    final name = reader.read();
-    final rating = reader.read();
-    final position = reader.read();
-
-    // HATA DÜZELTME: Liste tip dönüşümü güvenli hale getirildi
-    var rawPlaystyles = reader.read();
-    List<PlayStyle> safePlaystyles = [];
-    if (rawPlaystyles is List) {
-      safePlaystyles = rawPlaystyles.whereType<PlayStyle>().toList();
+  Widget build(BuildContext context) {
+    var prov = Provider.of<UltimateTeamProvider>(context);
+    if (prov.myClub.isEmpty && !prov.claimedFirstPack) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _openStarter(context, prov));
     }
 
-    final marketValue = reader.read();
-
-    // MatchStat listesi güvenli okuma
-    var rawMatches = reader.read();
-    List<MatchStat> safeMatches = [];
-    if (rawMatches is List) {
-      safeMatches = rawMatches.whereType<MatchStat>().toList();
-    }
-
-    final team = reader.read();
-
-    // Map güvenli okuma
-    var rawStats = reader.read();
-    Map<String, int> safeStats = {};
-    if (rawStats is Map) {
-      safeStats = rawStats.map((k, v) => MapEntry(k.toString(), v as int));
-    }
-
-    final role = reader.read() ?? "Yok";
-    final skillMoves = reader.read() ?? 3;
-    final country = reader.read() ?? "Türkiye";
-    final chemistryStyle = reader.read() ?? "Temel";
-    final cardType = reader.read() ?? "Temel";
-
-    // SeasonStat güvenli okuma
-    var rawSeasons = reader.read();
-    List<SeasonStat> safeSeasons = [];
-    if (rawSeasons is List) {
-      safeSeasons = rawSeasons.whereType<SeasonStat>().toList();
-    }
-
-    final recLink = reader.read() ?? "";
-    final manualGoals = reader.read() ?? 0;
-    final manualAssists = reader.read() ?? 0;
-    final manualMatches = reader.read() ?? 0;
-    final instruction = reader.read() ?? "Balanced";
-
-    return Player(
-      name: name,
-      rating: rating,
-      position: position,
-      playstyles: safePlaystyles,
-      marketValue: marketValue,
-      matches: safeMatches,
-      team: team,
-      stats: safeStats,
-      role: role,
-      skillMoves: skillMoves,
-      country: country,
-      chemistryStyle: chemistryStyle,
-      cardType: cardType,
-      seasons: safeSeasons,
-      recLink: recLink,
-      manualGoals: manualGoals,
-      manualAssists: manualAssists,
-      manualMatches: manualMatches,
-      instruction: instruction,
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D0D12),
+      appBar: AppBar(
+          title: Text("ULTIMATE TEAM",
+              style: GoogleFonts.orbitron(color: Colors.amber)),
+          actions: [
+            ElevatedButton.icon(
+                onPressed: () {
+                  prov.autoBuild();
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text("En iyi kadro kuruldu!"),
+                      backgroundColor: Colors.green));
+                },
+                icon: const Icon(Icons.auto_fix_high),
+                label: const Text("OTOMATİK DİZ"),
+                style:
+                    ElevatedButton.styleFrom(backgroundColor: Colors.indigo)),
+            const SizedBox(width: 20)
+          ]),
+      body: Row(children: [
+        Expanded(
+            flex: 4,
+            child: Container(
+                margin: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: Colors.white12),
+                    image: DecorationImage(
+                        image: AssetImage("assets/pitch_bg.png"),
+                        fit: BoxFit.cover,
+                        opacity: 0.4,
+                        onError: (e, s) {})),
+                child: LayoutBuilder(builder: (c, cons) {
+                  double w = cons.maxWidth, h = cons.maxHeight;
+                  return Stack(children: [
+                    _pos(context, 0, "GK", w * 0.5, h * 0.85),
+                    _pos(context, 1, "DEF", w * 0.25, h * 0.65),
+                    _pos(context, 2, "DEF", w * 0.75, h * 0.65),
+                    _pos(context, 3, "MID", w * 0.4, h * 0.45),
+                    _pos(context, 4, "MID", w * 0.6, h * 0.45),
+                    _pos(context, 5, "FWD", w * 0.3, h * 0.25),
+                    _pos(context, 6, "FWD", w * 0.7, h * 0.25),
+                  ]);
+                }))),
+        Container(
+            width: 380,
+            color: const Color(0xFF15151E),
+            padding: const EdgeInsets.all(10),
+            child: Column(children: [
+              ElevatedButton(
+                  onPressed: () => _vs(context, prov),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      minimumSize: const Size(double.infinity, 60)),
+                  child: const Text("ONLİNE VS AT",
+                      style: TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.bold))),
+              const Divider(color: Colors.white24, height: 30),
+              _packs(context, prov),
+              Expanded(
+                  child: GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3, childAspectRatio: 0.65),
+                      itemCount: prov.myClub.length,
+                      itemBuilder: (c, i) => Draggable<Player>(
+                          data: prov.myClub[i],
+                          feedback: SizedBox(
+                              width: 80,
+                              child: FCAnimatedCard(player: prov.myClub[i])),
+                          child: InkWell(
+                              onTap: () => _showFM(context, prov.myClub[i]),
+                              child: FCAnimatedCard(player: prov.myClub[i])))))
+            ]))
+      ]),
     );
   }
 
-  @override
-  void write(BinaryWriter writer, Player obj) {
-    writer
-      ..write(obj.name)
-      ..write(obj.rating)
-      ..write(obj.position)
-      ..write(obj.playstyles)
-      ..write(obj.marketValue)
-      ..write(obj.matches)
-      ..write(obj.team)
-      ..write(obj.stats)
-      ..write(obj.role)
-      ..write(obj.skillMoves)
-      ..write(obj.country)
-      ..write(obj.chemistryStyle)
-      ..write(obj.cardType)
-      ..write(obj.seasons)
-      ..write(obj.recLink)
-      ..write(obj.manualGoals)
-      ..write(obj.manualAssists)
-      ..write(obj.manualMatches)
-      ..write(obj.instruction);
-  }
-}
+  Widget _packs(BuildContext c, UltimateTeamProvider p) => Column(children: [
+        if (!p.claimed15m && p.secondsActive >= 900)
+          ElevatedButton(
+              onPressed: () => _openPack(c, p, 1, 70, rid: 1),
+              child: const Text("15DK ÖDÜLÜ (+70)")),
+        if (!p.claimed30m && p.secondsActive >= 1800)
+          ElevatedButton(
+              onPressed: () => _openPack(c, p, 1, 75, rid: 2),
+              child: const Text("30DK ÖDÜLÜ (+75)")),
+      ]);
 
-class PlayStyleAdapter extends TypeAdapter<PlayStyle> {
-  @override
-  final int typeId = 2;
-  @override
-  PlayStyle read(BinaryReader reader) =>
-      PlayStyle(reader.read(), isGold: reader.read());
-  @override
-  void write(BinaryWriter writer, PlayStyle obj) {
-    writer.write(obj.name);
-    writer.write(obj.isGold);
-  }
-}
-
-class MatchStatAdapter extends TypeAdapter<MatchStat> {
-  @override
-  final int typeId = 3;
-  @override
-  MatchStat read(BinaryReader reader) => MatchStat(reader.read(), reader.read(),
-      reader.read(), reader.read(), reader.read());
-  @override
-  void write(BinaryWriter writer, MatchStat obj) {
-    writer.write(obj.opponent);
-    writer.write(obj.score);
-    writer.write(obj.goals);
-    writer.write(obj.assists);
-    writer.write(obj.rating);
-  }
-}
-
-class SeasonStatAdapter extends TypeAdapter<SeasonStat> {
-  @override
-  final int typeId = 5;
-  @override
-  SeasonStat read(BinaryReader reader) => SeasonStat(reader.read(),
-      reader.read(), reader.read(), reader.read(), reader.read());
-  @override
-  void write(BinaryWriter writer, SeasonStat obj) {
-    writer.write(obj.season);
-    writer.write(obj.avgRating);
-    writer.write(obj.goals);
-    writer.write(obj.assists);
-    writer.write(obj.isMVP);
-  }
-}
-
-class StrategyAdapter extends TypeAdapter<StrategyModel> {
-  @override
-  final int typeId = 4;
-  @override
-  StrategyModel read(BinaryReader reader) =>
-      StrategyModel(name: reader.read(), jsonData: reader.read());
-  @override
-  void write(BinaryWriter writer, StrategyModel obj) {
-    writer.write(obj.name);
-    writer.write(obj.jsonData);
-  }
-}
-
-// ============================================================================
-// VERİ MODELLERİ
-// ============================================================================
-
-class PlayStyle {
-  final String name;
-  final bool isGold;
-  PlayStyle(this.name, {this.isGold = false});
-  String get assetPath => isGold
-      ? "assets/Playstyles/plus/${name}Plus.png"
-      : "assets/Playstyles/$name.png";
-}
-
-class MatchStat {
-  final String opponent;
-  final String score;
-  final int goals;
-  final int assists;
-  final double rating;
-  MatchStat(this.opponent, this.score, this.goals, this.assists, this.rating);
-}
-
-class SeasonStat {
-  final String season;
-  final double avgRating;
-  final int goals;
-  final int assists;
-  final bool isMVP;
-  SeasonStat(this.season, this.avgRating, this.goals, this.assists, this.isMVP);
-}
-
-class StrategyModel extends HiveObject {
-  final String name;
-  final String jsonData;
-  StrategyModel({required this.name, required this.jsonData});
-}
-
-class Player extends HiveObject {
-  String name;
-  int rating;
-  String position;
-  List<PlayStyle> playstyles;
-  String marketValue;
-  List<MatchStat> matches;
-  String team;
-  Map<String, int> stats;
-  String role;
-  int skillMoves;
-  String country;
-  String chemistryStyle;
-  String cardType;
-  String recLink;
-  List<SeasonStat> seasons;
-  int manualGoals, manualAssists, manualMatches;
-  String instruction;
-
-  Player(
-      {required this.name,
-      required this.rating,
-      required this.position,
-      required this.playstyles,
-      this.marketValue = "N/A",
-      this.matches = const [],
-      this.team = "Takımsız",
-      this.stats = const {},
-      this.role = "Yok",
-      this.skillMoves = 3,
-      this.country = "Türkiye",
-      this.chemistryStyle = "Temel",
-      this.cardType = "Temel",
-      this.seasons = const [],
-      this.recLink = "",
-      this.manualGoals = 0,
-      this.manualAssists = 0,
-      this.manualMatches = 0,
-      this.instruction = "Balanced"});
-
-  // --- HESAPLAMA METODLARI ---
-
-  Map<String, int> getFMStats() {
-    var raw = getCardStats();
-    // Null safety: ?? 50 ekleyerek null hatasını önlüyoruz
-    int toFM(int? val) => ((val ?? 50) / 5.0).round().clamp(1, 20);
-
-    int pas = raw['PAS'] ?? 50;
-    int def = raw['DEF'] ?? 50;
-    int sho = raw['SHO'] ?? 50;
-    int dri = raw['DRI'] ?? 50;
-
-    int intelligence = ((pas + def) / 2).round();
-    int composure = ((sho + dri) / 2).round();
-
-    return {
-      "Hız": toFM(raw['PAC']),
-      "Şut": toFM(raw['SHO']),
-      "Pas": toFM(raw['PAS']),
-      "Dripling": toFM(raw['DRI']),
-      "Defans": toFM(raw['DEF']),
-      "Fizik": toFM(raw['PHY']),
-      "Pozisyon": toFM((intelligence * 0.7 + def * 0.3).toInt()),
-      "Vizyon": toFM((pas * 0.8 + dri * 0.2).toInt()),
-      "Refleks": position.contains("GK")
-          ? toFM(stats['Reflex'] ?? rating)
-          : toFM(rating - 40),
-      "Teknik": toFM((dri + pas) ~/ 2),
-      "Karar": toFM(composure),
-    };
+  Widget _pos(BuildContext context, int i, String l, double x, double y) {
+    var p = context.watch<UltimateTeamProvider>().startingXI[i];
+    return Positioned(
+        left: x - 55,
+        top: y - 75,
+        child: DragTarget<Player>(
+            onAccept: (d) =>
+                context.read<UltimateTeamProvider>().setStarter(i, d),
+            builder: (c, cand, rej) => SizedBox(
+                width: 110,
+                height: 150,
+                child: p.rating > 0
+                    ? InkWell(
+                        onTap: () => _showFM(context, p),
+                        child: FCAnimatedCard(player: p))
+                    : Container(
+                        color: Colors.black45,
+                        child: Center(
+                            child: Text(l,
+                                style: const TextStyle(
+                                    color: Colors.white38)))))));
   }
 
-  Map<String, int> getCardStats() {
-    if (stats.isEmpty) {
-      int r = rating;
-      return {
-        "PAC": r - 5,
-        "SHO": r - 10,
-        "PAS": r - 5,
-        "DRI": r,
-        "DEF": r - 30,
-        "PHY": r - 10
-      };
+  void _vs(BuildContext context, UltimateTeamProvider prov) {
+    var myTeam = prov.startingXI.where((p) => p.rating > 0).toList();
+    if (myTeam.length < 7) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Lütfen 7 oyuncuyu da dizin!")));
+      return;
     }
-    if (position.contains("GK") || position.contains("(1)")) {
-      return {
-        "REF": stats["Reflex"] ?? 50,
-        "DIV": stats["Çizgide Kurtarış"] ?? 50,
-        "HAN": stats["Top Kontrolü"] ?? 50,
-        "KIC": stats["Güç"] ?? 50,
-        "POS": stats["Pozisyon Alma"] ?? 50,
-        "1v1": stats["1e1 Savunma"] ?? 50,
-      };
+    double avg = myTeam.map((e) => e.rating).reduce((a, b) => a + b) / 7;
+    var opp = List.generate(
+        7,
+        (i) => Player(
+            name: "Rakip $i",
+            rating: (avg + Random().nextInt(4) - 2).toInt(),
+            position: i == 0 ? "GK" : "ST",
+            playstyles: [],
+            cardType: "Temel"));
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (c) => MatchEngineView(
+                myTeam: myTeam,
+                oppTeam: opp,
+                onMatchEnd: (w) {
+                  Navigator.pop(context);
+                  if (w)
+                    _openPack(context, prov, 1, 75);
+                  else
+                    _openPack(context, prov, 1, 70);
+                })));
+  }
+
+  void _showFM(BuildContext context, Player p) {
+    var s = p.getFMStats();
+    showDialog(
+        context: context,
+        builder: (c) => Dialog(
+            backgroundColor: const Color(0xFF1E1E24),
+            child: Container(
+                width: 700,
+                height: 500,
+                padding: const EdgeInsets.all(20),
+                child: Row(children: [
+                  SizedBox(width: 200, child: FCAnimatedCard(player: p)),
+                  const VerticalDivider(color: Colors.white12),
+                  Expanded(
+                      child: GridView.count(
+                          crossAxisCount: 2,
+                          childAspectRatio: 4,
+                          children: s.entries
+                              .map((e) => ListTile(
+                                  title: Text(e.key,
+                                      style: const TextStyle(
+                                          color: Colors.white70)),
+                                  trailing: Text("${e.value}",
+                                      style: TextStyle(
+                                          color: e.value > 15
+                                              ? Colors.green
+                                              : Colors.amber,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold))))
+                              .toList()))
+                ]))));
+  }
+
+  Player _convert(dynamic row) {
+    Map<String, int> st = {};
+    List<PlayStyle> ps = [];
+    try {
+      if (row.statsJson != null)
+        st = Map<String, int>.from(jsonDecode(row.statsJson));
+    } catch (e) {}
+    try {
+      if (row.playStylesJson != null)
+        ps = (jsonDecode(row.playStylesJson) as List)
+            .map((e) => PlayStyle(e.toString()))
+            .toList();
+    } catch (e) {}
+    return Player(
+        name: row.name,
+        rating: row.rating,
+        position: row.position,
+        playstyles: ps,
+        cardType: row.cardType,
+        team: row.team,
+        stats: st,
+        role: row.role ?? "Yok");
+  }
+
+  void _openStarter(BuildContext context, UltimateTeamProvider prov) async {
+    final db = Provider.of<AppDatabase>(context, listen: false);
+    final raw = await db.watchAllPlayers().first;
+    if (raw.isEmpty) return;
+
+    var all = raw.map((r) => _convert(r)).toList();
+    List<Player> pack = [];
+    Random r = Random();
+    void add(int n, int min, int max) {
+      var sub = all.where((p) => p.rating >= min && p.rating < max).toList();
+      for (int i = 0; i < n; i++)
+        if (sub.isNotEmpty) pack.add(sub.removeAt(r.nextInt(sub.length)));
     }
-    return {
-      "PAC": _getAvg(statSegments["1. Top Sürme & Fizik"]!.sublist(0, 4)),
-      "SHO": _getAvg(statSegments["2. Şut & Zihinsel"]!),
-      "PAS": _getAvg(statSegments["4. Pas & Vizyon"]!),
-      "DRI": _getAvg(["Top Sürme", "Teknik", "Çeviklik", "Denge"]),
-      "DEF": _getAvg(statSegments["3. Savunma & Güç"]!),
-      "PHY": _getAvg(["Güç", "Saldırganlık", "Sert Duruş", "Duvar Kabiliyeti"])
-    };
+
+    add(7, 70, 75);
+    add(3, 75, 80);
+    add(2, 80, 99);
+    for (var p in pack) prov.addPlayerToClub(p);
+    prov.claimedFirstPack = true;
+    showDialog(
+        context: context,
+        builder: (c) => AlertDialog(
+            backgroundColor: Colors.black,
+            title: const Text("HOŞ GELDİN! 12 KART KAZANDIN",
+                style: TextStyle(color: Colors.amber)),
+            content: SizedBox(
+                width: 600,
+                height: 200,
+                child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: pack
+                        .map((p) => Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: FCAnimatedCard(player: p)))
+                        .toList()))));
   }
 
-  Offset getPitchPosition() {
-    if (position.contains("GK")) return const Offset(0.5, 0.9);
-    if (position.contains("DEF") || position.contains("CB"))
-      return const Offset(0.5, 0.75);
-    if (position.contains("MID") || position.contains("CM"))
-      return const Offset(0.5, 0.5);
-    if (position.contains("FWD") || position.contains("ST"))
-      return const Offset(0.5, 0.15);
-    return const Offset(0.5, 0.5);
-  }
-
-  Map<String, String> getSimulationStats() {
-    return {
-      "Gol": "$manualGoals",
-      "Asist": "$manualAssists",
-      "Maç": "$manualMatches",
-      "Puan": matches.isNotEmpty
-          ? (matches.fold(0.0, (s, m) => s + m.rating) / matches.length)
-              .toStringAsFixed(1)
-          : "N/A"
-    };
-  }
-
-  void calculateSmartRating() {
-    if (stats.isEmpty) return;
-    int total = 0;
-    int c = 0;
-    stats.forEach((k, v) {
-      if (v > 0) {
-        total += v;
-        c++;
-      }
-    });
-    if (c > 0) rating = (total / c).round().clamp(1, 99);
-  }
-
-  int _getAvg(List<String> keys) {
-    if (stats.isEmpty) return 50;
-    int s = 0, c = 0;
-    for (var k in keys) {
-      if (stats.containsKey(k)) {
-        s += stats[k]!;
-        c++;
-      }
+  void _openPack(
+      BuildContext context, UltimateTeamProvider prov, int count, int min,
+      {int? rid}) async {
+    final db = Provider.of<AppDatabase>(context, listen: false);
+    final raw = await db.watchAllPlayers().first;
+    var all = raw.map((r) => _convert(r)).toList();
+    List<Player> pack = [];
+    Random r = Random();
+    for (int i = 0; i < count; i++) {
+      var cand = all.where((p) => p.rating >= min).toList();
+      if (cand.isEmpty) cand = all;
+      pack.add(cand[r.nextInt(cand.length)]);
     }
-    return c == 0 ? 50 : (s / c).round();
-  }
-
-  int get kitNumber =>
-      position.contains("GK") ? 1 : (position.contains("ST") ? 9 : 10);
-
-  int getCardTierStars() {
-    if (["TOTS", "BALLOND'OR"].contains(cardType)) return 5;
-    if (["STAR", "MVP"].contains(cardType)) return 4;
-    return 1;
+    for (var p in pack) prov.addPlayerToClub(p);
+    if (rid == 1) prov.claimed15m = true;
+    if (rid == 2) prov.claimed30m = true;
+    showDialog(
+        context: context,
+        builder: (c) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                    color: Colors.black87,
+                    border: Border.all(color: Colors.amber)),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text("PAKET AÇILDI!",
+                      style: GoogleFonts.russoOne(
+                          color: Colors.amber, fontSize: 30)),
+                  SizedBox(
+                      height: 250,
+                      width: 400,
+                      child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: pack
+                              .map((p) => Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: FCAnimatedCard(player: p)))
+                              .toList()))
+                ]))));
   }
 }
-
-// Global Listeler
-final Map<String, List<String>> statSegments = {
-  "1. Top Sürme & Fizik": [
-    "Hız",
-    "Hızlanma",
-    "Çeviklik",
-    "Denge",
-    "Top Sürme",
-    "Duvar Kabiliyeti",
-    "Teknik"
-  ],
-  "2. Şut & Zihinsel": [
-    "Şut Gücü",
-    "Pozisyon Alma",
-    "Bitiricilik",
-    "Uzaktan Şut",
-    "Soğukkanlılık",
-    "Karar Alma",
-    "Roket Şut"
-  ],
-  "3. Savunma & Güç": [
-    "Top Kapma",
-    "Savunma Farkındalığı",
-    "Sert Duruş",
-    "Güç",
-    "Saldırganlık",
-    "Markaj",
-    "Top Kesme"
-  ],
-  "4. Pas & Vizyon": [
-    "Pas",
-    "Ara Pas",
-    "Takım Oyunu",
-    "Görüş",
-    "Topsuz Alan",
-    "Orta Yapma",
-    "Top Kontrolü"
-  ]
-};
-final List<String> gkSkillStats = [
-  "Reflex",
-  "1e1 Savunma",
-  "Çizgide Kurtarış",
-  "Sert Duruş",
-  "Güç"
-];
-final List<String> gkPassStats = [
-  "Pas",
-  "Top Kontrolü",
-  "Görüş",
-  "Topsuz Alan",
-  "Soğukkanlılık",
-  "Karar Alma",
-  "Pozisyon Alma"
-];
-final List<String> globalCardTypes = [
-  "Temel",
-  "TOTW",
-  "TOTM",
-  "TOTS",
-  "MVP",
-  "STAR",
-  "BALLOND'OR",
-  "BAD"
-];
-final List<String> globalRoles = [
-  "Kaptan",
-  "Yedek",
-  "Rotasyon",
-  "Yıldız",
-  "Genç Yetenek"
-];
-final Map<String, String> teamLogos = {"Takımsız": ""};
-final Map<String, List<String>> roleCategories = {
-  "(1) GK": ["Çizgi Kalecisi"],
-  "(9) ST": ["Hedef Forvet"]
-};
