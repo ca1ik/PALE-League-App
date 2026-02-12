@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
@@ -202,7 +201,7 @@ class Player extends HiveObject {
 
   // --- HESAPLAMA METODLARI (Crash Proof) ---
 
-  Map<String, int> getFMStats() {
+  Map<String, int> getFMStatsCalculated() {
     var raw = getCardStats();
     int toFM(int? val) => ((val ?? 50) / 5.0).round().clamp(1, 20);
 
