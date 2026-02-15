@@ -29,7 +29,7 @@ class PlayerAdapter extends TypeAdapter<Player> {
       skillMoves: reader.read() ?? 3,
       country: reader.read() ?? "Türkiye",
       chemistryStyle: reader.read() ?? "Temel",
-      cardType: reader.read() ?? "Temel",
+      cardType: reader.read() ?? "Temel 1",
       seasons: (reader.read() as List?)?.whereType<SeasonStat>().toList() ?? [],
       recLink: reader.read() ?? "",
       manualGoals: reader.read() ?? 0,
