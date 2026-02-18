@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:screenshot/screenshot.dart'; // EKLENDİ: Ekran görüntüsü için
-import '../modules/palehax_players_view2.dart';
 
 // Kendi proje yapına göre bu importların doğruluğundan emin ol
 import '../data/player_data.dart' as pd;
@@ -303,216 +302,150 @@ final Map<String, List<String>> manualTeamRosters = {
   ],
 };
 
-Map<String, List<Map<String, String>>> get playStyleCategories => {
-      pd.PaleHaxLoc.txt("Bitirici"): [
-        {
-          "name": "GameChanger",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Oyun Kurucu/Yaratıcı"
-              : (pd.PaleHaxLoc.lang == "EN"
-                  ? "Playmaker/Creator"
-                  : "Creador de Juego"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_GameChanger")
-        },
-        {
-          "name": "Acrobatic",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Akrobatik"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Acrobatic" : "Acrobático"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_Acrobatic")
-        },
-        {
-          "name": "PowerShot",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Sert Şut"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Power Shot" : "Tiro Potente"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_PowerShot")
-        },
-        {
-          "name": "FinesseShot",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Plase Şut"
-              : (pd.PaleHaxLoc.lang == "EN"
-                  ? "Finesse Shot"
-                  : "Tiro de Calidad"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_FinesseShot")
-        },
-        {
-          "name": "ChipShot",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Aşırtma"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Chip Shot" : "Vaselina"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_ChipShot")
-        }
-      ],
-      pd.PaleHaxLoc.txt("Pas"): [
-        {
-          "name": "IncisivePass",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Keskin Pas"
-              : (pd.PaleHaxLoc.lang == "EN"
-                  ? "Incisive Pass"
-                  : "Pase Incisivo"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_IncisivePass")
-        },
-        {
-          "name": "PingedPass",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Adrese Teslim"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Pinged Pass" : "Pase Preciso"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_PingedPass")
-        },
-        {
-          "name": "LongBallPass",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Uzun Pas"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Long Ball" : "Balón Largo"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_LongBallPass")
-        },
-        {
-          "name": "TikiTaka",
-          "label": "Tiki Taka",
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_TikiTaka")
-        },
-        {
-          "name": "WhippedPass",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Kırbaçlanmış Pas"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Whipped Pass" : "Pase Liftado"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_WhippedPass")
-        },
-        {
-          "name": "Inventive",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Yaratıcı"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Inventive" : "Inventivo"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_Inventive")
-        }
-      ],
-      pd.PaleHaxLoc.txt("Savunma/Fiziksel"): [
-        {
-          "name": "Jockey",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Jokey"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Jockey" : "Jockey"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_Jockey")
-        },
-        {
-          "name": "Block",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Engelleyici"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Block" : "Bloqueo"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_Block")
-        },
-        {
-          "name": "Intercept",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Top Kesici"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Intercept" : "Intercepción"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_Intercept")
-        },
-        {
-          "name": "Anticipate",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Sezgici"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Anticipate" : "Anticipación"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_Anticipate")
-        },
-        {
-          "name": "Bruiser",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Kavgacı"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Bruiser" : "Leñero"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_Bruiser")
-        },
-        {
-          "name": "AerialFortress",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Hava Hakimiyeti"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Aerial" : "Aéreo"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_AerialFortress")
-        }
-      ],
-      pd.PaleHaxLoc.txt("Dripling"): [
-        {
-          "name": "Technical",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Teknik"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Technical" : "Técnico"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_Technical")
-        },
-        {
-          "name": "Rapid",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Ani"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Rapid" : "Rápido"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_Rapid")
-        },
-        {
-          "name": "FirstTouch",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "İlk Dokunuş"
-              : (pd.PaleHaxLoc.lang == "EN" ? "First Touch" : "Primer Toque"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_FirstTouch")
-        },
-        {
-          "name": "Trickster",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Hilebaz/Sanatçı"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Trickster" : "Ilusionista"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_Trickster")
-        },
-        {
-          "name": "PressProven",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Baskı Yemez"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Press Proven" : "Resistente"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_PressProven")
-        },
-        {
-          "name": "QuickStep",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Hızlı Adım"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Quick Step" : "Paso Rápido"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_QuickStep")
-        }
-      ],
-      pd.PaleHaxLoc.txt("Kaleci"): [
-        {
-          "name": "FarReach",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Uzak Erişim/Atış"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Far Reach" : "Alcance Lejano"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_FarReach")
-        },
-        {
-          "name": "Footwork",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Ayak Hareketleri"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Footwork" : "Juego de Pies"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_Footwork")
-        },
-        {
-          "name": "CrossClaimer",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Çapraz Muhafız"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Cross Claimer" : "Interceptor"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_CrossClaimer")
-        },
-        {
-          "name": "RushOut",
-          "label": pd.PaleHaxLoc.lang == "TR"
-              ? "Dışarı Terk"
-              : (pd.PaleHaxLoc.lang == "EN" ? "Rush Out" : "Salida Rápida"),
-          "desc": pd.PaleHaxLoc.getDesc("ps_desc_RushOut")
-        },
-      ]
-    };
+final Map<String, List<Map<String, String>>> playStyleCategories = {
+  "Bitirici": [
+    {
+      "name": "GameChanger",
+      "label": "Oyun Kurucu/Yaratıcı",
+      "desc": "Sıradışı bitirişler ve yaratıcı vuruşlar."
+    },
+    {
+      "name": "Acrobatic",
+      "label": "Akrobatik",
+      "desc": "Akrobatik paslar ve estetik vuruşlar."
+    },
+    {
+      "name": "PowerShot",
+      "label": "Sert Şut",
+      "desc": "Ceza sahası dışından sert şutlar."
+    },
+    {
+      "name": "FinesseShot",
+      "label": "Plase Şut",
+      "desc": "Köşelere isabetli ve kaliteli şutlar."
+    },
+    {
+      "name": "ChipShot",
+      "label": "Aşırtma",
+      "desc": "Kaleciyi önde yakalayan aşırtma vuruşlar."
+    }
+  ],
+  "Pas": [
+    {
+      "name": "IncisivePass",
+      "label": "Keskin Pas",
+      "desc": "Savunmayı yaran koşturucu paslar."
+    },
+    {
+      "name": "PingedPass",
+      "label": "Adrese Teslim",
+      "desc": "Hızlı ve sert adrese teslim paslar."
+    },
+    {
+      "name": "LongBallPass",
+      "label": "Uzun Pas",
+      "desc": "Uzaktaki oyuncuya nokta atışı paslar."
+    },
+    {
+      "name": "TikiTaka",
+      "label": "Tiki Taka",
+      "desc": "İlk vuruşta isabetli kısa paslar."
+    },
+    {
+      "name": "WhippedPass",
+      "label": "Kırbaçlanmış Pas",
+      "desc": "Hızlı ve sert ceza sahası ortaları."
+    },
+    {
+      "name": "Inventive",
+      "label": "Yaratıcı",
+      "desc": "Zekice ve tahmin edilemez paslar."
+    }
+  ],
+  "Savunma/Fiziksel": [
+    {"name": "Jockey", "label": "Jokey", "desc": "Bire bir mücadele uzmanı."},
+    {
+      "name": "Block",
+      "label": "Engelleyici",
+      "desc": "Esnek ve markajlayarak blok yapma."
+    },
+    {
+      "name": "Intercept",
+      "label": "Top Kesici",
+      "desc": "Topu kapma ve sahip olma yeteneği."
+    },
+    {
+      "name": "Anticipate",
+      "label": "Sezgici",
+      "desc": "Düşük hata oranıyla top çalma."
+    },
+    {
+      "name": "Bruiser",
+      "label": "Kavgacı",
+      "desc": "Bodyleme ve fiziksel top kazanma."
+    },
+    {
+      "name": "AerialFortress",
+      "label": "Hava Hakimiyeti",
+      "desc": "Sert paslara kontrollü hava tepkisi."
+    }
+  ],
+  "Dripling": [
+    {
+      "name": "Technical",
+      "label": "Teknik",
+      "desc": "Teknik top sürme becerisi."
+    },
+    {"name": "Rapid", "label": "Ani", "desc": "Rakibi hızla ekarte etme."},
+    {
+      "name": "FirstTouch",
+      "label": "İlk Dokunuş",
+      "desc": "Zor pozisyonlarda isabetli kontrol."
+    },
+    {
+      "name": "Trickster",
+      "label": "Hilebaz/Sanatçı",
+      "desc": "Yetenekli duvar hareketleri."
+    },
+    {
+      "name": "PressProven",
+      "label": "Baskı Yemez",
+      "desc": "Fiziksel baskı altında hakimiyet."
+    },
+    {
+      "name": "QuickStep",
+      "label": "Hızlı Adım",
+      "desc": "Topla birlikte hızlı dripling."
+    }
+  ],
+  "Kaleci": [
+    {
+      "name": "FarReach",
+      "label": "Uzak Erişim/Atış",
+      "desc": "Uzak köşelere uzanabilir."
+    },
+    {
+      "name": "Footwork",
+      "label": "Ayak Hareketleri",
+      "desc": "Kaliteli pas atan pasör kaleci."
+    },
+    {
+      "name": "CrossClaimer",
+      "label": "Çapraz Muhafız",
+      "desc": "Markajla top kesen kaleci."
+    },
+    {
+      "name": "RushOut",
+      "label": "Dışarı Terk",
+      "desc": "Agresif şut/pas engelleme."
+    },
+  ]
+};
 
-Map<String, String> get playStyleTranslationsReverse =>
-    playStyleCategories.values
-        .expand((e) => e)
-        .fold({}, (map, e) => map..[e["name"]!] = e["label"]!);
+final Map<String, String> playStyleTranslationsReverse = playStyleCategories
+    .values
+    .expand((e) => e)
+    .fold({}, (map, e) => map..[e["name"]!] = e["label"]!);
 
 final List<Map<String, dynamic>> metaPlaystyles = [
   {
@@ -547,13 +480,41 @@ final List<Map<String, dynamic>> metaPlaystyles = [
   },
 ];
 
-Map<String, String> get cardTypeDescriptions => pd.globalCardTypes
-    .asMap()
-    .map((_, t) => MapEntry(t, pd.PaleHaxLoc.getDesc("card_desc_$t")));
+final Map<String, String> cardTypeDescriptions = {
+  "Temel": "Standart oyuncu kartı.",
+  "TOTW": "Haftanın Takımı.",
+  "TOTS": "Sezonun Takımı.",
+  "MVP": "En Değerli Oyuncu.",
+  "STAR": "Yıldız Oyuncu.",
+  "BALLOND'OR": "Sezonun Oyuncusu.",
+  "BAD": "Facia Performans.",
+  "TOTM": "Ayın Takımı."
+};
 
-Map<String, String> get roleDescriptions => pd.roleCategories.values
-    .expand((e) => e)
-    .fold({}, (map, r) => map..[r] = pd.PaleHaxLoc.getDesc("role_desc_$r"));
+final Map<String, String> roleDescriptions = {
+  "Çizgi Kalecisi": "Refleks kurtarışları yapar.",
+  "Süpürücü Kaleci": "Defans arkası toplara çıkar.",
+  "Oyun Kurucu Kaleci": "Geriden oyun kurar.",
+  "Savunmatik": "Önceliği defans güvenliğidir.",
+  "Libero": "En arkada serbest oynar.",
+  "Oyun Kurucu Stoper": "Topu oyuna sokar.",
+  "Tutucu": "Defans önünü süpürür.",
+  "Derin Oyun Kurucu": "Geriden oyun kurar.",
+  "Savaşçı": "Rakibi yıpratır.",
+  "Oyun Kurucu": "Takımın beyni konumu.",
+  "Box to Box": "İki ceza sahası arası mekik dokur.",
+  "Mezzala": "Yarı kanat, yaratıcı merkez oyuncusu.",
+  "Gölge Forvet": "Forvet arkasından gol arayan oyuncu.",
+  "Enganche": "Klasik 10 numara tarzı oyun kurucu.",
+  "İç Forvet": "Kanattan içeri kat edip şut çeker.",
+  "Kanat Oyuncusu": "Çizgiye inip orta yapmaya odaklanır.",
+  "Gizli Forvet": "Geri planda kalıp sürpriz goller arar.",
+  "Avcı Forvet": "Ceza sahası içi bitiriciliğe odaklanır.",
+  "Hedef Forvet": "Top saklayıp arkadaşlarına servis yapar.",
+  "Yanlış 9": "Forvet görünüp orta sahaya yardıma gelir.",
+  "Kanat Bek": "Hücuma katkı veren savunma oyuncusu.",
+  "Hücum Bek": "Neredeyse kanat gibi oynayan bek."
+};
 
 final Map<String, String> playStyleFileMap = {
   "GameChanger": "OyunKurucu",
@@ -983,29 +944,19 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
   @override
   Widget build(BuildContext context) {
     final database = Provider.of<AppDatabase>(context);
-    return ValueListenableBuilder<String>(
-      valueListenable: pd.paleHaxLangNotifier,
-      builder: (context, lang, child) {
-        return DefaultTabController(
-          length: 5,
-          child: Scaffold(
+    return DefaultTabController(
+        length: 5,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
             backgroundColor: Colors.transparent,
-<<<<<<< HEAD
             elevation: 0,
             toolbarHeight: 0,
             bottom: TabBar(
-=======
-            appBar: AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              toolbarHeight: 0,
-              bottom: TabBar(
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                 indicatorColor: Colors.cyanAccent,
                 labelColor: Colors.cyanAccent,
                 unselectedLabelColor: Colors.white54,
                 tabs: [
-<<<<<<< HEAD
                   Tab(text: t("PLAYERS", lang)),
                   Tab(text: t("TEAMS", lang)),
                   Tab(text: t("WIKI", lang)),
@@ -1058,30 +1009,6 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
             ],
           ),
         ));
-=======
-                  Tab(text: pd.PaleHaxLoc.txt("OYUNCULAR")),
-                  Tab(text: pd.PaleHaxLoc.txt("TAKIMLAR")),
-                  Tab(text: pd.PaleHaxLoc.txt("OYUN STİLLERİ (WIKI)")),
-                  Tab(text: pd.PaleHaxLoc.txt("KART TİPLERİ")),
-                  Tab(text: pd.PaleHaxLoc.txt("ROLLER"))
-                ],
-              ),
-            ),
-            body: TabBarView(
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _SubTabPlayers(database: database),
-                _SubTabTeams(database: database),
-                const SubTabPlayStyles(),
-                const SubTabCardTypes(),
-                const SubTabRoles()
-              ],
-            ),
-          ),
-        );
-      },
-    );
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
   }
 }
 
@@ -1196,15 +1123,9 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
           if (all.isEmpty)
             return Center(
                 child: ElevatedButton(
-<<<<<<< HEAD
                     onPressed: () => _showEditor(context, null,
                         (newP, oldP) => _save(newP, oldP), widget.lang),
                     child: Text(t("ADD_FIRST", widget.lang))));
-=======
-                    onPressed: () => _showEditor(
-                        context, null, (newP, oldP) => _save(newP, oldP)),
-                    child: Text(pd.PaleHaxLoc.txt("İLK OYUNCUYU EKLE"))));
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
 
           if (selectedPlayer == null ||
               !all.any((p) => p.name == selectedPlayer!.name))
@@ -1261,13 +1182,8 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                                     const Icon(Icons.public,
                                         color: Colors.white),
                                     const SizedBox(width: 8),
-<<<<<<< HEAD
                                     Text(t("GLOBAL", widget.lang),
                                         style: const TextStyle(
-=======
-                                    Text(pd.PaleHaxLoc.txt("GLOBAL KARTLAR"),
-                                        style: TextStyle(
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                                             color: Colors.white,
                                             fontWeight: FontWeight.bold))
                                   ])))),
@@ -1295,11 +1211,7 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                             children: [
                               const Icon(Icons.stars, color: Colors.cyanAccent),
                               const SizedBox(width: 8),
-<<<<<<< HEAD
                               Text(t("SHOWCASE", widget.lang),
-=======
-                              Text(pd.PaleHaxLoc.txt("VİTRİN"),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                                   style: GoogleFonts.russoOne(
                                       color: Colors.cyanAccent, fontSize: 14)),
                             ],
@@ -1325,17 +1237,10 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-<<<<<<< HEAD
                               const Icon(Icons.view_quilt, color: Colors.white),
                               const SizedBox(width: 8),
                               Text(t("SQUAD_BUILDER", widget.lang),
                                   style: const TextStyle(
-=======
-                              Icon(Icons.view_quilt, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text(pd.PaleHaxLoc.txt("VİTRİN TAKIMLARI"),
-                                  style: TextStyle(
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold)),
                             ],
@@ -1355,13 +1260,8 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                                   widget.lang),
                               icon: const Icon(Icons.person_add,
                                   color: Colors.black, size: 20),
-<<<<<<< HEAD
                               label: Text(t("NEW_PLAYER", widget.lang),
                                   style: const TextStyle(
-=======
-                              label: Text(pd.PaleHaxLoc.txt("YENİ OYUNCU"),
-                                  style: TextStyle(
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                                       color: Colors.black,
                                       fontWeight: FontWeight.bold)),
                               style: ElevatedButton.styleFrom(
@@ -1404,20 +1304,6 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                           fontSize: 22,
                           letterSpacing: 5,
                           fontWeight: FontWeight.bold))),
-<<<<<<< HEAD
-=======
-              Container(
-                  color: Colors.black26,
-                  child: TabBar(
-                      controller: _innerTabController,
-                      indicatorColor: Colors.cyanAccent,
-                      labelColor: Colors.cyanAccent,
-                      unselectedLabelColor: Colors.white54,
-                      tabs: [
-                        Tab(text: pd.PaleHaxLoc.txt("PROFİL")),
-                        Tab(text: pd.PaleHaxLoc.txt("ULTIMATE ANALİZ"))
-                      ])),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
               Expanded(
                   child: Stack(children: [
                 Column(children: [
@@ -1551,15 +1437,9 @@ class _SubTabTeamsState extends State<_SubTabTeams> {
                   color: Colors.white10,
                   borderRadius: BorderRadius.circular(20)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-<<<<<<< HEAD
                 _btn(t("APP", widget.lang), !isWeb,
                     () => setState(() => isWeb = false)),
                 _btn(t("WEB", widget.lang), isWeb,
-=======
-                _btn(pd.PaleHaxLoc.txt("UYGULAMA"), !isWeb,
-                    () => setState(() => isWeb = false)),
-                _btn(pd.PaleHaxLoc.txt("WEB SİTESİ"), isWeb,
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                     () => setState(() => isWeb = true))
               ]))),
       const SizedBox(height: 15),
@@ -1652,11 +1532,7 @@ class SubTabPlayStyles extends StatelessWidget {
                 Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-<<<<<<< HEAD
                       Text(t("META", lang),
-=======
-                      Text(pd.PaleHaxLoc.txt("V7 META ANALİZİ"),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                           style: GoogleFonts.orbitron(
                               color: Colors.cyanAccent,
                               fontSize: 24,
@@ -1679,7 +1555,7 @@ class SubTabPlayStyles extends StatelessWidget {
                               children: _buildIcons(m['styles'])))
                     ])))
               ])),
-          ...getPlayStyleCategories().entries.map((entry) => Column(children: [
+          ...playStyleCategories.entries.map((entry) => Column(children: [
                 Padding(
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     child: Center(
@@ -1848,14 +1724,14 @@ class SubTabCardTypes extends StatelessWidget {
                       const SizedBox(height: 10),
                       SizedBox(height: 480, child: FCAnimatedCard(player: p)),
                       const SizedBox(height: 15),
-                      Text(cardTypeDescriptions[t] ?? t,
+                      Text(cardTypeDescriptions[t] ?? "",
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                               color: Colors.white, fontSize: 17)),
                       const SizedBox(height: 25),
                       ElevatedButton(
                           onPressed: () => Navigator.pop(c),
-                          child: Text(pd.PaleHaxLoc.txt("KAPAT")))
+                          child: const Text("KAPAT"))
                     ])))));
   }
 }
@@ -1897,7 +1773,7 @@ class SubTabRoles extends StatelessWidget {
                                   color: Colors.cyanAccent,
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold)),
-                          Text(roleDescriptions[r] ?? r,
+                          Text(roleDescriptions[r] ?? "",
                               style: const TextStyle(
                                   color: Colors.white60, fontSize: 15)),
                           const Divider(color: Colors.white10)
@@ -1960,14 +1836,8 @@ class _ViewProfile extends StatelessWidget {
                                         context, player, lang),
                                     icon: const Icon(Icons.analytics,
                                         color: Colors.black, size: 24),
-<<<<<<< HEAD
                                     label: Text(t("DETAYLI ANALİZ", lang),
                                         style: const TextStyle(
-=======
-                                    label: Text(
-                                        pd.PaleHaxLoc.txt("DETAYLI ANALİZ"),
-                                        style: TextStyle(
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                                             color: Colors.black,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 16)),
@@ -1978,11 +1848,7 @@ class _ViewProfile extends StatelessWidget {
                                                 BorderRadius.circular(12))))))
                       ]),
                   const SizedBox(height: 35),
-<<<<<<< HEAD
                   Text(t("PLAYSTYLES", lang),
-=======
-                  Text(pd.PaleHaxLoc.txt("OYUN STİLLERİ"),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                       style: GoogleFonts.orbitron(
                           color: Colors.amber,
                           fontWeight: FontWeight.bold,
@@ -2024,11 +1890,7 @@ class _ViewProfile extends StatelessWidget {
                       }).toList()),
                   const SizedBox(height: 40),
                   if (versions.length > 1) ...[
-<<<<<<< HEAD
                     Text(t("OTHER_CARDS", lang),
-=======
-                    Text(pd.PaleHaxLoc.txt("OYUNCUNUN DİĞER KARTLARI"),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                         style: GoogleFonts.orbitron(
                             color: Colors.purpleAccent,
                             fontWeight: FontWeight.bold,
@@ -2123,7 +1985,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
   @override
   void didUpdateWidget(covariant _ViewUltimate oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.player != widget.player) {
+    if (oldWidget.player.name != widget.player.name) {
       if (widget.player.recLink.startsWith("[") &&
           widget.player.recLink.endsWith("]")) {
         try {
@@ -2158,7 +2020,6 @@ class _ViewUltimateState extends State<_ViewUltimate> {
     String styleName = p.style;
 
     if (sho > 85) {
-<<<<<<< HEAD
       sentences.add(t("AI_SENTENCE_1", widget.lang));
     } else if (sho > 75) {
       sentences.add(t("AI_SENTENCE_2", widget.lang));
@@ -2182,38 +2043,12 @@ class _ViewUltimateState extends State<_ViewUltimate> {
 
     if (pac > 90) {
       sentences.add(t("AI_SENTENCE_7", widget.lang));
-=======
-      sentences.add(pd.PaleHaxLoc.ai("ai_sho_85"));
-    } else if (sho > 75) {
-      sentences.add(pd.PaleHaxLoc.ai("ai_sho_75"));
-    }
-
-    if (pas > 85) {
-      sentences.add(pd.PaleHaxLoc.ai("ai_pas_85"));
-    }
-
-    if (dri > 85) {
-      sentences.add(pd.PaleHaxLoc.ai("ai_dri_85"));
-    }
-
-    if (def > 85) {
-      sentences.add(pd.PaleHaxLoc.ai("ai_def_85"));
-    }
-
-    if (phy > 85) {
-      sentences.add(pd.PaleHaxLoc.ai("ai_phy_85"));
-    }
-
-    if (pac > 90) {
-      sentences.add(pd.PaleHaxLoc.ai("ai_pac_90"));
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
     }
 
     // STİL ANALİZİ (YENİ)
     if (styleName != "Temel" && styleName != "Temel Kaleci") {
       String tierText = "";
       if (p.styleTier == 2)
-<<<<<<< HEAD
         tierText = t("STYLE_TIER_2", widget.lang);
       else if (p.styleTier == 1) tierText = t("STYLE_TIER_1", widget.lang);
 
@@ -2229,16 +2064,6 @@ class _ViewUltimateState extends State<_ViewUltimate> {
 
         if (p.styleTier == 2) {
           sentences.add(t("AI_SENTENCE_10", widget.lang));
-=======
-        tierText = pd.PaleHaxLoc.ai("ai_style_tier2");
-      else if (p.styleTier == 1) tierText = pd.PaleHaxLoc.ai("ai_style_tier1");
-
-      if (p.styleTier > 0) {
-        sentences.add(pd.PaleHaxLoc.ai("ai_style_perf",
-            params: {"tier": tierText, "style": styleName}));
-        if (p.styleTier == 2) {
-          sentences.add(pd.PaleHaxLoc.ai("ai_style_master"));
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
         }
       }
     }
@@ -2246,7 +2071,6 @@ class _ViewUltimateState extends State<_ViewUltimate> {
     // PlayStyle Analizi
     for (var ps in p.playstyles) {
       if (ps.name == "Acrobatic") {
-<<<<<<< HEAD
         sentences.add(t("AI_SENTENCE_11", widget.lang));
       }
       if (ps.name == "PowerShot") {
@@ -2260,30 +2084,11 @@ class _ViewUltimateState extends State<_ViewUltimate> {
       }
       if (ps.name == "DeadBall") {
         sentences.add(t("AI_SENTENCE_15", widget.lang));
-=======
-        sentences.add(pd.PaleHaxLoc.getDesc("ps_desc_Acrobatic"));
-      }
-      if (ps.name == "PowerShot") {
-        sentences.add(pd.PaleHaxLoc.getDesc("ps_desc_PowerShot"));
-      }
-      if (ps.name == "TikiTaka") {
-        sentences.add(pd.PaleHaxLoc.getDesc("ps_desc_TikiTaka"));
-      }
-      if (ps.name == "Trivela") {
-        sentences.add(pd.PaleHaxLoc.getDesc("ps_desc_Trivela"));
-      }
-      if (ps.name == "DeadBall") {
-        sentences.add(pd.PaleHaxLoc.getDesc("ps_desc_DeadBall"));
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
       }
     }
 
     if (sentences.isEmpty) {
-<<<<<<< HEAD
       sentences.add(t("AI_SENTENCE_DEFAULT", widget.lang));
-=======
-      sentences.add(pd.PaleHaxLoc.ai("ai_default"));
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
     }
 
     setState(() {
@@ -2297,13 +2102,8 @@ class _ViewUltimateState extends State<_ViewUltimate> {
         context: context,
         builder: (ctx) => AlertDialog(
               backgroundColor: const Color(0xFF1E1E24),
-<<<<<<< HEAD
               title: Text(t("EDIT_AI", widget.lang),
                   style: const TextStyle(color: Colors.cyanAccent)),
-=======
-              title: Text(pd.PaleHaxLoc.txt("AI_ANALIZ_EDIT"),
-                  style: TextStyle(color: Colors.cyanAccent)),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
               content: TextField(
                 controller: c,
                 maxLines: 10,
@@ -2314,21 +2114,13 @@ class _ViewUltimateState extends State<_ViewUltimate> {
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(ctx),
-<<<<<<< HEAD
                     child: Text(t("CANCEL", widget.lang))),
-=======
-                    child: Text(pd.PaleHaxLoc.txt("AI_ANALIZ_IPTAL"))),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                 ElevatedButton(
                     onPressed: () {
                       setState(() => aiDescription = c.text);
                       Navigator.pop(ctx);
                     },
-<<<<<<< HEAD
                     child: Text(t("SAVE", widget.lang)))
-=======
-                    child: Text(pd.PaleHaxLoc.txt("AI_ANALIZ_KAYDET")))
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
               ],
             ));
   }
@@ -2404,11 +2196,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                     ),
                     const SizedBox(height: 25),
 
-<<<<<<< HEAD
                     Text(t("PLAYSTYLES", widget.lang),
-=======
-                    Text(pd.PaleHaxLoc.txt("OYUN STİLLERİ"),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                         style: GoogleFonts.russoOne(
                             fontSize: 16, color: Colors.amber)),
                     const SizedBox(height: 10),
@@ -2439,11 +2227,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                                   const Icon(Icons.auto_awesome,
                                       color: Colors.amber, size: 20),
                                   const SizedBox(width: 10),
-<<<<<<< HEAD
                                   Text(t("AI_ANALYSIS", widget.lang),
-=======
-                                  Text(pd.PaleHaxLoc.txt("AI ANALİZ"),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                                       style: GoogleFonts.orbitron(
                                           color: Colors.amber,
                                           fontWeight: FontWeight.bold)),
@@ -2479,7 +2263,6 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                       spacing: 15,
                       runSpacing: 10,
                       children: [
-<<<<<<< HEAD
                         _buildInfoTag(Icons.science, t("CHEM_L", widget.lang),
                             player.chemistryStyle, Colors.purpleAccent),
                         _buildInfoTag(
@@ -2499,27 +2282,6 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                             "${player.stats['WF'] ?? 3} ✭",
                             Colors.redAccent),
                         _buildInfoTag(Icons.euro, t("VAL_L", widget.lang),
-=======
-                        _buildInfoTag(Icons.science, pd.PaleHaxLoc.txt("Kimya"),
-                            player.chemistryStyle, Colors.purpleAccent),
-                        _buildInfoTag(
-                            Icons.theater_comedy,
-                            pd.PaleHaxLoc.txt("Rol"),
-                            player.role,
-                            Colors.orangeAccent),
-                        // YENİ SIRALAMA: Kimya -> Rol -> Stil -> Skill
-                        _buildInfoTag(Icons.style, pd.PaleHaxLoc.txt("Stil"),
-                            styleDisplay, Colors.cyanAccent,
-                            isNeon: true),
-                        _buildInfoTag(Icons.star, pd.PaleHaxLoc.txt("Yetenek"),
-                            "${player.skillMoves} ✭", Colors.yellowAccent),
-                        _buildInfoTag(
-                            Icons.sports_football,
-                            pd.PaleHaxLoc.txt("Zayıf Ayak"),
-                            "${player.stats['WF'] ?? 3} ✭",
-                            Colors.redAccent),
-                        _buildInfoTag(Icons.euro, pd.PaleHaxLoc.txt("Değer"),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                             player.marketValue, Colors.greenAccent),
                       ],
                     ),
@@ -2608,19 +2370,10 @@ class _ViewUltimateState extends State<_ViewUltimate> {
             children: [
               ListTile(
                 leading: const Icon(Icons.edit, color: Colors.cyanAccent),
-<<<<<<< HEAD
                 title: Text(t("EDIT_CARD", widget.lang),
                     style: const TextStyle(color: Colors.white)),
                 subtitle: Text(t("EDIT_DESC", widget.lang),
                     style: const TextStyle(color: Colors.white54)),
-=======
-                title: Text(pd.PaleHaxLoc.txt("Kartı Düzenle"),
-                    style: TextStyle(color: Colors.white)),
-                subtitle: Text(
-                    pd.PaleHaxLoc.txt(
-                        "Mevcut kartın özelliklerini değiştirir."),
-                    style: TextStyle(color: Colors.white54)),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                 onTap: () {
                   Navigator.pop(c);
                   _showEditor(context, p,
@@ -2629,19 +2382,10 @@ class _ViewUltimateState extends State<_ViewUltimate> {
               ),
               ListTile(
                 leading: const Icon(Icons.copy, color: Colors.amber),
-<<<<<<< HEAD
                 title: Text(t("NEW_VER", widget.lang),
                     style: const TextStyle(color: Colors.white)),
                 subtitle: Text(t("NEW_VER_DESC", widget.lang),
                     style: const TextStyle(color: Colors.white54)),
-=======
-                title: Text(pd.PaleHaxLoc.txt("Yeni Versiyon Oluştur"),
-                    style: TextStyle(color: Colors.white)),
-                subtitle: Text(
-                    pd.PaleHaxLoc.txt(
-                        "Örn: TOTS, TOTW gibi yeni bir kart çıkarır."),
-                    style: TextStyle(color: Colors.white54)),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                 onTap: () {
                   Navigator.pop(c);
                   _createVersion(context, p,
@@ -2662,7 +2406,6 @@ class _ViewUltimateState extends State<_ViewUltimate> {
         manualMatches.map((m) => (m['r'] as int).toDouble()).toList();
 
     // Trend Analizi
-<<<<<<< HEAD
     String trend = t("TREND_BAL", widget.lang);
     if (ratings.length >= 2) {
       trend = ratings.last > ratings[ratings.length - 2]
@@ -2670,15 +2413,6 @@ class _ViewUltimateState extends State<_ViewUltimate> {
           : (ratings.last < ratings[ratings.length - 2]
               ? t("TREND_DOWN", widget.lang)
               : t("TREND_BAL", widget.lang));
-=======
-    String trend = pd.PaleHaxLoc.txt("DENGELİ");
-    if (ratings.length >= 2) {
-      trend = ratings.last > ratings[ratings.length - 2]
-          ? pd.PaleHaxLoc.txt("YÜKSELİŞTE 📈")
-          : (ratings.last < ratings[ratings.length - 2]
-              ? pd.PaleHaxLoc.txt("DÜŞÜŞTE 📉")
-              : pd.PaleHaxLoc.txt("DENGELİ"));
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
     }
 
     return Container(
@@ -2693,11 +2427,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-<<<<<<< HEAD
               Text(t("SEASON_PERF", widget.lang),
-=======
-              Text(pd.PaleHaxLoc.txt("SEZON PERFORMANSI"),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                   style: GoogleFonts.orbitron(
                       color: Colors.greenAccent,
                       fontSize: 22,
@@ -2711,13 +2441,8 @@ class _ViewUltimateState extends State<_ViewUltimate> {
               ElevatedButton.icon(
                 onPressed: _addMatchDialog,
                 icon: const Icon(Icons.add, color: Colors.black),
-<<<<<<< HEAD
                 label: Text(t("ADD_MATCH", widget.lang),
                     style: const TextStyle(
-=======
-                label: Text(pd.PaleHaxLoc.txt("MAÇ EKLE"),
-                    style: TextStyle(
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
                         color: Colors.black, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.greenAccent),
@@ -2727,7 +2452,6 @@ class _ViewUltimateState extends State<_ViewUltimate> {
           const SizedBox(height: 20),
           Row(
             children: [
-<<<<<<< HEAD
               _statCard(
                   t("TOTAL_GOL", widget.lang), "$totalGoals", Colors.orange),
               const SizedBox(width: 20),
@@ -2736,16 +2460,6 @@ class _ViewUltimateState extends State<_ViewUltimate> {
               const SizedBox(width: 20),
               _statCard(t("MATCHES", widget.lang), "${manualMatches.length}",
                   Colors.purple),
-=======
-              _statCard(pd.PaleHaxLoc.txt("TOPLAM GOL"), "$totalGoals",
-                  Colors.orange),
-              const SizedBox(width: 20),
-              _statCard(pd.PaleHaxLoc.txt("TOPLAM ASİST"), "$totalAssists",
-                  Colors.cyan),
-              const SizedBox(width: 20),
-              _statCard(pd.PaleHaxLoc.txt("MAÇ SAYISI"),
-                  "${manualMatches.length}", Colors.purple),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
             ],
           ),
           const SizedBox(height: 30),
@@ -2759,13 +2473,8 @@ class _ViewUltimateState extends State<_ViewUltimate> {
             )
           else
             Center(
-<<<<<<< HEAD
                 child: Text(t("NO_MATCH", widget.lang),
                     style: const TextStyle(color: Colors.white24))),
-=======
-                child: Text(pd.PaleHaxLoc.txt("Henüz maç girilmedi."),
-                    style: TextStyle(color: Colors.white24))),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
           const SizedBox(height: 20),
           const Divider(color: Colors.white10),
           // LİSTE
@@ -2810,11 +2519,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
         context: context,
         builder: (c) => AlertDialog(
               backgroundColor: const Color(0xFF1E1E24),
-<<<<<<< HEAD
               title: Text(t("ADD_MATCH", widget.lang)),
-=======
-              title: Text(pd.PaleHaxLoc.txt("MAÇ EKLE")),
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -2888,11 +2593,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                       });
                       Navigator.pop(c);
                     },
-<<<<<<< HEAD
                     child: Text(t("ADD", widget.lang)))
-=======
-                    child: Text(pd.PaleHaxLoc.txt("Ekle")))
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
               ],
             ));
   }
@@ -3071,7 +2772,6 @@ class _RatingGraphPainter extends CustomPainter {
 // ============================================================================
 // BÖLÜM 4: GLOBAL YARDIMCI METODLAR VE WIDGET'LAR
 // ============================================================================
-<<<<<<< HEAD
 
 void _showTeamDialog(BuildContext context, String teamName, String? logo,
     AppDatabase db, String lang) {
@@ -4732,5 +4432,3 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
     );
   }
 }
-=======
->>>>>>> 8acca86af125de9036c7b4790addc68791c0e173
