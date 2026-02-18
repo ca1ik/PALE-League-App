@@ -2213,13 +2213,14 @@ class _ViewUltimateState extends State<_ViewUltimate> {
   }
 
   // YENİ: Modern Bilgi Etiketi
-  Widget _buildInfoTag(IconData icon, String label, String value, Color color) {
+  Widget _buildInfoTag(IconData icon, String label, String value, Color color,
+      {bool isNeon = false}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: isNeon ? color.withOpacity(0.2) : color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: isNeon ? color : color.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2230,7 +2231,11 @@ class _ViewUltimateState extends State<_ViewUltimate> {
               style:
                   GoogleFonts.montserrat(color: Colors.white70, fontSize: 12)),
           Text(value,
-              style: GoogleFonts.russoOne(color: Colors.white, fontSize: 14)),
+              style: GoogleFonts.russoOne(
+                  color: Colors.white,
+                  fontSize: 14,
+                  shadows:
+                      isNeon ? [BoxShadow(color: color, blurRadius: 10)] : [])),
         ],
       ),
     );
