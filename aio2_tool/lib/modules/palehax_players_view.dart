@@ -630,8 +630,8 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
           if (all.isEmpty)
             return Center(
                 child: ElevatedButton(
-                    onPressed: () =>
-                        _showEditor(context, null, (p) => _save(p, true)),
+                    onPressed: () => _showEditor(
+                        context, null, (newP, oldP) => _save(newP, oldP)),
                     child: const Text("İLK OYUNCUYU EKLE")));
 
           if (selectedPlayer == null ||
@@ -695,8 +695,8 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                       child: SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                              onPressed: () => _showEditor(
-                                  context, null, (p) => _save(p, true)),
+                              onPressed: () => _showEditor(context, null,
+                                  (newP, oldP) => _save(newP, oldP)),
                               icon: const Icon(Icons.person_add,
                                   color: Colors.black, size: 20),
                               label: const Text("YENİ OYUNCU",
@@ -770,7 +770,7 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                     index: currentCardIndex,
                     onIndex: (i) => setState(() => currentCardIndex = i),
                     context: context,
-                    onSave: (p) => _save(p, false),
+                    onSave: (newP, oldP) => _save(newP, oldP),
                     onDelete: (p) => _delete(p))
               ]))
             ]))
@@ -778,12 +778,10 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
         });
   }
 
-  void _save(Player p, bool isNew) async {
-    // DÜZENLEME MANTIĞI: Eğer yeni değilse ve kart tipi değişmediyse eskisini sil (Update gibi davran)
-    if (!isNew) {
-      // Not: İsim değişirse eski ismi bulamayabiliriz ama varsayım ismin sabit kaldığı yönünde.
-      // Aynı isim ve kart tipindeki eski kaydı temizle.
-      await widget.database.deletePlayerByNameAndType(p.name, p.cardType);
+  void _save(Player p, Player? oldP) async {
+    // DÜZENLEME MANTIĞI: Eğer eski bir kayıt varsa (Edit modu), önce onu sil.
+    if (oldP != null) {
+      await widget.database.deletePlayerByNameAndType(oldP.name, oldP.cardType);
     }
 
     dynamic companion = PlayerTablesCompanion(
@@ -1263,7 +1261,7 @@ class _ViewProfile extends StatelessWidget {
                         String displayName =
                             ps.isGold ? "$translatedName+" : translatedName;
                         String path = ps.isGold
-                            ? "assets/Playstyles/plus/${ps.name}Plus.png"
+                            ? "assets/plus/${ps.name}Plus.png"
                             : "assets/Playstyles/${ps.name}.png";
                         return SizedBox(
                             width: 110,
@@ -1337,7 +1335,7 @@ class _ViewUltimate extends StatefulWidget {
   final int index;
   final Function(int) onIndex;
   final BuildContext context;
-  final Function(Player) onSave;
+  final Function(Player, Player?) onSave;
   final Function(Player) onDelete;
 
   const _ViewUltimate({
@@ -1886,7 +1884,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                             recLink: jsonHistory, // BURAYA KAYDEDİYORUZ
                             manualGoals: updated.manualGoals,
                             manualAssists: updated.manualAssists);
-                        widget.onSave(newP);
+                        widget.onSave(newP, widget.player);
                       });
                       Navigator.pop(c);
                     },
@@ -1978,7 +1976,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
   Widget _buildModernStatBox(String label, int value) {
     Color color = _getStatColor(value);
     return Container(
-      width: 75,
+      width: 60, // KÜÇÜLTÜLDÜ
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 5),
       decoration: BoxDecoration(
         color: Colors.white10,
@@ -1989,13 +1987,13 @@ class _ViewUltimateState extends State<_ViewUltimate> {
         children: [
           Text("$value",
               style:
-                  GoogleFonts.russoOne(fontSize: 22, color: color, height: 1)),
+                  GoogleFonts.russoOne(fontSize: 18, color: color, height: 1)),
           const SizedBox(height: 5),
           Text(
             label,
             textAlign: TextAlign.center,
             style: GoogleFonts.montserrat(
-                fontSize: 10,
+                fontSize: 9,
                 color: Colors.white70,
                 fontWeight: FontWeight.w500),
             maxLines: 2,
@@ -2502,7 +2500,10 @@ Widget _buildCardMenu(BuildContext context, Player p, Function(Player) onSave,
       color: const Color(0xFF1E1E24),
       onSelected: (val) {
         if (val == 'edit')
-          _showEditor(context, p, onSave);
+          _showEditor(context, p, (newP, oldP) => onSave(newP)); // onSave burada sadece yeni player alıyor, wrapper gerekebilir ama _ViewProfile içinde onSave zaten tek parametreli tanımlanmış, bu yüzden _ViewProfile'ı güncellememiz gerekebilir veya _showEditor'ı uyarlamalıyız.
+          // DÜZELTME: _ViewProfile içindeki onSave tek parametreli (Player). Ancak _showEditor artık (Player, Player?) istiyor.
+          // Bu yüzden _ViewProfile'ı güncellemek yerine _showEditor çağrısını düzeltelim.
+          _showEditor(context, p, (newP, oldP) => onSave(newP)); 
         else if (val == 'delete') {
           showDialog(
               context: context,
@@ -2560,13 +2561,13 @@ void _createVersion(BuildContext context, Player p, Function(Player) onSave) {
           }));
 }
 
-void _showEditor(BuildContext context, Player? p, Function(Player) onSave) {
+void _showEditor(BuildContext context, Player? p, Function(Player, Player?) onSave) {
   showDialog(
       context: context,
       builder: (context) => CreatePlayerDialog(
           playerToEdit: p,
           onSave: (player) {
-            if (player != null) onSave(player);
+            if (player != null) onSave(player, p);
           }));
 }
 

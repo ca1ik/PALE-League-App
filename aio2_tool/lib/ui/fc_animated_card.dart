@@ -416,7 +416,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                           ]),
                                       child: Image.asset(
                                           goldPs.isGold
-                                              ? "assets/Playstyles/plus/${goldPs.name}Plus.png"
+                                              ? "assets/plus/${goldPs.name}Plus.png"
                                               : goldPs.assetPath,
                                           width: 30,
                                           height: 30,
