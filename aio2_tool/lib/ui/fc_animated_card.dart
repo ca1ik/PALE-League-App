@@ -400,30 +400,17 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                       // --- PLAYSTYLE PLUS İKONU (SADECE GOLD VARSA) ---
                       if (goldPs != null && !isBad && !isBasic)
                         Positioned(
-                            left: -15,
+                            left: -10,
                             top: 215,
-                            child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: Colors.amber, width: 2),
-                                    boxShadow: [
-                                      BoxShadow(
-                                          color: Colors.amber.withOpacity(0.6),
-                                          blurRadius: 15,
-                                          spreadRadius: 2)
-                                    ]),
-                                child: Image.asset(
-                                    // YOL GÜNCELLEMESİ: plus klasörü kalktı, isim sonuna Plus eklendi
-                                    "assets/Playstyles/${playStyleFileMap[goldPs.name.trim()] ?? goldPs.name.trim()}Plus.png",
-                                    width: 32,
-                                    height: 32,
-                                    errorBuilder: (c, e, s) => const Icon(
-                                        Icons.star,
-                                        color: Colors.amber,
-                                        size: 24)))),
+                            child: Image.asset(
+                                // YOL GÜNCELLEMESİ: plus klasörü kalktı, isim sonuna Plus eklendi
+                                "assets/Playstyles/${playStyleFileMap[goldPs.name.trim()] ?? goldPs.name.trim()}Plus.png",
+                                width: 45,
+                                height: 45,
+                                errorBuilder: (c, e, s) => const Icon(
+                                    Icons.star,
+                                    color: Colors.amber,
+                                    size: 35))),
                     ],
                   ),
                 ),
