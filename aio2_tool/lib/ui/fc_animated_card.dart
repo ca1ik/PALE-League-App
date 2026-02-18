@@ -3,6 +3,36 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../data/player_data.dart'; // teamLogos, Player, PlayStyle buradan gelir
 
+final Map<String, String> playStyleFileMap = {
+  "GameChanger": "OyunKurucu",
+  "Acrobatic": "Akrobatik",
+  "PowerShot": "SertSut",
+  "FinesseShot": "Plase",
+  "IncisivePass": "KeskinPas",
+  "PingedPass": "AdreseTeslim",
+  "LongBallPass": "UzunPas",
+  "TikiTaka": "TikiTaka",
+  "WhippedPass": "KesmePas",
+  "Inventive": "Yaratici",
+  "Jockey": "Bariyer",
+  "Block": "Blok",
+  "Intercept": "TopKesici",
+  "Anticipate": "Sezgici",
+  "Bruiser": "Kavgaci",
+  "AerialFortress": "HavaHakimiyeti",
+  "Technical": "Teknik",
+  "Rapid": "Ani",
+  "FirstTouch": "IlkDokunus",
+  "Trickster": "Hilebaz",
+  "PressProven": "BaskiyaDayanikli",
+  "QuickStep": "CabukAdim",
+  "FarReach": "UzakErisim",
+  "Footwork": "AyakHareketleri",
+  "CrossClaimer": "CaprazMuhafiz",
+  "RushOut": "DisariyaTerk",
+  "SlideTackle": "KayarakMudahale"
+};
+
 class FCAnimatedCard extends StatefulWidget {
   final Player player;
   final bool animateOnHover;
@@ -417,8 +447,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                     ]),
                                 child: Image.asset(
                                     goldPs.isGold
-                                        ? "assets/plus/${goldPs.name.trim()}Plus.png" // DÜZELTME: .trim() ve Plus yolu
-                                        : "assets/Playstyles/${goldPs.name.trim()}.png",
+                                        ? "assets/Playstyles/${playStyleFileMap[goldPs.name.trim()] ?? goldPs.name.trim()}Plus.png"
+                                        : "assets/Playstyles/${playStyleFileMap[goldPs.name.trim()] ?? goldPs.name.trim()}.png",
                                     width: 30,
                                     height: 30,
                                     errorBuilder: (c, e, s) => const Icon(

@@ -515,6 +515,36 @@ final Map<String, String> roleDescriptions = {
   "Hücum Bek": "Neredeyse kanat gibi oynayan bek."
 };
 
+final Map<String, String> playStyleFileMap = {
+  "GameChanger": "OyunKurucu",
+  "Acrobatic": "Akrobatik",
+  "PowerShot": "SertSut",
+  "FinesseShot": "Plase",
+  "IncisivePass": "KeskinPas",
+  "PingedPass": "AdreseTeslim",
+  "LongBallPass": "UzunPas",
+  "TikiTaka": "TikiTaka",
+  "WhippedPass": "KesmePas",
+  "Inventive": "Yaratici",
+  "Jockey": "Bariyer",
+  "Block": "Blok",
+  "Intercept": "TopKesici",
+  "Anticipate": "Sezgici",
+  "Bruiser": "Kavgaci",
+  "AerialFortress": "HavaHakimiyeti",
+  "Technical": "Teknik",
+  "Rapid": "Ani",
+  "FirstTouch": "IlkDokunus",
+  "Trickster": "Hilebaz",
+  "PressProven": "BaskiyaDayanikli",
+  "QuickStep": "CabukAdim",
+  "FarReach": "UzakErisim",
+  "Footwork": "AyakHareketleri",
+  "CrossClaimer": "CaprazMuhafiz",
+  "RushOut": "DisariyaTerk",
+  "SlideTackle": "KayarakMudahale"
+};
+
 final List<String> chemistryStylesList = [
   "Basic",
   "Sniper",
@@ -1020,7 +1050,7 @@ class SubTabPlayStyles extends StatelessWidget {
                                   border: Border.all(color: Colors.white12)),
                               child: Row(children: [
                                 Image.asset(
-                                    "assets/Playstyles/${ps['name']}.png",
+                                    "assets/Playstyles/${playStyleFileMap[ps['name']] ?? ps['name']}.png",
                                     width: 45,
                                     height: 45,
                                     errorBuilder: (c, e, s) => const Icon(
@@ -1062,8 +1092,9 @@ class SubTabPlayStyles extends StatelessWidget {
         if (v == n.trim()) fn = k;
       });
       if (fn.isEmpty) fn = n.contains("Uzak") ? "FarReach" : n.trim();
+      String fileName = playStyleFileMap[fn] ?? fn;
       w.add(Row(mainAxisSize: MainAxisSize.min, children: [
-        Image.asset("assets/Playstyles/$fn.png",
+        Image.asset("assets/Playstyles/$fileName.png",
             width: 22,
             height: 22,
             errorBuilder: (c, e, s) =>
@@ -1298,9 +1329,10 @@ class _ViewProfile extends StatelessWidget {
                             playStyleTranslationsReverse[ps.name] ?? ps.name;
                         String displayName =
                             ps.isGold ? "$translatedName+" : translatedName;
+                        String fileName = playStyleFileMap[ps.name] ?? ps.name;
                         String path = ps.isGold
-                            ? "assets/plus/${ps.name}Plus.png"
-                            : "assets/Playstyles/${ps.name}.png";
+                            ? "assets/Playstyles/${fileName}Plus.png"
+                            : "assets/Playstyles/$fileName.png";
                         return SizedBox(
                             width: 110,
                             child: Column(children: [
@@ -1653,7 +1685,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                         )
                       ],
                     ),
-                    const SizedBox(height: 25),
+                    const SizedBox(height: 50),
 
                     // BİLGİ ÇUBUKLARI (INFO TAGS) - ARTIK BURADA
                     Wrap(
@@ -1950,9 +1982,10 @@ class _ViewUltimateState extends State<_ViewUltimate> {
       runSpacing: 15,
       children: p.playstyles.map((ps) {
         // Plus ise özel klasörden, değilse normal klasörden al
+        String fileName = playStyleFileMap[ps.name.trim()] ?? ps.name.trim();
         String iconPath = ps.isGold
-            ? "assets/plus/${ps.name.trim()}Plus.png"
-            : "assets/Playstyles/${ps.name.trim()}.png";
+            ? "assets/Playstyles/${fileName}Plus.png"
+            : "assets/Playstyles/$fileName.png";
         String displayName =
             playStyleTranslationsReverse[ps.name.trim()] ?? ps.name;
 
@@ -2030,7 +2063,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
   Widget _buildModernStatBox(String label, int value) {
     Color color = _getStatColor(value);
     return Container(
-      width: 50, // DAHA DA KÜÇÜLTÜLDÜ
+      width: 75, // GENİŞLETİLDİ: Uzun kelimeler (Hızlanma vb.) sığsın diye
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 5),
       decoration: BoxDecoration(
         color: Colors.white10,
