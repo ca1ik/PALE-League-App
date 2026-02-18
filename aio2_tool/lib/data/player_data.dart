@@ -445,3 +445,22 @@ final Map<String, List<String>> roleCategories = {
   "(1) GK": ["Çizgi Kalecisi"],
   "(9) ST": ["Hedef Forvet"]
 };
+
+// ... Player sınıfı bittikten sonra en alta:
+
+const List<String> positions = [
+  "(1) GK",
+  "(2) RB",
+  "(3) CB",
+  "(4) CB",
+  "(5) LB",
+  "(6) CDM",
+  "(7) RM",
+  "(8) CM",
+  "(10) CAM",
+  "(11) LM",
+  "(7) RW",
+  "(11) LW",
+  "(9) ST",
+  "(9) CF"
+];

@@ -1,45 +1,61 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
-class PaleWebView extends StatelessWidget {
+class PaleWebView extends StatefulWidget {
   final String url;
   const PaleWebView({super.key, required this.url});
 
   @override
+  State<PaleWebView> createState() => _PaleWebViewState();
+}
+
+class _PaleWebViewState extends State<PaleWebView> {
+  late final WebViewController _controller;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0x00000000))
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (String url) {
+            setState(() => _isLoading = true);
+          },
+          onPageFinished: (String url) {
+            setState(() => _isLoading = false);
+          },
+          onWebResourceError: (WebResourceError error) {
+            // Hata yönetimi
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(widget.url));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.public, size: 60, color: Colors.white54),
-          const SizedBox(height: 20),
-          Text(
-            "Görüntülenen Sayfa:",
-            style: TextStyle(color: Colors.white.withOpacity(0.7)),
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white10,
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: Colors.white24),
           ),
-          const SizedBox(height: 5),
-          Text(
-            url,
-            style: const TextStyle(
-                color: Colors.cyanAccent, fontWeight: FontWeight.bold),
+          margin: const EdgeInsets.all(20),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(15),
+            child: WebViewWidget(controller: _controller),
           ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: () async {
-              final Uri uri = Uri.parse(url);
-              if (!await launchUrl(uri)) {
-                debugPrint('Could not launch $uri');
-              }
-            },
-            icon: const Icon(Icons.open_in_browser),
-            label: const Text("Tarayıcıda Aç"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.cyanAccent,
-              foregroundColor: Colors.black,
-            ),
-          )
-        ],
-      ),
+        ),
+        if (_isLoading)
+          const Center(
+            child: CircularProgressIndicator(color: Colors.cyanAccent),
+          ),
+      ],
     );
   }
 }
