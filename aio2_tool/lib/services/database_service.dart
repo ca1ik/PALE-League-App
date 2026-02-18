@@ -4,9 +4,9 @@ import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
-part 'database_service.g.dart';
+part 'database_service.g.dart'; // Bu dosya build_runner ile oluşacak
 
-@DataClassName('PlayerTable')
+// Tablo Tanımı
 class PlayerTables extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
@@ -14,16 +14,19 @@ class PlayerTables extends Table {
   TextColumn get position => text()();
   TextColumn get team => text()();
   TextColumn get cardType => text()();
-  TextColumn get role => text()();
-  TextColumn get marketValue => text()();
-  TextColumn get statsJson => text()();
-  TextColumn get playStylesJson => text()();
-  TextColumn get recLink => text().nullable()();
+  TextColumn get role => text().withDefault(const Constant('Yedek'))();
+  TextColumn get marketValue => text().withDefault(const Constant('€1.0M'))();
 
-  // Manuel İstatistikler
+  // JSON olarak saklanan kompleks veriler
+  TextColumn get statsJson => text().withDefault(const Constant('{}'))();
+  TextColumn get playStylesJson => text().withDefault(const Constant('[]'))();
+
+  // Ekstra Veriler
+  TextColumn get recLink => text().withDefault(const Constant(''))();
   IntColumn get manualGoals => integer().withDefault(const Constant(0))();
   IntColumn get manualAssists => integer().withDefault(const Constant(0))();
-  IntColumn get manualMatches => integer().withDefault(const Constant(0))();
+  // List<MatchStat> JSON olarak saklanabilir, burada basitleştirilmiş string tutuyoruz
+  TextColumn get manualMatches => text().withDefault(const Constant('[]'))();
 }
 
 @DriftDatabase(tables: [PlayerTables])
@@ -31,39 +34,18 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 1;
 
-  @override
-  MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (Migrator m) async {
-          await m.createAll();
-        },
-        onUpgrade: (Migrator m, int from, int to) async {
-          if (from < 2) {
-            await m.addColumn(playerTables, playerTables.manualGoals);
-            await m.addColumn(playerTables, playerTables.manualAssists);
-            await m.addColumn(playerTables, playerTables.manualMatches);
-          }
-        },
-      );
-
-  // CRUD İşlemleri
-  Future<int> insertPlayer(PlayerTablesCompanion player) =>
-      into(playerTables).insert(player);
-
-  // ID ile Silme (Eski Yöntem)
-  Future<int> deletePlayer(int id) =>
-      (delete(playerTables)..where((t) => t.id.equals(id))).go();
-
-  // --- YENİ EKLENEN: İsim ve Kart Tipine Göre Silme ---
-  Future<int> deletePlayerByNameAndType(String n, String t) {
-    return (delete(playerTables)
-          ..where((tbl) => tbl.name.equals(n) & tbl.cardType.equals(t)))
-        .go();
+  // Oyuncuları Getir (Stream)
+  Stream<List<PlayerTable>> watchAllPlayers() {
+    return (select(playerTables)
+          ..orderBy([
+            (t) => OrderingTerm(expression: t.rating, mode: OrderingMode.desc)
+          ]))
+        .watch();
   }
 
-  Stream<List<PlayerTable>> watchAllPlayers() => select(playerTables).watch();
-
+  // Filtreli Oyuncu Getir
   Stream<List<PlayerTable>> watchFilteredPlayers({
     required String searchQuery,
     required String cardTypeFilter,
@@ -71,36 +53,48 @@ class AppDatabase extends _$AppDatabase {
   }) {
     var query = select(playerTables);
 
+    // Arama Filtresi
     if (searchQuery.isNotEmpty) {
       query.where((t) => t.name.like('%$searchQuery%'));
     }
 
+    // Kart Tipi Filtresi
     if (cardTypeFilter != "Tümü") {
       query.where((t) => t.cardType.equals(cardTypeFilter));
     }
 
+    // Sıralama
     if (sortOption == "Reyting") {
       query.orderBy(
           [(t) => OrderingTerm(expression: t.rating, mode: OrderingMode.desc)]);
     } else if (sortOption == "A-Z") {
       query.orderBy(
           [(t) => OrderingTerm(expression: t.name, mode: OrderingMode.asc)]);
-    } else if (sortOption == "Z-A") {
-      query.orderBy(
-          [(t) => OrderingTerm(expression: t.name, mode: OrderingMode.desc)]);
-    } else if (sortOption == "En Yeni") {
+    } else {
       query.orderBy(
           [(t) => OrderingTerm(expression: t.id, mode: OrderingMode.desc)]);
     }
 
     return query.watch();
   }
+
+  // Oyuncu Ekle / Güncelle
+  Future<int> insertPlayer(PlayerTablesCompanion entry) {
+    return into(playerTables).insertOnConflictUpdate(entry);
+  }
+
+  // Oyuncu Sil
+  Future<int> deletePlayerByNameAndType(String name, String type) {
+    return (delete(playerTables)
+          ..where((t) => t.name.equals(name) & t.cardType.equals(type)))
+        .go();
+  }
 }
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'palehax_db_v2.sqlite'));
+    final file = File(p.join(dbFolder.path, 'palehax_db.sqlite'));
     return NativeDatabase(file);
   });
 }
