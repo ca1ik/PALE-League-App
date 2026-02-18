@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:screenshot/screenshot.dart'; // EKLENDİ: Ekran görüntüsü için
 
 // Kendi proje yapına göre bu importların doğruluğundan emin ol
 import '../data/player_data.dart' as pd;
@@ -760,6 +761,66 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                                             color: Colors.white,
                                             fontWeight: FontWeight.bold))
                                   ])))),
+                  // --- VİTRİN BUTONU ---
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    child: Container(
+                      decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [
+                            Color(0xFF000000),
+                            Color(0xFF311B92)
+                          ]), // TOTS Renkleri
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: Colors.cyanAccent.withOpacity(0.5))),
+                      child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent),
+                          onPressed: () =>
+                              _showGlobalShowcase(context, widget.database),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.stars, color: Colors.cyanAccent),
+                              const SizedBox(width: 8),
+                              Text("VİTRİN",
+                                  style: GoogleFonts.russoOne(
+                                      color: Colors.cyanAccent, fontSize: 14)),
+                            ],
+                          )),
+                    ),
+                  ),
+                  // --- VİTRİN TAKIMLARI (SQUAD BUILDER) BUTONU ---
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                            colors: [Color(0xFF1A237E), Color(0xFF0D47A1)]),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent),
+                          onPressed: () =>
+                              _showSquadBuilder(context, widget.database),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.view_quilt, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text("VİTRİN TAKIMLARI",
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold)),
+                            ],
+                          )),
+                    ),
+                  ),
                   Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 5),
@@ -2659,6 +2720,565 @@ void _createVersion(BuildContext context, Player p, Function(Player) onSave) {
           onSave: (p) {
             if (p != null) onSave(p);
           }));
+}
+
+// ============================================================================
+// BÖLÜM 6: VİTRİN VE SQUAD BUILDER FONKSİYONLARI
+// ============================================================================
+
+void _showGlobalShowcase(BuildContext context, AppDatabase db) async {
+  // Verileri çek
+  final allRows = await db.select(db.playerTables).get();
+
+  // Kart Tipine Göre Gruplama
+  Map<String, List<Player>> groupedPlayers = {};
+
+  // Dönüştür ve Filtrele
+  for (var row in allRows) {
+    // Temel kartları atla
+    if (row.cardType != "Temel") {
+      // Basit convert işlemi
+      List<PlayStyle> ps = [];
+      try {
+        var l = jsonDecode(row.playStylesJson) as List;
+        ps = l.map((e) {
+          String s = e.toString();
+          return s.endsWith("+")
+              ? PlayStyle(s.substring(0, s.length - 1), isGold: true)
+              : PlayStyle(s, isGold: false);
+        }).toList();
+      } catch (_) {}
+
+      Player p = Player(
+          name: row.name,
+          rating: row.rating,
+          position: row.position,
+          playstyles: ps,
+          cardType: row.cardType,
+          team: row.team,
+          stats: {},
+          role: row.role ?? "Yok");
+
+      if (!groupedPlayers.containsKey(row.cardType)) {
+        groupedPlayers[row.cardType] = [];
+      }
+      groupedPlayers[row.cardType]!.add(p);
+    }
+  }
+
+  // Her grubu kendi içinde reytinge göre sırala
+  groupedPlayers.forEach((key, list) {
+    list.sort((a, b) => b.rating.compareTo(a.rating));
+  });
+
+  showDialog(
+      context: context,
+      builder: (c) => _ShowcaseDialog(groupedPlayers: groupedPlayers));
+}
+
+// Animasyonlu Arka Plan İçin Widget
+class _ShowcaseDialog extends StatefulWidget {
+  final Map<String, List<Player>> groupedPlayers;
+  const _ShowcaseDialog({required this.groupedPlayers});
+
+  @override
+  State<_ShowcaseDialog> createState() => _ShowcaseDialogState();
+}
+
+class _ShowcaseDialogState extends State<_ShowcaseDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 10),
+      vsync: this,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(10),
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            padding: const EdgeInsets.all(30),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color.lerp(const Color(0xFF0D0D12), const Color(0xFF1A237E),
+                      _controller.value)!,
+                  Color.lerp(const Color(0xFF000000), const Color(0xFF311B92),
+                      _controller.value)!,
+                  Color.lerp(const Color(0xFF1A237E), const Color(0xFF4A148C),
+                      _controller.value)!,
+                ],
+              ),
+              border: Border.all(color: Colors.white24, width: 2),
+            ),
+            child: Column(
+              children: [
+                Text("VİTRİN",
+                    style: GoogleFonts.russoOne(
+                        color: Colors.white, fontSize: 40, letterSpacing: 10)),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: widget.groupedPlayers.entries.map((entry) {
+                        Color typeColor = _getCardTypeColor(entry.key);
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 5,
+                                    height: 30,
+                                    color: typeColor,
+                                  ),
+                                  const SizedBox(width: 15),
+                                  Text(entry.key,
+                                      style: GoogleFonts.orbitron(
+                                          color: typeColor,
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                            Wrap(
+                              spacing: 30,
+                              runSpacing: 30,
+                              children: entry.value
+                                  .map((p) => Transform.scale(
+                                      scale: 1.1,
+                                      child: FCAnimatedCard(
+                                          player: p, animateOnHover: true)))
+                                  .toList(),
+                            ),
+                            const SizedBox(height: 40),
+                            Divider(color: Colors.white.withOpacity(0.1)),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white10,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 40, vertical: 20)),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("KAPAT",
+                        style: TextStyle(color: Colors.white)))
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+void _showSquadBuilder(BuildContext context, AppDatabase db) {
+  showDialog(
+    context: context,
+    builder: (c) => _SquadBuilderDialog(database: db),
+  );
+}
+
+class _SquadBuilderDialog extends StatefulWidget {
+  final AppDatabase database;
+  const _SquadBuilderDialog({required this.database});
+
+  @override
+  State<_SquadBuilderDialog> createState() => _SquadBuilderDialogState();
+}
+
+class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
+  final ScreenshotController _screenshotController = ScreenshotController();
+  TextEditingController _teamNameController =
+      TextEditingController(text: "TEAM OF THE SEASON");
+  bool isVertical = true;
+  String searchQuery = "";
+
+  // 7 Pozisyon: 0:GK, 1:LCB, 2:RCB, 3:CAM, 4:LW, 5:RW, 6:ST
+  List<Player?> squad = List.filled(7, null);
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: const Color(0xFF0D0D12),
+      insetPadding: EdgeInsets.zero, // Full screen hissiyatı
+      child: SizedBox(
+        width: MediaQuery.of(context).size.width, // TAM EKRAN
+        height: MediaQuery.of(context).size.height, // TAM EKRAN
+        child: Row(
+          children: [
+            // --- SOL: SAHA VE KADRO ---
+            Expanded(
+              flex: 3,
+              child: Column(
+                children: [
+                  // Üst Bar
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
+                    color: Colors.black26,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        SizedBox(
+                          width: 400,
+                          child: TextField(
+                            controller: _teamNameController,
+                            style: GoogleFonts.russoOne(
+                                color: Colors.white, fontSize: 24),
+                            decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                hintText: "TAKIM İSMİ",
+                                hintStyle: TextStyle(color: Colors.white24)),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                  isVertical
+                                      ? Icons.stay_current_portrait
+                                      : Icons.stay_current_landscape,
+                                  color: Colors.white),
+                              tooltip: "Yönü Değiştir",
+                              onPressed: () =>
+                                  setState(() => isVertical = !isVertical),
+                            ),
+                            const SizedBox(width: 10),
+                            ElevatedButton.icon(
+                              onPressed: _capture,
+                              icon: const Icon(Icons.download,
+                                  color: Colors.black),
+                              label: const Text("İNDİR (PNG)",
+                                  style: TextStyle(
+                                      color: Colors.black,
+                                      fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.greenAccent),
+                            ),
+                            const SizedBox(width: 10),
+                            IconButton(
+                                icon: const Icon(Icons.close,
+                                    color: Colors.white),
+                                onPressed: () => Navigator.pop(context))
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+                  // Saha Alanı
+                  Expanded(
+                    child: Screenshot(
+                      controller: _screenshotController,
+                      child: Container(
+                        // DÜZELTME: Sabit boyut yerine sonsuz boyut ile alanı dolduruyoruz
+                        width: double.infinity,
+                        height: double.infinity,
+                        decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFF050505),
+                                  Color(0xFF101025),
+                                  Color(0xFF050505)
+                                ]),
+                            // Kenarlık inceltildi, radius kaldırıldı (Tam otursun diye)
+                            border:
+                                Border.all(color: Colors.white12, width: 2)),
+                        child: Stack(
+                          children: [
+                            // Saha Çizgileri
+                            Positioned.fill(
+                                child: CustomPaint(
+                                    painter: _PitchLinesPainter(
+                                        isVertical: isVertical))),
+
+                            // Takım İsmi
+                            Positioned(
+                                top: 20,
+                                left: 0,
+                                right: 0,
+                                child: Center(
+                                    child: ValueListenableBuilder<
+                                            TextEditingValue>(
+                                        valueListenable: _teamNameController,
+                                        builder: (context, value, child) {
+                                          return Text(value.text.toUpperCase(),
+                                              style: GoogleFonts.russoOne(
+                                                  color: Colors.white10,
+                                                  fontSize: 80));
+                                        }))),
+
+                            // OYUNCU SLOTLARI VE NUMARALAR
+                            // Kaleci (1)
+                            _buildSlot(0, "GK", isVertical ? 0.5 : 0.1,
+                                isVertical ? 0.88 : 0.5, 1),
+                            // İlk Defans (3)
+                            _buildSlot(1, "DEF", isVertical ? 0.3 : 0.25,
+                                isVertical ? 0.72 : 0.3, 3),
+                            // Yanındaki Defans (6)
+                            _buildSlot(2, "DEF", isVertical ? 0.7 : 0.25,
+                                isVertical ? 0.72 : 0.7, 6),
+                            // Orta Saha (10)
+                            _buildSlot(3, "CAM", isVertical ? 0.5 : 0.45,
+                                isVertical ? 0.52 : 0.5, 10),
+                            // Sol Kanat (7)
+                            _buildSlot(4, "LW", isVertical ? 0.15 : 0.7,
+                                isVertical ? 0.35 : 0.2, 7),
+                            // Sağ Kanat (11)
+                            _buildSlot(5, "RW", isVertical ? 0.85 : 0.7,
+                                isVertical ? 0.35 : 0.8, 11),
+                            // Forvet (9)
+                            _buildSlot(6, "ST", isVertical ? 0.5 : 0.85,
+                                isVertical ? 0.15 : 0.5, 9),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                ],
+              ),
+            ),
+            // --- SAĞ: OYUNCU HAVUZU ---
+            Container(
+              width: 350,
+              color: const Color(0xFF101014),
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                children: [
+                  TextField(
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                        hintText: "Oyuncu Ara...",
+                        prefixIcon:
+                            const Icon(Icons.search, color: Colors.cyanAccent),
+                        filled: true,
+                        fillColor: Colors.white10,
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10))),
+                    onChanged: (v) => setState(() => searchQuery = v),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: StreamBuilder<List<dynamic>>(
+                        stream: widget.database.watchAllPlayers(),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData)
+                            return const Center(
+                                child: CircularProgressIndicator());
+                          // Basit convert
+                          var list = snapshot.data!
+                              .map((row) {
+                                List<PlayStyle> ps = [];
+                                try {
+                                  var l =
+                                      jsonDecode(row.playStylesJson) as List;
+                                  ps = l.map((e) {
+                                    String s = e.toString();
+                                    return s.endsWith("+")
+                                        ? PlayStyle(
+                                            s.substring(0, s.length - 1),
+                                            isGold: true)
+                                        : PlayStyle(s, isGold: false);
+                                  }).toList();
+                                } catch (_) {}
+                                return Player(
+                                    name: row.name,
+                                    rating: row.rating,
+                                    position: row.position,
+                                    playstyles: ps,
+                                    cardType: row.cardType,
+                                    team: row.team,
+                                    stats: {},
+                                    role: row.role ?? "Yok");
+                              })
+                              .where((p) => p.name
+                                  .toLowerCase()
+                                  .contains(searchQuery.toLowerCase()))
+                              .toList();
+
+                          return GridView.builder(
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    childAspectRatio: 0.7,
+                                    crossAxisSpacing: 10,
+                                    mainAxisSpacing: 10),
+                            itemCount: list.length,
+                            itemBuilder: (c, i) {
+                              return Draggable<Player>(
+                                data: list[i],
+                                feedback: Material(
+                                    color: Colors.transparent,
+                                    child: SizedBox(
+                                        width: 120,
+                                        child:
+                                            FCAnimatedCard(player: list[i]))),
+                                child: FCAnimatedCard(
+                                    player: list[i], animateOnHover: false),
+                              );
+                            },
+                          );
+                        }),
+                  )
+                ],
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSlot(
+      int index, String label, double xAlign, double yAlign, int kitNumber) {
+    // Align: 0.0 -> 1.0 arası. Stack içinde Positioned kullanacağız ama Alignment daha kolay.
+    // Container boyutları (Saha): W:600/900, H:800/600
+    // Kart Boyutu: W:130, H:180 (Büyük istendi)
+
+    return Align(
+      alignment: Alignment((xAlign * 2) - 1, (yAlign * 2) - 1),
+      child: DragTarget<Player>(
+        onAccept: (p) => setState(() => squad[index] = p),
+        builder: (c, cand, rej) {
+          Player? p = squad[index];
+          return Container(
+            width: 200, // KART ALANI DAHA DA BÜYÜTÜLDÜ
+            height: 290, // NUMARA İÇİN YER AÇILDI
+            decoration: BoxDecoration(
+                // DÜZELTME: Kartlar daha belirgin olsun diye arka plan ve gölge
+                color: p == null
+                    ? Colors.white.withOpacity(0.05)
+                    : Colors.black.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: p != null
+                    ? [
+                        BoxShadow(
+                            color: Colors.black.withOpacity(0.5),
+                            blurRadius: 15,
+                            spreadRadius: 2)
+                      ]
+                    : [],
+                border: p == null
+                    ? Border.all(color: Colors.white12, width: 2)
+                    : Border.all(color: Colors.white24, width: 1)),
+            child: p != null
+                ? Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // FORMA NUMARASI
+                      Text("$kitNumber",
+                          style: GoogleFonts.russoOne(
+                              fontSize: 32,
+                              color: Colors.white,
+                              shadows: [
+                                const Shadow(
+                                    color: Colors.black, blurRadius: 10)
+                              ])),
+                      const SizedBox(height: 5),
+                      // KART
+                      Expanded(
+                        child: GestureDetector(
+                            onTap: () => setState(
+                                () => squad[index] = null), // Tıklayınca sil
+                            child: FCAnimatedCard(
+                                player: p, animateOnHover: true)),
+                      ),
+                    ],
+                  )
+                : Center(
+                    child: Text(label,
+                        style: GoogleFonts.russoOne(
+                            color: Colors.white24, fontSize: 20))),
+          );
+        },
+      ),
+    );
+  }
+
+  void _capture() async {
+    final image =
+        await _screenshotController.capture(pixelRatio: 3.0); // Yüksek Kalite
+    if (image != null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Görüntü kaydedildi!"), backgroundColor: Colors.green));
+      // Burada dosya kaydetme işlemi yapılabilir (path_provider ile)
+    }
+  }
+}
+
+class _PitchLinesPainter extends CustomPainter {
+  final bool isVertical;
+  _PitchLinesPainter({required this.isVertical});
+  @override
+  void paint(Canvas canvas, Size size) {
+    Paint p = Paint()
+      ..color = Colors.white10
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    // Orta Çizgi
+    if (isVertical)
+      canvas.drawLine(
+          Offset(0, size.height / 2), Offset(size.width, size.height / 2), p);
+    else
+      canvas.drawLine(
+          Offset(size.width / 2, 0), Offset(size.width / 2, size.height), p);
+    // Orta Yuvarlak
+    double radius = size.shortestSide * 0.15; // Dinamik yarıçap
+    canvas.drawCircle(Offset(size.width / 2, size.height / 2), radius, p);
+    // Ceza Sahaları (Basit)
+    if (isVertical) {
+      canvas.drawRect(
+          Rect.fromLTWH(
+              size.width * 0.2, 0, size.width * 0.6, size.height * 0.15),
+          p);
+      canvas.drawRect(
+          Rect.fromLTWH(size.width * 0.2, size.height * 0.85, size.width * 0.6,
+              size.height * 0.15),
+          p);
+    } else {
+      canvas.drawRect(
+          Rect.fromLTWH(
+              0, size.height * 0.2, size.width * 0.15, size.height * 0.6),
+          p);
+      canvas.drawRect(
+          Rect.fromLTWH(size.width * 0.85, size.height * 0.2, size.width * 0.15,
+              size.height * 0.6),
+          p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
 void _showEditor(
