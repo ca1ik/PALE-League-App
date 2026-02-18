@@ -611,6 +611,10 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
       manualGoals: t.manualGoals,
       manualAssists:
           t.manualAssists, // HATA ÇÖZÜMÜ: Burayı boş liste yaptık, hata vermez.
+      skillMoves: t.skillMoves ?? 3, // Veritabanından skillMoves okuma
+      chemistryStyle: t.chemistryStyle ?? "Basic",
+      seasons: [], // Varsayılan boş
+      matches: [], // Varsayılan boş
     );
   }
 
@@ -775,6 +779,13 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
   }
 
   void _save(Player p, bool isNew) async {
+    // DÜZENLEME MANTIĞI: Eğer yeni değilse ve kart tipi değişmediyse eskisini sil (Update gibi davran)
+    if (!isNew) {
+      // Not: İsim değişirse eski ismi bulamayabiliriz ama varsayım ismin sabit kaldığı yönünde.
+      // Aynı isim ve kart tipindeki eski kaydı temizle.
+      await widget.database.deletePlayerByNameAndType(p.name, p.cardType);
+    }
+
     dynamic companion = PlayerTablesCompanion(
         name: drift.Value(p.name),
         rating: drift.Value(p.rating),
@@ -783,6 +794,8 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
         cardType: drift.Value(p.cardType),
         role: drift.Value(p.role),
         marketValue: drift.Value(p.marketValue),
+        skillMoves: drift.Value(p.skillMoves), // Skill Moves Kaydı
+        chemistryStyle: drift.Value(p.chemistryStyle),
         statsJson: drift.Value(jsonEncode(p.stats)),
         playStylesJson:
             drift.Value(jsonEncode(p.playstyles.map((e) => e.name).toList())),
@@ -1350,6 +1363,19 @@ class _ViewUltimateState extends State<_ViewUltimate> {
   @override
   void initState() {
     super.initState();
+    // Kayıtlı maç verilerini recLink içinden çek (JSON formatında saklıyoruz)
+    if (widget.player.recLink.startsWith("[") &&
+        widget.player.recLink.endsWith("]")) {
+      try {
+        List<dynamic> decoded = jsonDecode(widget.player.recLink);
+        manualMatches =
+            decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+      } catch (e) {
+        manualMatches = [];
+      }
+    } else {
+      manualMatches = [];
+    }
     _generateAiDescription();
   }
 
@@ -1357,8 +1383,19 @@ class _ViewUltimateState extends State<_ViewUltimate> {
   void didUpdateWidget(covariant _ViewUltimate oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.player.name != widget.player.name) {
+      if (widget.player.recLink.startsWith("[") &&
+          widget.player.recLink.endsWith("]")) {
+        try {
+          List<dynamic> decoded = jsonDecode(widget.player.recLink);
+          manualMatches =
+              decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+        } catch (e) {
+          manualMatches = [];
+        }
+      } else {
+        manualMatches = [];
+      }
       _generateAiDescription();
-      manualMatches.clear();
     }
   }
 
@@ -1604,6 +1641,8 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                   Colors.orangeAccent),
               _buildInfoTag(Icons.star, "Yetenek",
                   "${player.skillMoves} Yıldız", Colors.yellowAccent),
+              _buildInfoTag(Icons.sports_football, "Zayıf Ayak",
+                  "${player.stats['WF'] ?? 3} Yıldız", Colors.redAccent),
               _buildInfoTag(
                   Icons.euro, "Değer", player.marketValue, Colors.greenAccent),
             ],
@@ -1662,6 +1701,20 @@ class _ViewUltimateState extends State<_ViewUltimate> {
     int totalGoals = manualMatches.fold(0, (sum, m) => sum + (m['g'] as int));
     int totalAssists = manualMatches.fold(0, (sum, m) => sum + (m['a'] as int));
 
+    // Grafik Verileri
+    List<double> ratings =
+        manualMatches.map((m) => (m['r'] as int).toDouble()).toList();
+
+    // Trend Analizi
+    String trend = "DENGELİ";
+    if (ratings.length >= 2) {
+      trend = ratings.last > ratings[ratings.length - 2]
+          ? "YÜKSELİŞTE 📈"
+          : (ratings.last < ratings[ratings.length - 2]
+              ? "DÜŞÜŞTE 📉"
+              : "DENGELİ");
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1678,6 +1731,14 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                   style: GoogleFonts.orbitron(
                       color: Colors.greenAccent,
                       fontSize: 22,
+                      fontWeight: FontWeight.bold)),
+              Text(trend,
+                  style: TextStyle(
+                      color: trend.contains("YÜKSELİŞ")
+                          ? Colors.green
+                          : (trend.contains("DÜŞÜŞ")
+                              ? Colors.red
+                              : Colors.amber),
                       fontWeight: FontWeight.bold)),
               ElevatedButton.icon(
                 onPressed: _addMatchDialog,
@@ -1701,43 +1762,13 @@ class _ViewUltimateState extends State<_ViewUltimate> {
             ],
           ),
           const SizedBox(height: 30),
-          // GRAFİK ALANI (Basit Çubuklar)
+          // GRAFİK ALANI (Çizgi Grafik)
           if (manualMatches.isNotEmpty)
-            SizedBox(
+            Container(
               height: 150,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: manualMatches.map((m) {
-                  double rating = (m['r'] as int).toDouble();
-                  double h = (rating / 10.0) * 120; // Max yükseklik 120
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Text("${m['r']}",
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold)),
-                        Container(
-                          width: 30,
-                          height: h,
-                          decoration: BoxDecoration(
-                              color: rating >= 8
-                                  ? Colors.green
-                                  : (rating >= 6 ? Colors.amber : Colors.red),
-                              borderRadius: BorderRadius.circular(5)),
-                        ),
-                        const SizedBox(height: 5),
-                        Text("M${manualMatches.indexOf(m) + 1}",
-                            style: const TextStyle(
-                                color: Colors.white38, fontSize: 10)),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
+              width: double.infinity,
+              padding: const EdgeInsets.only(top: 20, bottom: 10),
+              child: CustomPaint(painter: _RatingGraphPainter(ratings)),
             )
           else
             const Center(
@@ -1835,6 +1866,27 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                           'a': int.tryParse(astC.text) ?? 0,
                           'r': int.tryParse(ratC.text) ?? 6
                         });
+
+                        // Veriyi Player nesnesine kaydet (recLink hack)
+                        Player updated = widget.player;
+                        // recLink alanını JSON deposu olarak kullanıyoruz
+                        String jsonHistory = jsonEncode(manualMatches);
+                        Player newP = Player(
+                            name: updated.name,
+                            rating: updated.rating,
+                            position: updated.position,
+                            playstyles: updated.playstyles,
+                            cardType: updated.cardType,
+                            team: updated.team,
+                            stats: updated.stats,
+                            role: updated.role,
+                            skillMoves: updated.skillMoves,
+                            chemistryStyle: updated.chemistryStyle,
+                            marketValue: updated.marketValue,
+                            recLink: jsonHistory, // BURAYA KAYDEDİYORUZ
+                            manualGoals: updated.manualGoals,
+                            manualAssists: updated.manualAssists);
+                        widget.onSave(newP);
                       });
                       Navigator.pop(c);
                     },
@@ -1854,7 +1906,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
       children: p.playstyles.map((ps) {
         // Plus ise özel klasörden, değilse normal klasörden al
         String iconPath = ps.isGold
-            ? "assets/Playstyles/plus/${ps.name}Plus.png"
+            ? "assets/plus/${ps.name}Plus.png" // DÜZELTME: assets/plus/IsimPlus.png
             : ps.assetPath;
         String displayName = playStyleTranslationsReverse[ps.name] ?? ps.name;
 
@@ -1962,6 +2014,45 @@ class _ViewUltimateState extends State<_ViewUltimate> {
     if (value >= 60) return const Color(0xFFFFA726); // Orange
     return const Color(0xFFEF5350); // Red
   }
+}
+
+// GRAFİK ÇİZİCİ
+class _RatingGraphPainter extends CustomPainter {
+  final List<double> data;
+  _RatingGraphPainter(this.data);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    Paint linePaint = Paint()
+      ..color = Colors.cyanAccent
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+    Paint dotPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    if (data.isEmpty) return;
+
+    double stepX = size.width / (data.length > 1 ? data.length - 1 : 1);
+    Path path = Path();
+
+    for (int i = 0; i < data.length; i++) {
+      double x = i * stepX;
+      // 10 reyting en üst (0), 0 reyting en alt (size.height)
+      double y = size.height - ((data[i] / 10.0) * size.height);
+
+      if (i == 0)
+        path.moveTo(x, y);
+      else
+        path.lineTo(x, y);
+
+      canvas.drawCircle(Offset(x, y), 4, dotPaint);
+    }
+    canvas.drawPath(path, linePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => true;
 }
 
 // ============================================================================
@@ -2502,11 +2593,13 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
   late TextEditingController _nameController;
   late TextEditingController _teamController;
   late TextEditingController _ratingController;
-  late TextEditingController _recLinkController;
+  late TextEditingController _marketValueController;
 
   String selectedPosition = "(9) ST";
   String selectedCardType = "Temel";
   String selectedRole = "Avcı Forvet";
+  int selectedSkillMoves = 3;
+  int selectedWeakFoot = 3;
   List<PlayStyle> selectedPlayStyles = [];
   Map<String, int> stats = {};
 
@@ -2524,10 +2617,15 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
     _nameController = TextEditingController(text: p.name);
     _teamController = TextEditingController(text: p.team);
     _ratingController = TextEditingController(text: p.rating.toString());
-    _recLinkController = TextEditingController(text: p.recLink);
+    // Market Value sadece sayı kısmını al
+    String mvRaw = p.marketValue.replaceAll("€", "").replaceAll("M", "");
+    _marketValueController = TextEditingController(text: mvRaw);
+
     selectedPosition = p.position;
     selectedCardType = p.cardType;
     selectedRole = p.role;
+    selectedSkillMoves = p.skillMoves;
+    selectedWeakFoot = p.stats['WF'] ?? 3;
     selectedPlayStyles = List.from(p.playstyles);
     stats = Map<String, int>.from(p.stats);
     if (stats.isEmpty) {
@@ -2583,7 +2681,47 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                               selectedRole, (v) {
                             setState(() => selectedRole = v!);
                           }),
-                          _input("Maç Kaydı Linki", _recLinkController),
+                          _input("Piyasa Değeri (M€)", _marketValueController,
+                              isNum: true),
+
+                          // YETENEK VE ZAYIF AYAK
+                          const SizedBox(height: 10),
+                          Text("Yetenek & Zayıf Ayak",
+                              style: TextStyle(color: Colors.amber)),
+                          Row(
+                            children: [
+                              Expanded(
+                                  child: Column(
+                                children: [
+                                  Text("SM: $selectedSkillMoves ⭐",
+                                      style: TextStyle(color: Colors.white)),
+                                  Slider(
+                                      value: selectedSkillMoves.toDouble(),
+                                      min: 1,
+                                      max: 5,
+                                      divisions: 4,
+                                      activeColor: Colors.yellow,
+                                      onChanged: (v) => setState(
+                                          () => selectedSkillMoves = v.toInt()))
+                                ],
+                              )),
+                              Expanded(
+                                  child: Column(
+                                children: [
+                                  Text("WF: $selectedWeakFoot ⭐",
+                                      style: TextStyle(color: Colors.white)),
+                                  Slider(
+                                      value: selectedWeakFoot.toDouble(),
+                                      min: 1,
+                                      max: 5,
+                                      divisions: 4,
+                                      activeColor: Colors.redAccent,
+                                      onChanged: (v) => setState(
+                                          () => selectedWeakFoot = v.toInt()))
+                                ],
+                              ))
+                            ],
+                          )
                         ],
                       ),
                     ),
@@ -2805,16 +2943,23 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
 
   void _submit() {
     if (_nameController.text.isEmpty) return;
+
+    // Zayıf ayağı stats içine gömüyoruz
+    stats['WF'] = selectedWeakFoot;
+
     Player newP = Player(
         name: _nameController.text,
         rating: int.tryParse(_ratingController.text) ?? 75,
         position: selectedPosition,
         team: _teamController.text,
         cardType: selectedCardType,
+        skillMoves: selectedSkillMoves,
+        marketValue: "€${_marketValueController.text}M", // Otomatik format
         playstyles: selectedPlayStyles,
         stats: stats,
         role: selectedRole,
-        recLink: _recLinkController.text,
+        recLink: widget.playerToEdit?.recLink ??
+            "", // Eski veriyi koru (Maç geçmişi burada)
         manualGoals: widget.playerToEdit?.manualGoals ?? 0,
         manualAssists: widget.playerToEdit?.manualAssists ?? 0);
 
