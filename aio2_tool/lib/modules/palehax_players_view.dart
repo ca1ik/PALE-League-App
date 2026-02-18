@@ -5,22 +5,18 @@ import 'package:provider/provider.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:url_launcher/url_launcher.dart';
 
-// Veri Çakışmasını Önlemek İçin 'pd' Ön Eki ile Import Ediyoruz
+// Kendi proje yapına göre bu importların doğruluğundan emin ol
 import '../data/player_data.dart' as pd;
-import '../data/player_data.dart'
-    show Player, PlayStyle; // Modelleri direkt kullanmak için
-
+import '../data/player_data.dart' show Player, PlayStyle;
 import '../services/database_service.dart';
-import '../services/scraper_service.dart';
-import '../ui/fc_animated_card.dart';
-import '../modules/player_editor.dart';
-import 'pale_webview.dart'; // Gerçek Webview Dosyası
+import '../ui/fc_animated_card.dart'; // Kart tasarımı dosyan
+// import '../modules/player_editor.dart'; // BUNU KAPATTIM, AŞAĞIYA EKLEDİM
+import 'pale_webview.dart';
 
 // ============================================================================
-// BÖLÜM 1: SABİT VERİLER (Lokalde kalması gerekenler veya pd'den çekilenler)
+// BÖLÜM 1: SABİT VERİLER
 // ============================================================================
 
-// Bu veri sadece bu sayfaya özel olduğu için burada kalabilir
 final Map<String, String> teamMarketValues = {
   "Toulouse": "€96.86M",
   "Livorno": "€85.67M",
@@ -37,7 +33,6 @@ final Map<String, String> teamMarketValues = {
   "Juventus": "€14.53M",
 };
 
-// Manuel Kadrolar (Sadece bu sayfada kullanılıyor)
 final Map<String, List<String>> manualTeamRosters = {
   "Bursa Spor": [
     "jesse00481⭐",
@@ -306,7 +301,6 @@ final Map<String, List<String>> manualTeamRosters = {
   ],
 };
 
-// PlayStyle Kategorileri (Manuel tanımlanmış, player_data'da yoksa buradan kullanılır)
 final Map<String, List<Map<String, String>>> playStyleCategories = {
   "Bitirici": [
     {
@@ -447,13 +441,11 @@ final Map<String, List<Map<String, String>>> playStyleCategories = {
   ]
 };
 
-// Ters Çeviri Haritası
 final Map<String, String> playStyleTranslationsReverse = playStyleCategories
     .values
     .expand((e) => e)
     .fold({}, (map, e) => map..[e["name"]!] = e["label"]!);
 
-// Meta Playstyles
 final List<Map<String, dynamic>> metaPlaystyles = [
   {
     "role": "(1) GK Metas",
@@ -580,21 +572,12 @@ class _SubTabPlayers extends StatefulWidget {
 class _SubTabPlayersState extends State<_SubTabPlayers>
     with SingleTickerProviderStateMixin {
   Player? selectedPlayer;
-  int currentCardIndex = 0;
-  late TabController _innerTabController;
 
-  @override
-  void initState() {
-    super.initState();
-    _innerTabController = TabController(length: 2, vsync: this);
-  }
+  // _innerTabController'a artık gerek kalmadı çünkü yeni tasarımda tab yok,
+  // her şey tek sayfada akıyor. Ama hata vermesin diye tutabiliriz veya silebiliriz.
+  // Temiz olsun diye siliyorum.
 
-  @override
-  void dispose() {
-    _innerTabController.dispose();
-    super.dispose();
-  }
-
+  // Veritabanından gelen veriyi modele çeviren fonksiyon
   Player _convert(dynamic t) {
     Map<String, int> st = {};
     List<PlayStyle> ps = [];
@@ -605,19 +588,21 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
       var l = jsonDecode(t.playStylesJson) as List;
       ps = l.map((e) => PlayStyle(e.toString())).toList();
     } catch (_) {}
+
     return Player(
-        name: t.name,
-        rating: t.rating,
-        position: t.position,
-        playstyles: ps,
-        cardType: t.cardType,
-        team: t.team,
-        stats: st,
-        role: t.role,
-        recLink: t.recLink ?? "",
-        manualGoals: t.manualGoals,
-        manualAssists: t.manualAssists,
-        manualMatches: t.manualMatches);
+      name: t.name,
+      rating: t.rating,
+      position: t.position,
+      playstyles: ps,
+      cardType: t.cardType,
+      team: t.team,
+      stats: st,
+      role: t.role,
+      recLink: t.recLink ?? "",
+      manualGoals: t.manualGoals,
+      manualAssists: t.manualAssists,
+      // manualMatches BURADAN TAMAMEN SİLİNDİ
+    );
   }
 
   @override
@@ -625,30 +610,39 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
     return StreamBuilder<List<dynamic>>(
         stream: widget.database.watchAllPlayers(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData)
+          if (!snapshot.hasData) {
             return const Center(
                 child: CircularProgressIndicator(color: Colors.cyanAccent));
+          }
+
           final all = snapshot.data!.map(_convert).toList();
-          if (all.isEmpty)
+
+          if (all.isEmpty) {
             return Center(
                 child: ElevatedButton(
                     onPressed: () =>
                         _showEditor(context, null, (p) => _save(p, true)),
                     child: const Text("İLK OYUNCUYU EKLE")));
+          }
 
+          // Seçili oyuncu yoksa veya listede yoksa ilkini seç
           if (selectedPlayer == null ||
-              !all.any((p) => p.name == selectedPlayer!.name))
+              !all.any((p) => p.name == selectedPlayer!.name)) {
             selectedPlayer = all.first;
-          else
+          } else {
+            // Güncel veriyi yakala
             selectedPlayer =
                 all.firstWhere((p) => p.name == selectedPlayer!.name);
+          }
 
+          // Aynı isme sahip versiyonları bul (Eğer ileride versiyon sistemi kullanırsan)
           List<Player> versions =
               all.where((p) => p.name == selectedPlayer!.name).toList();
-          if (currentCardIndex >= versions.length) currentCardIndex = 0;
-          Player displayPlayer = versions[currentCardIndex];
+          Player displayPlayer =
+              selectedPlayer!; // Şimdilik direkt seçiliyi göster
 
           return Row(children: [
+            // --- SOL MENÜ (OYUNCU LİSTESİ) ---
             Container(
                 width: 260,
                 decoration: const BoxDecoration(
@@ -678,7 +672,6 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                                   _showGlobal(context, widget.database, (pT) {
                                     setState(() {
                                       selectedPlayer = _convert(pT);
-                                      currentCardIndex = 0;
                                     });
                                   }),
                               child: const Row(
@@ -711,15 +704,21 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                       child: ListView.builder(
                           itemCount: all.length,
                           itemBuilder: (c, i) {
-                            if (i > 0 && all[i - 1].name == all[i].name)
-                              return const SizedBox.shrink();
+                            // Aynı isimli kartları alt alta göstermemek için filtre (opsiyonel)
+                            if (i > 0 &&
+                                all[i - 1].name == all[i].name &&
+                                all[i - 1].cardType == all[i].cardType) {
+                              // return const SizedBox.shrink();
+                              // Şimdilik hepsini gösterelim
+                            }
+
                             final p = all[i];
                             return ListTile(
                                 onTap: () => setState(() {
                                       selectedPlayer = p;
-                                      currentCardIndex = 0;
                                     }),
-                                selected: selectedPlayer?.name == p.name,
+                                selected: selectedPlayer?.name == p.name &&
+                                    selectedPlayer?.cardType == p.cardType,
                                 selectedTileColor:
                                     Colors.cyanAccent.withOpacity(0.1),
                                 leading: Text("${p.rating}",
@@ -733,69 +732,35 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                                     overflow: TextOverflow.ellipsis));
                           }))
                 ])),
+
+            // --- SAĞ TARAF (PROFIL DETAY) ---
             Expanded(
-                child: Column(children: [
-              Container(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  width: double.infinity,
-                  alignment: Alignment.center,
-                  color: Colors.black12,
-                  child: Text(selectedPlayer!.name.toUpperCase(),
-                      style: GoogleFonts.orbitron(
-                          color: Colors.white,
-                          fontSize: 22,
-                          letterSpacing: 5,
-                          fontWeight: FontWeight.bold))),
-              Container(
-                  color: Colors.black26,
-                  child: TabBar(
-                      controller: _innerTabController,
-                      indicatorColor: Colors.cyanAccent,
-                      labelColor: Colors.cyanAccent,
-                      unselectedLabelColor: Colors.white54,
-                      tabs: const [
-                        Tab(text: "PROFİL"),
-                        Tab(text: "ULTIMATE ANALİZ")
-                      ])),
-              Expanded(
-                  child: TabBarView(controller: _innerTabController, children: [
-                _ViewProfile(
-                    player: displayPlayer,
-                    versions: versions,
-                    onSelect: (p) => setState(() {
-                          selectedPlayer = p;
-                          currentCardIndex = versions.indexOf(p);
-                        })),
-                _ViewUltimate(
-                    player: displayPlayer,
-                    versions: versions,
-                    index: currentCardIndex,
-                    onIndex: (i) => setState(() => currentCardIndex = i),
-                    context: context,
-                    onSave: (p) => _save(p, false),
-                    onDelete: (p) => _delete(p))
-              ]))
-            ]))
+                // EKRANI TAM KAPLAMASI İÇİN EXPANDED
+                child: Container(
+                    color: Colors.black12, // Arka plan
+                    // HATA BURADAYDI: Parametreler sadeleştirildi.
+                    child: _ViewUltimate(player: displayPlayer)))
           ]);
         });
   }
 
   void _save(Player p, bool isNew) async {
     dynamic companion = PlayerTablesCompanion(
-        name: drift.Value(p.name),
-        rating: drift.Value(p.rating),
-        position: drift.Value(p.position),
-        team: drift.Value(p.team),
-        cardType: drift.Value(p.cardType),
-        role: drift.Value(p.role),
-        marketValue: drift.Value(p.marketValue),
-        statsJson: drift.Value(jsonEncode(p.stats)),
-        playStylesJson:
-            drift.Value(jsonEncode(p.playstyles.map((e) => e.name).toList())),
-        recLink: drift.Value(p.recLink),
-        manualGoals: drift.Value(p.manualGoals),
-        manualAssists: drift.Value(p.manualAssists),
-        manualMatches: drift.Value(p.manualMatches));
+      name: drift.Value(p.name),
+      rating: drift.Value(p.rating),
+      position: drift.Value(p.position),
+      team: drift.Value(p.team),
+      cardType: drift.Value(p.cardType),
+      role: drift.Value(p.role),
+      marketValue: drift.Value(p.marketValue),
+      statsJson: drift.Value(jsonEncode(p.stats)),
+      playStylesJson:
+          drift.Value(jsonEncode(p.playstyles.map((e) => e.name).toList())),
+      recLink: drift.Value(p.recLink),
+      manualGoals: drift.Value(p.manualGoals),
+      manualAssists: drift.Value(p.manualAssists),
+      // manualMatches YOK
+    );
     await widget.database.insertPlayer(companion);
     setState(() {});
   }
@@ -850,7 +815,6 @@ class _SubTabTeamsState extends State<_SubTabTeams> {
   }
 
   Widget _buildTeamsBody() {
-    // BURADA pd.teamLogos KULLANILIYOR
     return SingleChildScrollView(
         padding: const EdgeInsets.all(40),
         child: Center(
@@ -1042,11 +1006,10 @@ class SubTabCardTypes extends StatelessWidget {
   const SubTabCardTypes({super.key});
   @override
   Widget build(BuildContext context) {
-    // BURADA pd.globalCardTypes KULLANILIYOR
     return GridView.builder(
         padding: const EdgeInsets.all(40),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5, // Yan yana daha fazla kart sığsın (küçülsün)
+            crossAxisCount: 5,
             childAspectRatio: 0.65,
             crossAxisSpacing: 20,
             mainAxisSpacing: 20),
@@ -1081,13 +1044,11 @@ class SubTabCardTypes extends StatelessWidget {
                             fontSize: 13,
                             fontWeight: FontWeight.bold))),
                 Expanded(
-                  // DÜZELTME BURADA: Kartı ortalayıp, taşmasını engelliyoruz.
-                  // FittedBox + Center kombinasyonu kartın orijinal oranını korur.
                   child: Center(
                     child: FittedBox(
                       fit: BoxFit.contain,
                       child: SizedBox(
-                          width: 350, // Orijinal tasarım boyutu
+                          width: 350,
                           height: 480,
                           child: FCAnimatedCard(
                               player: Player(
@@ -1105,7 +1066,6 @@ class SubTabCardTypes extends StatelessWidget {
         });
   }
 
-  // _showCardDetail metodu aynı kalabilir...
   void _showCardDetail(BuildContext c, String t, Player p, Color clr) {
     showDialog(
         context: c,
@@ -1142,7 +1102,6 @@ class SubTabRoles extends StatelessWidget {
   const SubTabRoles({super.key});
   @override
   Widget build(BuildContext context) {
-    // BURADA pd.roleCategories KULLANILIYOR
     return ListView(
         padding: const EdgeInsets.all(40),
         children: pd.roleCategories.entries.map((e) {
@@ -1332,277 +1291,276 @@ class _ViewProfile extends StatelessWidget {
 
 class _ViewUltimate extends StatelessWidget {
   final Player player;
-  final List<Player> versions;
-  final int index;
-  final Function(int) onIndex;
-  final BuildContext context;
-  final Function(Player) onSave;
-  final Function(Player) onDelete;
-  const _ViewUltimate(
-      {required this.player,
-      required this.versions,
-      required this.index,
-      required this.onIndex,
-      required this.context,
-      required this.onSave,
-      required this.onDelete});
+  const _ViewUltimate({super.key, required this.player});
+
   @override
   Widget build(BuildContext context) {
-    var st = player.getSimulationStats();
-    List<Player> otherVersions = versions.where((v) => v != player).toList();
-    bool isGK =
-        player.position.contains("GK") || player.position.contains("(1)");
+    bool isGK = player.position.contains("GK");
 
-    return Row(children: [
-      Expanded(
-          flex: 4,
-          child: Center(
-              child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(30), // Kenar boşluğu eklendi
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // --- ÜST KISIM ---
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FCAnimatedCard(player: player, animateOnHover: true),
+              const SizedBox(width: 30),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                SizedBox(
-                    height: 520,
-                    width: 700,
-                    child: Stack(
-                        clipBehavior: Clip.none,
-                        alignment: Alignment.centerLeft,
-                        children: [
-                          if (otherVersions.isNotEmpty)
-                            ...otherVersions.asMap().entries.map((entry) {
-                              int i = entry.key;
-                              Player ver = entry.value;
-                              return Positioned(
-                                  left: 100.0 + (i * 95),
-                                  top: 20.0 + (i * 15),
-                                  child: GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: () {
-                                        onIndex(versions.indexOf(ver));
-                                      },
-                                      child: Transform.scale(
-                                          scale: 0.85 - (i * 0.05),
-                                          child: Stack(
-                                              alignment: Alignment.topRight,
-                                              children: [
-                                                SizedBox(
-                                                    width: 320,
-                                                    height: 480,
-                                                    child: AbsorbPointer(
-                                                        child: FCAnimatedCard(
-                                                            player: ver,
-                                                            animateOnHover:
-                                                                true))),
-                                                Container(
-                                                    padding: const EdgeInsets.symmetric(
-                                                        horizontal: 10,
-                                                        vertical: 5),
-                                                    margin: const EdgeInsets.all(
-                                                        10),
-                                                    decoration: BoxDecoration(
-                                                        color: Colors.black
-                                                            .withOpacity(0.8),
-                                                        border: Border.all(
-                                                            color: Colors
-                                                                .cyanAccent),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                                5)),
-                                                    child: Text(ver.cardType,
-                                                        style: const TextStyle(
-                                                            color: Colors
-                                                                .cyanAccent,
-                                                            fontWeight:
-                                                                FontWeight.bold,
-                                                            fontSize: 12)))
-                                              ]))));
-                            }).toList(),
-                          Positioned(
-                              left: 0,
-                              child: SizedBox(
-                                  width: 350,
-                                  height: 480,
-                                  child: FCAnimatedCard(player: player))),
-                          Positioned(
-                              top: 0,
-                              left: 300,
-                              child: _buildCardMenu(
-                                  context, player, onSave, onDelete))
-                        ])),
-                const SizedBox(height: 25),
-                ElevatedButton(
-                    onPressed: () => _createVersion(context, player, onSave),
-                    child: const Text("+ YENİ KART VERSİYONU EKLE"))
-              ]))),
-      Expanded(
-          flex: 5,
-          child: SingleChildScrollView(
-              padding: const EdgeInsets.all(25),
-              child: Column(children: [
-                if (isGK)
-                  Wrap(spacing: 15, runSpacing: 15, children: [
-                    _statBox("REFLEKS", "${player.stats['Reflex'] ?? 50}",
-                        Colors.greenAccent),
-                    _statBox("1v1", "${player.stats['1e1 Savunma'] ?? 50}",
-                        Colors.amber),
-                    _statBox(
-                        "UÇMA",
-                        "${player.stats['Çizgide Kurtarış'] ?? 50}",
-                        Colors.cyanAccent),
-                    _statBox("GÜÇ", "${player.stats['Güç'] ?? 50}",
-                        Colors.redAccent),
-                    _statBox(
-                        "PAS", "${player.stats['Pas'] ?? 50}", Colors.white)
-                  ])
-                else
-                  Wrap(spacing: 15, runSpacing: 15, children: [
-                    _statBox("GOL", st['Gol']!, Colors.green),
-                    _statBox("ASİST", st['Asist']!, Colors.blue),
-                    _statBox("PAS", st['Pas']!, Colors.white),
-                    _statBox("İSABET", st['İsabetli Pas']!, Colors.cyan),
-                    _statBox("KİLİT", st['Kilit Pas']!, Colors.amber),
-                    _statBox("ŞUT", st['Şut']!, Colors.red),
-                    Container(
-                        padding: const EdgeInsets.all(12),
-                        width: 250,
-                        decoration: BoxDecoration(
-                            color: Colors.purple.withOpacity(0.1),
-                            border: Border.all(
-                                color: Colors.purple.withOpacity(0.3)),
-                            borderRadius: BorderRadius.circular(12)),
-                        child: Column(children: [
-                          Text(st['Topla Oynama']!,
-                              style: const TextStyle(
-                                  color: Colors.purple,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold)),
-                          const Text("TOPLA OYNAMA",
-                              style:
-                                  TextStyle(color: Colors.purple, fontSize: 11))
-                        ]))
-                  ]),
-                const SizedBox(height: 30),
-                if (player.recLink.isNotEmpty)
-                  Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 25),
-                      child: ElevatedButton.icon(
-                          onPressed: () async {
-                            final url = Uri.parse(player.recLink);
-                            if (await canLaunchUrl(url)) launchUrl(url);
-                          },
-                          icon: const Icon(Icons.videocam, color: Colors.white),
-                          label: const Text("MAÇ KAYDINI İZLE",
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16)),
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.redAccent,
-                              padding: const EdgeInsets.all(20),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(15))))),
-                Row(children: [
-                  Container(
-                      width: 180,
-                      height: 250,
-                      decoration: BoxDecoration(
-                          border: Border.all(color: Colors.white24, width: 2),
-                          borderRadius: BorderRadius.circular(15),
-                          color: Colors.white.withOpacity(0.03)),
-                      child: CustomPaint(
-                          painter: _MiniPitchPainter(
-                              playerPos: player.getPitchPosition()),
-                          child: Stack(children: [
-                            Positioned(
-                                left: player.getPitchPosition().dx * 180 - 10,
-                                top: player.getPitchPosition().dy * 250 - 10,
-                                child: Column(children: [
-                                  const Icon(Icons.circle,
-                                      color: Colors.redAccent, size: 16),
-                                  Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 2),
-                                      decoration: BoxDecoration(
-                                          color: Colors.black54,
-                                          borderRadius:
-                                              BorderRadius.circular(5)),
-                                      child: Text(
-                                          player.position.replaceAll(
-                                              RegExp(r'[^A-Z]'), ''),
-                                          style: const TextStyle(
-                                              color: Colors.redAccent,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold)))
-                                ]))
-                          ]))),
-                  const SizedBox(width: 30),
-                  Expanded(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                        Text("SEZON GEÇMİŞİ",
-                            style: GoogleFonts.orbitron(
-                                color: Colors.white70,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 10),
-                        Table(children: [
-                          const TableRow(children: [
-                            Text("SEZON",
-                                style: TextStyle(
-                                    color: Colors.grey, fontSize: 11)),
-                            Text("RTG",
-                                style: TextStyle(
-                                    color: Colors.grey, fontSize: 11)),
-                            Text("G/A",
-                                style: TextStyle(
-                                    color: Colors.grey, fontSize: 11)),
-                            SizedBox()
-                          ]),
-                          ...player.seasons.map((s) => TableRow(children: [
-                                Padding(
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 8),
-                                    child: Text(s.season,
-                                        style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 13))),
-                                Text("${s.avgRating}",
-                                    style: const TextStyle(
-                                        color: Colors.cyanAccent,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13)),
-                                Text("${s.goals} / ${s.assists}",
-                                    style: const TextStyle(
-                                        color: Colors.white70, fontSize: 13)),
-                                s.isMVP
-                                    ? const Icon(Icons.star,
-                                        color: Colors.amber, size: 16)
-                                    : const SizedBox()
-                              ]))
-                        ])
-                      ]))
-                ]),
-                const SizedBox(height: 30),
-                Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white10),
-                        borderRadius: BorderRadius.circular(15),
-                        color: Colors.white.withOpacity(0.02)),
-                    child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _infoBadge("YETENEK", "${player.skillMoves} ★",
-                              color: Colors.amber),
-                          _infoBadge("MAÇ REYTİNG",
-                              "${player.matches.isNotEmpty ? (player.matches.fold(0.0, (sum, m) => sum + m.rating) / player.matches.length).toStringAsFixed(1) : '-'}",
-                              color: Colors.greenAccent),
-                          _infoBadge("ROL", player.role)
-                        ]))
-              ])))
-    ]);
+                    Text(player.name.toUpperCase(),
+                        style: GoogleFonts.russoOne(
+                            fontSize: 36, color: Colors.white, height: 1)),
+                    Text("${player.position} | ${player.team}",
+                        style: GoogleFonts.montserrat(
+                            fontSize: 18, color: Colors.white70)),
+                    const SizedBox(height: 25),
+                    Text("OYUN STİLLERİ",
+                        style: GoogleFonts.russoOne(
+                            fontSize: 16, color: Colors.amber)),
+                    const SizedBox(height: 10),
+                    _buildPlayStylesList(player),
+                  ],
+                ),
+              )
+            ],
+          ),
+          const SizedBox(height: 40),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 20),
+
+          // --- ALT KISIM ---
+          Text("PROFİL DETAYLARI",
+              style: GoogleFonts.russoOne(fontSize: 24, color: Colors.white)),
+          const SizedBox(height: 20),
+
+          Wrap(
+            spacing: 20,
+            runSpacing: 10,
+            children: [
+              _buildInfoTag(Icons.science, "Kimya", player.chemistryStyle,
+                  Colors.purpleAccent),
+              _buildInfoTag(Icons.theater_comedy, "Rol", player.role,
+                  Colors.orangeAccent),
+              _buildInfoTag(Icons.star, "Yetenek",
+                  "${player.skillMoves} Yıldız", Colors.yellowAccent),
+              _buildInfoTag(
+                  Icons.euro, "Değer", player.marketValue, Colors.greenAccent),
+            ],
+          ),
+          const SizedBox(height: 30),
+
+          // İSTATİSTİKLER (HATA BURADAYDI: pd.statSegments yapıldı)
+          ...pd.statSegments.entries.map((entry) {
+            String category = entry.key;
+            List<String> statsList = entry.value;
+
+            if (isGK && !['Kaleci', 'Fizik', 'Zeka'].contains(category))
+              return const SizedBox.shrink();
+            if (!isGK && category == 'Kaleci') return const SizedBox.shrink();
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.bar_chart,
+                          color: Colors.cyanAccent, size: 20),
+                      const SizedBox(width: 10),
+                      Text(category.toUpperCase(),
+                          style: GoogleFonts.russoOne(
+                              color: Colors.cyanAccent, fontSize: 18)),
+                    ],
+                  ),
+                ),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: statsList.map((statName) {
+                    int value = player.stats[statName] ?? 0;
+                    return _buildModernStatBox(statName, value);
+                  }).toList(),
+                ),
+                const SizedBox(height: 10),
+                const Divider(color: Colors.white10),
+              ],
+            );
+          }).toList(),
+          const SizedBox(height: 50),
+        ],
+      ),
+    );
   }
+
+  // Helper metodlar sınıfın içinde olmalı
+  Widget _buildPlayStylesList(Player p) {
+    if (p.playstyles.isEmpty)
+      return const Text("Yok", style: TextStyle(color: Colors.white54));
+    return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: p.playstyles.map((ps) {
+          String iconPath = ps.isGold
+              ? "assets/Playstyles/plus/${ps.name}Plus.png"
+              : ps.assetPath;
+          return Container(
+              width: 40,
+              height: 40,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                  color: ps.isGold
+                      ? Colors.amber.withOpacity(0.1)
+                      : Colors.white10,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: ps.isGold ? Colors.amber : Colors.white24)),
+              child: Image.asset(iconPath,
+                  color: ps.isGold ? null : Colors.white70));
+        }).toList());
+  }
+
+  Widget _buildInfoTag(IconData i, String l, String v, Color c) {
+    return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+            color: c.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: c.withOpacity(0.3))),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(i, color: c, size: 18),
+          const SizedBox(width: 8),
+          Text("$l: ", style: const TextStyle(color: Colors.white70)),
+          Text(v,
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.bold))
+        ]));
+  }
+
+  Widget _buildModernStatBox(String l, int v) {
+    Color c = v >= 90
+        ? Colors.greenAccent
+        : (v >= 80 ? Colors.green : (v >= 70 ? Colors.amber : Colors.red));
+    return Container(
+        width: 75,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+            color: Colors.white10,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: c.withOpacity(0.3))),
+        child: Column(children: [
+          Text("$v", style: GoogleFonts.russoOne(fontSize: 22, color: c)),
+          Text(l,
+              style: const TextStyle(fontSize: 10, color: Colors.white70),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis)
+        ]));
+  }
+}
+
+// DÜZELTME: PlayStyle Plus ikonlarını doğru klasörden alan fonksiyon
+Widget _buildPlayStylesList(Player p) {
+  if (p.playstyles.isEmpty)
+    return Text("Oyun stili yok.",
+        style: GoogleFonts.montserrat(color: Colors.white54));
+  return Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: p.playstyles.map((ps) {
+      // Plus ise özel klasörden, değilse normal klasörden al
+      String iconPath = ps.isGold
+          ? "assets/Playstyles/plus/${ps.name}Plus.png"
+          : ps.assetPath;
+
+      return Tooltip(
+        message: ps.name + (ps.isGold ? " (Plus)" : ""),
+        child: Container(
+          width: 40,
+          height: 40,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: ps.isGold ? Colors.amber.withOpacity(0.1) : Colors.white10,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+                color: ps.isGold ? Colors.amber : Colors.white24,
+                width: ps.isGold ? 1.5 : 1),
+          ),
+          child: Image.asset(
+            iconPath,
+            color: ps.isGold ? null : Colors.white70, // Plus değilse beyaz yap
+            errorBuilder: (c, e, s) => Icon(Icons.help,
+                color: ps.isGold ? Colors.amber : Colors.white24),
+          ),
+        ),
+      );
+    }).toList(),
+  );
+}
+
+// YENİ: Modern Bilgi Etiketi
+Widget _buildInfoTag(IconData icon, String label, String value, Color color) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: color.withOpacity(0.3)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(width: 8),
+        Text("$label: ",
+            style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 12)),
+        Text(value,
+            style: GoogleFonts.russoOne(color: Colors.white, fontSize: 14)),
+      ],
+    ),
+  );
+}
+
+// YENİ: Modern İstatistik Kutusu
+Widget _buildModernStatBox(String label, int value) {
+  Color color = _getStatColor(value);
+  return Container(
+    width: 75,
+    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 5),
+    decoration: BoxDecoration(
+      color: Colors.white10,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: color.withOpacity(0.3)),
+    ),
+    child: Column(
+      children: [
+        Text("$value",
+            style: GoogleFonts.russoOne(fontSize: 22, color: color, height: 1)),
+        const SizedBox(height: 5),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.montserrat(
+              fontSize: 10, color: Colors.white70, fontWeight: FontWeight.w500),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    ),
+  );
+}
+
+// Renk belirleme fonksiyonu (Aynı kalabilir)
+Color _getStatColor(int value) {
+  if (value >= 90) return Colors.greenAccent;
+  if (value >= 80) return Colors.green;
+  if (value >= 70) return Colors.amber;
+  if (value >= 60) return const Color(0xFFFFA726); // Orange
+  return const Color(0xFFEF5350); // Red
 }
 
 // ============================================================================
@@ -1806,7 +1764,6 @@ void _showDetailedStats(BuildContext context, Player p) {
                         child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: pd.statSegments.entries.map((entry) {
-                              // pd.statSegments KULLANILIYOR
                               return Container(
                                   width: 250,
                                   margin: const EdgeInsets.only(right: 30),
@@ -2100,8 +2057,7 @@ void _createVersion(BuildContext context, Player p, Function(Player) onSave) {
       seasons: p.seasons,
       recLink: p.recLink,
       manualGoals: p.manualGoals,
-      manualAssists: p.manualAssists,
-      manualMatches: p.manualMatches);
+      manualAssists: p.manualAssists);
   showDialog(
       context: context,
       builder: (c) => CreatePlayerDialog(
@@ -2120,4 +2076,390 @@ void _showEditor(BuildContext context, Player? p, Function(Player) onSave) {
           onSave: (player) {
             if (player != null) onSave(player);
           }));
+}
+
+// ============================================================================
+// BÖLÜM 5: CREATE PLAYER DIALOG (EKSİK OLAN PARÇA BURAYA EKLENDİ)
+// ============================================================================
+
+class CreatePlayerDialog extends StatefulWidget {
+  final Player? playerToEdit;
+  final Function(Player?) onSave;
+  final bool isNewVersion;
+
+  const CreatePlayerDialog(
+      {super.key,
+      this.playerToEdit,
+      required this.onSave,
+      this.isNewVersion = false});
+
+  @override
+  State<CreatePlayerDialog> createState() => _CreatePlayerDialogState();
+}
+
+class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
+  late TextEditingController _nameController;
+  late TextEditingController _teamController;
+  late TextEditingController _ratingController;
+  late TextEditingController _recLinkController;
+
+  String selectedPosition = "(9) ST";
+  String selectedCardType = "Temel";
+  String selectedRole = "Avcı Forvet";
+  List<PlayStyle> selectedPlayStyles = [];
+  Map<String, int> stats = {};
+
+  @override
+  void initState() {
+    super.initState();
+    Player p = widget.playerToEdit ??
+        Player(
+            name: "",
+            rating: 75,
+            position: "(9) ST",
+            playstyles: [],
+            cardType: "Temel",
+            team: "Takımsız");
+    _nameController = TextEditingController(text: p.name);
+    _teamController = TextEditingController(text: p.team);
+    _ratingController = TextEditingController(text: p.rating.toString());
+    _recLinkController = TextEditingController(text: p.recLink);
+    selectedPosition = p.position;
+    selectedCardType = p.cardType;
+    selectedRole = p.role;
+    selectedPlayStyles = List.from(p.playstyles);
+    stats = Map<String, int>.from(p.stats);
+    if (stats.isEmpty) {
+      pd.statSegments.values.expand((e) => e).forEach((s) => stats[s] = 50);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: const Color(0xFF1E1E24),
+      insetPadding: const EdgeInsets.all(20),
+      child: Container(
+        width: 900,
+        height: 800,
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          children: [
+            Text(
+                widget.playerToEdit == null
+                    ? "YENİ OYUNCU OLUŞTUR"
+                    : "OYUNCUYU DÜZENLE",
+                style: GoogleFonts.orbitron(
+                    color: Colors.cyanAccent,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold)),
+            const Divider(color: Colors.white24, height: 30),
+            Expanded(
+              child: Row(
+                children: [
+                  // SOL TARA - Temel Bilgiler
+                  Expanded(
+                    flex: 1,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _input("Ad Soyad", _nameController),
+                          _input("Takım", _teamController),
+                          _input("Reyting", _ratingController, isNum: true),
+                          _dropdown("Pozisyon", pd.positions, selectedPosition,
+                              (v) {
+                            setState(() => selectedPosition = v!);
+                            // Pozisyona göre varsayılan rolü seç
+                            // Burada basit bir mantık kurabilirsin
+                          }),
+                          _dropdown(
+                              "Kart Tipi", pd.globalCardTypes, selectedCardType,
+                              (v) {
+                            setState(() => selectedCardType = v!);
+                          }),
+                          _dropdown("Rol", roleDescriptions.keys.toList(),
+                              selectedRole, (v) {
+                            setState(() => selectedRole = v!);
+                          }),
+                          _input("Maç Kaydı Linki", _recLinkController),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const VerticalDivider(width: 40, color: Colors.white10),
+                  // SAĞ TARAF - İstatistikler ve PlayStyle
+                  Expanded(
+                    flex: 2,
+                    child: DefaultTabController(
+                      length: 2,
+                      child: Column(
+                        children: [
+                          const TabBar(
+                            indicatorColor: Colors.cyanAccent,
+                            tabs: [
+                              Tab(text: "İSTATİSTİKLER"),
+                              Tab(text: "OYUN STİLLERİ"),
+                            ],
+                          ),
+                          Expanded(
+                            child: TabBarView(
+                              children: [
+                                // TAB 1: İSTATİSTİKLER
+                                SingleChildScrollView(
+                                  padding: const EdgeInsets.only(top: 20),
+                                  child: Wrap(
+                                    spacing: 20,
+                                    runSpacing: 20,
+                                    children:
+                                        pd.statSegments.entries.map((entry) {
+                                      return Container(
+                                        width: 250,
+                                        padding: const EdgeInsets.all(15),
+                                        decoration: BoxDecoration(
+                                            color:
+                                                Colors.white.withOpacity(0.05),
+                                            borderRadius:
+                                                BorderRadius.circular(10)),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(entry.key,
+                                                style: const TextStyle(
+                                                    color: Colors.amber,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            const SizedBox(height: 10),
+                                            ...entry.value.map((s) => Row(
+                                                  children: [
+                                                    Expanded(
+                                                        flex: 2,
+                                                        child: Text(s,
+                                                            style:
+                                                                const TextStyle(
+                                                                    color: Colors
+                                                                        .white70,
+                                                                    fontSize:
+                                                                        12))),
+                                                    Expanded(
+                                                      flex: 3,
+                                                      child: Slider(
+                                                        value: (stats[s] ?? 50)
+                                                            .toDouble(),
+                                                        min: 0,
+                                                        max: 99,
+                                                        activeColor:
+                                                            Colors.cyanAccent,
+                                                        inactiveColor:
+                                                            Colors.white10,
+                                                        onChanged: (v) =>
+                                                            setState(() =>
+                                                                stats[s] =
+                                                                    v.toInt()),
+                                                      ),
+                                                    ),
+                                                    Text("${stats[s] ?? 50}",
+                                                        style: const TextStyle(
+                                                            color: Colors.white,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .bold))
+                                                  ],
+                                                ))
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                                // TAB 2: PLAYSTYLES
+                                SingleChildScrollView(
+                                  padding: const EdgeInsets.only(top: 20),
+                                  child: Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: playStyleCategories.values
+                                        .expand((e) => e)
+                                        .map((psData) {
+                                      bool isSelected = selectedPlayStyles
+                                          .any((p) => p.name == psData['name']);
+                                      bool isGold = false;
+                                      if (isSelected) {
+                                        isGold = selectedPlayStyles
+                                            .firstWhere(
+                                                (p) => p.name == psData['name'])
+                                            .isGold;
+                                      }
+                                      return GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            if (isSelected) {
+                                              if (!isGold) {
+                                                // Gold yap
+                                                selectedPlayStyles.removeWhere(
+                                                    (p) =>
+                                                        p.name ==
+                                                        psData['name']);
+                                                selectedPlayStyles.add(
+                                                    PlayStyle(psData['name']!,
+                                                        isGold: true));
+                                              } else {
+                                                // Kaldır
+                                                selectedPlayStyles.removeWhere(
+                                                    (p) =>
+                                                        p.name ==
+                                                        psData['name']);
+                                              }
+                                            } else {
+                                              // Ekle (Normal)
+                                              selectedPlayStyles.add(PlayStyle(
+                                                  psData['name']!,
+                                                  isGold: false));
+                                            }
+                                          });
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: isSelected
+                                                ? (isGold
+                                                    ? Colors.amber
+                                                        .withOpacity(0.2)
+                                                    : Colors.cyanAccent
+                                                        .withOpacity(0.2))
+                                                : Colors.white10,
+                                            border: Border.all(
+                                                color: isSelected
+                                                    ? (isGold
+                                                        ? Colors.amber
+                                                        : Colors.cyanAccent)
+                                                    : Colors.transparent),
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              if (isSelected)
+                                                Icon(
+                                                    isGold
+                                                        ? Icons.star
+                                                        : Icons.check,
+                                                    size: 14,
+                                                    color: isGold
+                                                        ? Colors.amber
+                                                        : Colors.cyanAccent),
+                                              const SizedBox(width: 5),
+                                              Text(psData['label']!,
+                                                  style: TextStyle(
+                                                      color: isSelected
+                                                          ? Colors.white
+                                                          : Colors.white54,
+                                                      fontSize: 12)),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                )
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("İPTAL",
+                        style: TextStyle(color: Colors.white54))),
+                const SizedBox(width: 20),
+                ElevatedButton.icon(
+                    onPressed: _submit,
+                    icon: const Icon(Icons.save, color: Colors.black),
+                    label: const Text("KAYDET",
+                        style: TextStyle(
+                            color: Colors.black, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.cyanAccent,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 30, vertical: 15)))
+              ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _submit() {
+    if (_nameController.text.isEmpty) return;
+    Player newP = Player(
+        name: _nameController.text,
+        rating: int.tryParse(_ratingController.text) ?? 75,
+        position: selectedPosition,
+        team: _teamController.text,
+        cardType: selectedCardType,
+        playstyles: selectedPlayStyles,
+        stats: stats,
+        role: selectedRole,
+        recLink: _recLinkController.text, // Eski verileri koru eğer varsa
+        manualGoals: widget.playerToEdit?.manualGoals ?? 0,
+        manualAssists: widget.playerToEdit?.manualAssists ?? 0);
+
+    widget.onSave(newP);
+    Navigator.pop(context);
+  }
+
+  Widget _input(String label, TextEditingController c, {bool isNum = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: TextField(
+        controller: c,
+        keyboardType: isNum ? TextInputType.number : TextInputType.text,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.white54),
+          filled: true,
+          fillColor: Colors.black26,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+    );
+  }
+
+  Widget _dropdown(String label, List<String> items, String val,
+      Function(String?) onChange) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: DropdownButtonFormField<String>(
+        value: items.contains(val) ? val : items.first,
+        items: items
+            .map((e) => DropdownMenuItem(
+                value: e,
+                child: Text(e, style: const TextStyle(color: Colors.white))))
+            .toList(),
+        onChanged: onChange,
+        dropdownColor: const Color(0xFF2C2C35),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.white54),
+          filled: true,
+          fillColor: Colors.black26,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+    );
+  }
 }
