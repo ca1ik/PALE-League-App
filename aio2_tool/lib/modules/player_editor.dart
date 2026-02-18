@@ -1,422 +1,204 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:hive/hive.dart';
-import '../data/player_data.dart';
-import 'glass_box.dart';
 
-class PlayerEditor extends StatefulWidget {
-  final Player? playerToEdit;
-  const PlayerEditor({super.key, this.playerToEdit});
+// --- MODELLER ---
 
+class PlayStyle {
+  final String name;
+  final bool isGold;
+
+  PlayStyle(this.name, {this.isGold = false});
+
+  // JSON serileştirme için basit bir yapı
   @override
-  State<PlayerEditor> createState() => _PlayerEditorState();
+  String toString() => name;
 }
 
-class _PlayerEditorState extends State<PlayerEditor> {
-  final _formKey = GlobalKey<FormState>();
-  late String name;
-  int rating = 75;
-  String position = positionsList[0];
-  String team = teamList[0].name;
-  String cardType = cardTypesList[0];
-  String role = rolesList[0];
-  String chemistry = chemistryList[0];
-  int kitNumber = 7;
+class SeasonStats {
+  final String season;
+  final double avgRating;
+  final int goals;
+  final int assists;
+  final bool isMVP;
 
-  // YENİ: Seçilen PlayStyle'ları tutacak liste
-  List<PlayStyle> _selectedPlayStyles = [];
+  SeasonStats({
+    required this.season,
+    required this.avgRating,
+    required this.goals,
+    required this.assists,
+    this.isMVP = false,
+  });
+}
 
-  // İstatistikler
-  int pac = 70, sho = 70, pas = 70, dri = 70, def = 70, phy = 70;
-  // Kaleci İstatistikleri
-  int div = 70, han = 70, kic = 70, ref = 70, pos = 70;
+class MatchStat {
+  final String opponent;
+  final double rating;
+  final int goals;
+  final int assists;
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.playerToEdit != null) {
-      final p = widget.playerToEdit!;
-      name = p.name;
-      rating = p.rating;
-      position = p.position;
-      team = p.team;
-      cardType = p.cardType;
-      role = p.role;
-      chemistry = p.chemistryStyle;
-      kitNumber = p.kitNumber;
-      _selectedPlayStyles = List.from(p.playstyles); // Mevcutları yükle
+  MatchStat({
+    required this.opponent,
+    required this.rating,
+    required this.goals,
+    required this.assists,
+  });
+}
 
-      if (p.stats.containsKey('PAC')) {
-        pac = p.stats['PAC']!;
-        sho = p.stats['SHO']!;
-        pas = p.stats['PAS']!;
-        dri = p.stats['DRI']!;
-        def = p.stats['DEF']!;
-        phy = p.stats['PHY']!;
-      }
-      if (p.stats.containsKey('DIV')) {
-        div = p.stats['DIV']!;
-        han = p.stats['HAN']!;
-        kic = p.stats['KIC']!;
-        ref = p.stats['REF']!;
-        pos = p.stats['POS']!;
-      }
-    } else {
-      name = "";
-    }
+class Player {
+  final String name;
+  final int rating;
+  final String position;
+  final String team;
+  final String cardType;
+  final String role;
+  final List<PlayStyle> playstyles;
+  final Map<String, int> stats;
+  final String recLink;
+  final String marketValue;
+  final int skillMoves;
+  final String chemistryStyle;
+
+  // Manuel İstatistikler
+  final int manualGoals;
+  final int manualAssists;
+  final List<MatchStat> manualMatches;
+  final List<SeasonStats> seasons;
+
+  Player({
+    required this.name,
+    required this.rating,
+    required this.position,
+    required this.team,
+    this.cardType = "Temel",
+    this.role = "Yedek",
+    this.playstyles = const [],
+    this.stats = const {},
+    this.recLink = "",
+    this.marketValue = "€1.0M",
+    this.skillMoves = 3,
+    this.chemistryStyle = "Basic",
+    this.manualGoals = 0,
+    this.manualAssists = 0,
+    this.manualMatches = const [],
+    this.seasons = const [],
+  });
+
+  // Drift veritabanı ile uyumluluk için getter'lar
+  List<MatchStat> get matches => manualMatches;
+
+  // Simülasyon istatistikleri (Eğer veri yoksa rastgele/varsayılan üretir)
+  Map<String, String> getSimulationStats() {
+    return {
+      'Gol': manualGoals.toString(),
+      'Asist': manualAssists.toString(),
+      'Pas': "${stats['Pas'] ?? 70}",
+      'İsabetli Pas': "${(stats['Pas'] ?? 70) - 5}",
+      'Kilit Pas': "${(stats['Pas'] ?? 70) ~/ 10}",
+      'Şut': "${stats['Şut'] ?? 60}",
+      'Topla Oynama': "%${(stats['Dripling'] ?? 50) ~/ 1.5}",
+    };
   }
 
-  void _savePlayer() {
-    if (!_formKey.currentState!.validate()) return;
-    _formKey.currentState!.save();
-
-    Map<String, int> stats = position.contains("GK")
-        ? {'DIV': div, 'HAN': han, 'KIC': kic, 'REF': ref, 'POS': pos}
-        : {
-            'PAC': pac,
-            'SHO': sho,
-            'PAS': pas,
-            'DRI': dri,
-            'DEF': def,
-            'PHY': phy
-          };
-
-    final newPlayer = Player(
-      id: widget.playerToEdit?.id ??
-          DateTime.now().millisecondsSinceEpoch.toString(),
-      name: name,
-      rating: rating,
-      position: position,
-      team: team,
-      cardType: cardType,
-      role: role,
-      marketValue: "Hesaplanıyor...",
-      stats: stats,
-      playstyles: _selectedPlayStyles, // Seçilenleri kaydet
-      chemistryStyle: chemistry,
-      kitNumber: kitNumber,
-    );
-
-    final box = Hive.box<Player>('palehax_players_v9');
-    if (widget.playerToEdit != null) {
-      // Düzenleme modu: Mevcut key'i bul ve güncelle
-      final key = box.keys.firstWhere((k) => box.get(k)?.id == newPlayer.id);
-      box.put(key, newPlayer);
-    } else {
-      // Yeni ekleme modu
-      box.add(newPlayer);
-    }
-
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Oyuncu başarıyla kaydedildi!")));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    bool isGK = position.contains("GK");
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        title: Text(
-            widget.playerToEdit == null ? "Oyuncu Oluştur" : "Oyuncu Düzenle",
-            style: GoogleFonts.orbitron(color: Colors.white)),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: Center(
-        child: GlassBox(
-          width: 900,
-          height: 700,
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Temel Bilgiler Row'u (Kısaltıldı, aynı kalacak)
-                    _buildBasicInfoRow(),
-                    const SizedBox(height: 20),
-                    // Dropdownlar Row'u (Kısaltıldı, aynı kalacak)
-                    _buildDropdownsRow(),
-                    const SizedBox(height: 20),
-
-                    // --- YENİ: PLAYSTYLES SEÇİM ALANI ---
-                    Text("PlayStyles (Oyun Tarzları)",
-                        style: GoogleFonts.orbitron(
-                            color: Colors.cyanAccent, fontSize: 16)),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                          color: Colors.black26,
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(color: Colors.white12)),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: playStylesList.map((ps) {
-                          final isSelected = _selectedPlayStyles
-                              .any((selected) => selected.name == ps.name);
-                          return FilterChip(
-                            label: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Image.asset(ps.assetPath,
-                                    width: 20,
-                                    height: 20,
-                                    errorBuilder: (c, e, s) => Icon(Icons.star,
-                                        size: 20,
-                                        color: ps.isGold
-                                            ? Colors.amber
-                                            : Colors.white)),
-                                const SizedBox(width: 5),
-                                Text(ps.name,
-                                    style: TextStyle(
-                                        color: isSelected
-                                            ? Colors.black
-                                            : Colors.white)),
-                              ],
-                            ),
-                            selected: isSelected,
-                            onSelected: (bool selected) {
-                              setState(() {
-                                if (selected) {
-                                  // Eğer gold ise, diğer gold'u kaldır (sadece 1 gold olabilir kuralı varsa)
-                                  if (ps.isGold) {
-                                    _selectedPlayStyles.removeWhere(
-                                        (element) => element.isGold);
-                                  }
-                                  _selectedPlayStyles.add(ps);
-                                } else {
-                                  _selectedPlayStyles.removeWhere(
-                                      (element) => element.name == ps.name);
-                                }
-                              });
-                            },
-                            backgroundColor: Colors.black45,
-                            selectedColor: ps.isGold
-                                ? Colors.amberAccent
-                                : Colors.cyanAccent,
-                            checkmarkColor: Colors.black,
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // İstatistikler Başlığı
-                    Text(
-                        isGK
-                            ? "Kaleci İstatistikleri"
-                            : "Oyuncu İstatistikleri",
-                        style: GoogleFonts.orbitron(
-                            color: Colors.cyanAccent, fontSize: 18)),
-                    const SizedBox(height: 15),
-                    // İstatistik Sliderları
-                    isGK ? _buildGKStats() : _buildPlayerStats(),
-
-                    const SizedBox(height: 30),
-                    Center(
-                      child: ElevatedButton.icon(
-                        onPressed: _savePlayer,
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.cyanAccent,
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 40, vertical: 15),
-                            textStyle: GoogleFonts.orbitron(
-                                fontWeight: FontWeight.bold)),
-                        icon: const Icon(Icons.save),
-                        label: const Text("KAYDET"),
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // --- Yardımcı Widgetlar (Önceki koddan aynen alındı) ---
-  Widget _buildBasicInfoRow() {
-    return Row(
-      children: [
-        Expanded(
-          flex: 2,
-          child: _buildTextField("Oyuncu Adı", (v) => name = v!,
-              initialValue: name),
-        ),
-        const SizedBox(width: 15),
-        Expanded(
-          child: _buildSlider(
-              "Reyting", rating, 40, 99, (v) => setState(() => rating = v)),
-        ),
-        const SizedBox(width: 15),
-        Expanded(
-          child: _buildSlider("Forma No", kitNumber, 1, 99,
-              (v) => setState(() => kitNumber = v)),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDropdownsRow() {
-    return Row(
-      children: [
-        Expanded(
-            child: _buildDropdown("Pozisyon", positionsList, position,
-                (v) => setState(() => position = v!))),
-        const SizedBox(width: 10),
-        Expanded(
-            child: _buildDropdown("Takım", teamList.map((e) => e.name).toList(),
-                team, (v) => setState(() => team = v!))),
-        const SizedBox(width: 10),
-        Expanded(
-            child: _buildDropdown("Kart Tipi", cardTypesList, cardType,
-                (v) => setState(() => cardType = v!))),
-        const SizedBox(width: 10),
-        Expanded(
-            child: _buildDropdown(
-                "Rol", rolesList, role, (v) => setState(() => role = v!))),
-        const SizedBox(width: 10),
-        Expanded(
-            child: _buildDropdown("Kimya", chemistryList, chemistry,
-                (v) => setState(() => chemistry = v!))),
-      ],
-    );
-  }
-
-  Widget _buildPlayerStats() {
-    return Column(
-      children: [
-        Row(children: [
-          Expanded(
-              child: _buildSlider("PAC (Hız)", pac, 30, 99, (v) => pac = v)),
-          const SizedBox(width: 15),
-          Expanded(
-              child: _buildSlider("SHO (Şut)", sho, 30, 99, (v) => sho = v))
-        ]),
-        Row(children: [
-          Expanded(
-              child: _buildSlider("PAS (Pas)", pas, 30, 99, (v) => pas = v)),
-          const SizedBox(width: 15),
-          Expanded(
-              child:
-                  _buildSlider("DRI (Dribbling)", dri, 30, 99, (v) => dri = v))
-        ]),
-        Row(children: [
-          Expanded(
-              child: _buildSlider("DEF (Defans)", def, 30, 99, (v) => def = v)),
-          const SizedBox(width: 15),
-          Expanded(
-              child: _buildSlider("PHY (Fizik)", phy, 30, 99, (v) => phy = v))
-        ]),
-      ],
-    );
-  }
-
-  Widget _buildGKStats() {
-    return Column(
-      children: [
-        Row(children: [
-          Expanded(
-              child: _buildSlider("DIV (Uzanma)", div, 30, 99, (v) => div = v)),
-          const SizedBox(width: 15),
-          Expanded(
-              child:
-                  _buildSlider("HAN (Elle Tutma)", han, 30, 99, (v) => han = v))
-        ]),
-        Row(children: [
-          Expanded(
-              child: _buildSlider("KIC (Vuruş)", kic, 30, 99, (v) => kic = v)),
-          const SizedBox(width: 15),
-          Expanded(
-              child: _buildSlider("REF (Refleks)", ref, 30, 99, (v) => ref = v))
-        ]),
-        Row(children: [
-          Expanded(
-              child:
-                  _buildSlider("POS (Pozisyon)", pos, 30, 99, (v) => pos = v)),
-          const SizedBox(width: 15),
-          Spacer()
-        ]),
-      ],
-    );
-  }
-
-  Widget _buildTextField(String label, Function(String?) onSaved,
-      {String? initialValue}) {
-    return TextFormField(
-      initialValue: initialValue,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70),
-        filled: true,
-        fillColor: Colors.white10,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.white24)),
-      ),
-      validator: (v) => v!.isEmpty ? "Bu alan zorunludur" : null,
-      onSaved: onSaved,
-    );
-  }
-
-  Widget _buildDropdown(String label, List<String> items, String value,
-      Function(String?) onChanged) {
-    return DropdownButtonFormField<String>(
-      value: value,
-      dropdownColor: const Color(0xFF1E1E24),
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70),
-        filled: true,
-        fillColor: Colors.white10,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.white24)),
-      ),
-      items:
-          items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-      onChanged: onChanged,
-    );
-  }
-
-  Widget _buildSlider(String label, int value, double min, double max,
-      Function(int) onChanged) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(color: Colors.white70)),
-            Text("$value",
-                style: GoogleFonts.orbitron(
-                    color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        Slider(
-          value: value.toDouble(),
-          min: min,
-          max: max,
-          activeColor: Colors.cyanAccent,
-          inactiveColor: Colors.white10,
-          onChanged: (v) => setState(() => onChanged(v.toInt())),
-        ),
-      ],
-    );
+  // Saha pozisyonu (Mini harita için)
+  Offset getPitchPosition() {
+    if (position.contains("GK")) return const Offset(0.5, 0.9);
+    if (position.contains("LB")) return const Offset(0.2, 0.7);
+    if (position.contains("RB")) return const Offset(0.8, 0.7);
+    if (position.contains("CB")) return const Offset(0.5, 0.75);
+    if (position.contains("CDM")) return const Offset(0.5, 0.6);
+    if (position.contains("CM")) return const Offset(0.5, 0.5);
+    if (position.contains("LM") || position.contains("LW"))
+      return const Offset(0.2, 0.3);
+    if (position.contains("RM") || position.contains("RW"))
+      return const Offset(0.8, 0.3);
+    if (position.contains("CAM")) return const Offset(0.5, 0.35);
+    if (position.contains("ST") || position.contains("CF"))
+      return const Offset(0.5, 0.15);
+    return const Offset(0.5, 0.5);
   }
 }
+
+// --- SABİT LİSTELER ---
+
+const List<String> positions = [
+  "(1) GK",
+  "(2) RB",
+  "(3) CB",
+  "(4) CB",
+  "(5) LB",
+  "(6) CDM",
+  "(7) RM",
+  "(8) CM",
+  "(10) CAM",
+  "(11) LM",
+  "(7) RW",
+  "(11) LW",
+  "(9) ST",
+  "(9) CF"
+];
+
+const List<String> globalCardTypes = [
+  "Temel",
+  "TOTW",
+  "TOTS",
+  "MVP",
+  "STAR",
+  "BALLOND'OR",
+  "BAD",
+  "TOTM"
+];
+
+// İstatistik Segmentleri (Detaylı analiz için)
+final Map<String, List<String>> statSegments = {
+  "Hücum": ["Bitiricilik", "Şut Gücü", "Uzaktan Şut", "Vole", "Penaltı"],
+  "Teknik": ["Top Kontrolü", "Dripling", "Falso", "Serbest Vuruş", "Kısa Pas"],
+  "Fizik": ["Hızlanma", "Sprint Hızı", "Çeviklik", "Denge", "Reaksiyon"],
+  "Güç": ["Zıplama", "Dayanıklılık", "Güç", "Agresiflik"],
+  "Zeka": ["Oyun Görüşü", "Pozisyon Alma", "Soğukkanlılık"],
+  "Savunma": ["Top Çalma", "Kayarak Müdahale", "Markaj", "Pas Arası"],
+  "Kaleci": ["Refleks", "Uçma", "Elle Oyun", "Ayak", "Yer Tutma"]
+};
+
+// Takım Logoları (Assets klasöründe olduklarını varsayıyoruz)
+final Map<String, String> teamLogos = {
+  "Toulouse": "assets/takimlar/toulouse.png",
+  "Livorno": "assets/takimlar/livorno.png",
+  "Werder Weremem": "assets/takimlar/werder.png",
+  "Maximilian": "assets/takimlar/maximilian.png",
+  "Invicta": "assets/takimlar/invicta.png",
+  "Bursa Spor": "assets/takimlar/bursaspor.png",
+  "Fenerbahçe": "assets/takimlar/fenerbahce.png",
+  "CA RIVER PLATE": "assets/takimlar/riverplate.png",
+  "Shamrock Rovers": "assets/takimlar/shamrock.png",
+  "Chelsea": "assets/takimlar/chelsea.png",
+  "It Spor": "assets/takimlar/itspor.png",
+  "Tiyatro FC": "assets/takimlar/tiyatro.png",
+  "Juventus": "assets/takimlar/juventus.png",
+};
+
+// Rol Kategorileri
+final Map<String, List<String>> roleCategories = {
+  "GK (Kaleci)": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
+  "CDM/CB (Savunma)": [
+    "Savunmatik",
+    "Libero",
+    "Oyun Kurucu Stoper",
+    "Tutucu",
+    "Derin Oyun Kurucu",
+    "Savaşçı"
+  ],
+  "CM/CAM (Orta Saha)": [
+    "Oyun Kurucu",
+    "Box to Box",
+    "Mezzala",
+    "Gölge Forvet",
+    "Enganche"
+  ],
+  "RW/LW (Kanat)": [
+    "İç Forvet",
+    "Kanat Oyuncusu",
+    "Gizli Forvet",
+    "Kanat Bek",
+    "Hücum Bek"
+  ],
+  "ST (Forvet)": ["Avcı Forvet", "Hedef Forvet", "Yanlış 9"]
+};
