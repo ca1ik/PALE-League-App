@@ -515,6 +515,33 @@ final Map<String, String> roleDescriptions = {
   "Hücum Bek": "Neredeyse kanat gibi oynayan bek."
 };
 
+final List<String> chemistryStylesList = [
+  "Basic",
+  "Sniper",
+  "Finisher",
+  "Deadeye",
+  "Marksman",
+  "Hawk",
+  "Artist",
+  "Architect",
+  "Powerhouse",
+  "Maestro",
+  "Engine",
+  "Sentinel",
+  "Guardian",
+  "Gladiator",
+  "Backbone",
+  "Anchor",
+  "Hunter",
+  "Catalyst",
+  "Shadow",
+  "GK Basic",
+  "Wall",
+  "Shield",
+  "Cat",
+  "Glove"
+];
+
 // ============================================================================
 // BÖLÜM 2: ANA EKRAN VE UI (Logic)
 // ============================================================================
@@ -598,6 +625,14 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
       ps = l.map((e) => PlayStyle(e.toString())).toList();
     } catch (_) {}
 
+    // WORKAROUND: DB'de kolon yoksa stats içinden oku
+    int sm = st['SM'] ?? 3;
+    int csIndex = st['CS'] ?? 0;
+    String cs = "Basic";
+    if (csIndex >= 0 && csIndex < chemistryStylesList.length) {
+      cs = chemistryStylesList[csIndex];
+    }
+
     return Player(
       name: t.name,
       rating: t.rating,
@@ -611,8 +646,8 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
       manualGoals: t.manualGoals,
       manualAssists:
           t.manualAssists, // HATA ÇÖZÜMÜ: Burayı boş liste yaptık, hata vermez.
-      skillMoves: t.skillMoves ?? 3, // Veritabanından skillMoves okuma
-      chemistryStyle: t.chemistryStyle ?? "Basic",
+      skillMoves: sm, // Stats'tan okunan değer
+      chemistryStyle: cs, // Stats'tan okunan değer
       seasons: [], // Varsayılan boş
       matches: [], // Varsayılan boş
     );
@@ -784,6 +819,11 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
       await widget.database.deletePlayerByNameAndType(oldP.name, oldP.cardType);
     }
 
+    // WORKAROUND: Verileri stats içine göm (DB şeması değişmeden kayıt)
+    p.stats['SM'] = p.skillMoves;
+    p.stats['CS'] = chemistryStylesList.indexOf(p.chemistryStyle);
+    if (p.stats['CS'] == -1) p.stats['CS'] = 0;
+
     dynamic companion = PlayerTablesCompanion(
         name: drift.Value(p.name),
         rating: drift.Value(p.rating),
@@ -792,8 +832,6 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
         cardType: drift.Value(p.cardType),
         role: drift.Value(p.role),
         marketValue: drift.Value(p.marketValue),
-        skillMoves: drift.Value(p.skillMoves), // Skill Moves Kaydı
-        chemistryStyle: drift.Value(p.chemistryStyle),
         statsJson: drift.Value(jsonEncode(p.stats)),
         playStylesJson:
             drift.Value(jsonEncode(p.playstyles.map((e) => e.name).toList())),
@@ -1555,7 +1593,14 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                     ),
                     const SizedBox(height: 25),
 
-                    // YAPAY ZEKA ANALİZ KUTUSU
+                    Text("OYUN STİLLERİ",
+                        style: GoogleFonts.russoOne(
+                            fontSize: 16, color: Colors.amber)),
+                    const SizedBox(height: 10),
+                    _buildPlayStylesList(player),
+                    const SizedBox(height: 25),
+
+                    // YAPAY ZEKA ANALİZ KUTUSU (YENİ YERİ)
                     Stack(
                       children: [
                         Container(
@@ -1579,7 +1624,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                                   const Icon(Icons.auto_awesome,
                                       color: Colors.amber, size: 20),
                                   const SizedBox(width: 10),
-                                  Text("PALEHAX AI ANALİZ",
+                                  Text("AI ANALİZ",
                                       style: GoogleFonts.orbitron(
                                           color: Colors.amber,
                                           fontWeight: FontWeight.bold)),
@@ -1610,11 +1655,26 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                     ),
                     const SizedBox(height: 25),
 
-                    Text("OYUN STİLLERİ",
-                        style: GoogleFonts.russoOne(
-                            fontSize: 16, color: Colors.amber)),
-                    const SizedBox(height: 10),
-                    _buildPlayStylesList(player),
+                    // BİLGİ ÇUBUKLARI (INFO TAGS) - ARTIK BURADA
+                    Wrap(
+                      spacing: 15,
+                      runSpacing: 10,
+                      children: [
+                        _buildInfoTag(Icons.science, "Kimya",
+                            player.chemistryStyle, Colors.purpleAccent),
+                        _buildInfoTag(Icons.theater_comedy, "Rol", player.role,
+                            Colors.orangeAccent),
+                        _buildInfoTag(Icons.star, "Yetenek",
+                            "${player.skillMoves} Yıldız", Colors.yellowAccent),
+                        _buildInfoTag(
+                            Icons.sports_football,
+                            "Zayıf Ayak",
+                            "${player.stats['WF'] ?? 3} Yıldız",
+                            Colors.redAccent),
+                        _buildInfoTag(Icons.euro, "Değer", player.marketValue,
+                            Colors.greenAccent),
+                      ],
+                    ),
                   ],
                 ),
               )
@@ -1624,72 +1684,59 @@ class _ViewUltimateState extends State<_ViewUltimate> {
           const Divider(color: Colors.white12),
           const SizedBox(height: 20),
 
-          // --- ALT KISIM ---
-          Text("PROFİL DETAYLARI",
-              style: GoogleFonts.russoOne(fontSize: 24, color: Colors.white)),
-          const SizedBox(height: 20),
-
-          Wrap(
-            spacing: 20,
-            runSpacing: 10,
+          // --- İSTATİSTİKLER VE PERFORMANS (YAN YANA) ---
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildInfoTag(Icons.science, "Kimya", player.chemistryStyle,
-                  Colors.purpleAccent),
-              _buildInfoTag(Icons.theater_comedy, "Rol", player.role,
-                  Colors.orangeAccent),
-              _buildInfoTag(Icons.star, "Yetenek",
-                  "${player.skillMoves} Yıldız", Colors.yellowAccent),
-              _buildInfoTag(Icons.sports_football, "Zayıf Ayak",
-                  "${player.stats['WF'] ?? 3} Yıldız", Colors.redAccent),
-              _buildInfoTag(
-                  Icons.euro, "Değer", player.marketValue, Colors.greenAccent),
-            ],
-          ),
-          const SizedBox(height: 30),
+              // SOL: İSTATİSTİKLER
+              Expanded(
+                flex: 3,
+                child: Column(
+                  children: pd.statSegments.entries.map((entry) {
+                    String category = entry.key;
+                    List<String> statsList = entry.value;
 
-          // İSTATİSTİKLER
-          ...pd.statSegments.entries.map((entry) {
-            String category = entry.key;
-            List<String> statsList = entry.value;
+                    if (isGK && !['Kaleci', 'Fizik', 'Zeka'].contains(category))
+                      return const SizedBox.shrink();
+                    if (!isGK && category == 'Kaleci')
+                      return const SizedBox.shrink();
 
-            if (isGK && !['Kaleci', 'Fizik', 'Zeka'].contains(category))
-              return const SizedBox.shrink();
-            if (!isGK && category == 'Kaleci') return const SizedBox.shrink();
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.bar_chart,
-                          color: Colors.cyanAccent, size: 20),
-                      const SizedBox(width: 10),
-                      Text(category.toUpperCase(),
-                          style: GoogleFonts.russoOne(
-                              color: Colors.cyanAccent, fontSize: 18)),
-                    ],
-                  ),
-                ),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: statsList.map((statName) {
-                    int value = player.stats[statName] ?? 0;
-                    return _buildModernStatBox(statName, value);
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.bar_chart,
+                                  color: Colors.cyanAccent, size: 20),
+                              const SizedBox(width: 10),
+                              Text(category.toUpperCase(),
+                                  style: GoogleFonts.russoOne(
+                                      color: Colors.cyanAccent, fontSize: 18)),
+                            ],
+                          ),
+                        ),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: statsList.map((statName) {
+                            int value = player.stats[statName] ?? 0;
+                            return _buildModernStatBox(statName, value);
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 10),
+                        const Divider(color: Colors.white10),
+                      ],
+                    );
                   }).toList(),
                 ),
-                const SizedBox(height: 10),
-                const Divider(color: Colors.white10),
-              ],
-            );
-          }).toList(),
-          const SizedBox(height: 50),
-
-          // --- MANUEL MAÇ GİRİŞİ VE GRAFİK ---
-          _buildMatchPerformanceSection(),
-          const SizedBox(height: 50),
+              ),
+              const SizedBox(width: 30),
+              // SAĞ: PERFORMANS GRAFİĞİ
+              Expanded(flex: 2, child: _buildMatchPerformanceSection()),
+            ],
+          ),
         ],
       ),
     );
@@ -1725,7 +1772,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("SEZON PERFORMANSI (MANUEL)",
+              Text("SEZON PERFORMANSI",
                   style: GoogleFonts.orbitron(
                       color: Colors.greenAccent,
                       fontSize: 22,
@@ -1904,45 +1951,52 @@ class _ViewUltimateState extends State<_ViewUltimate> {
       children: p.playstyles.map((ps) {
         // Plus ise özel klasörden, değilse normal klasörden al
         String iconPath = ps.isGold
-            ? "assets/plus/${ps.name}Plus.png" // DÜZELTME: assets/plus/IsimPlus.png
-            : ps.assetPath;
-        String displayName = playStyleTranslationsReverse[ps.name] ?? ps.name;
+            ? "assets/plus/${ps.name.trim()}Plus.png"
+            : "assets/Playstyles/${ps.name.trim()}.png";
+        String displayName =
+            playStyleTranslationsReverse[ps.name.trim()] ?? ps.name;
 
-        return Column(
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color:
-                    ps.isGold ? Colors.amber.withOpacity(0.1) : Colors.white10,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: ps.isGold ? Colors.amber : Colors.white24,
-                    width: ps.isGold ? 2 : 1),
-                boxShadow: ps.isGold
-                    ? [
-                        BoxShadow(
-                            color: Colors.amber.withOpacity(0.3),
-                            blurRadius: 10)
-                      ]
-                    : [],
+        // DÜZELTME: Profildeki gibi sabit genişlik (SizedBox)
+        return SizedBox(
+          width: 100, // Sabit genişlik verildi
+          child: Column(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: ps.isGold
+                      ? Colors.amber.withOpacity(0.1)
+                      : Colors.white10,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: ps.isGold ? Colors.amber : Colors.white24,
+                      width: ps.isGold ? 2 : 1),
+                  boxShadow: ps.isGold
+                      ? [
+                          BoxShadow(
+                              color: Colors.amber.withOpacity(0.3),
+                              blurRadius: 10)
+                        ]
+                      : [],
+                ),
+                child: Image.asset(
+                  iconPath,
+                  color: ps.isGold ? null : Colors.white70,
+                  errorBuilder: (c, e, s) => Icon(Icons.help,
+                      color: ps.isGold ? Colors.amber : Colors.white24),
+                ),
               ),
-              child: Image.asset(
-                iconPath,
-                color: ps.isGold ? null : Colors.white70,
-                errorBuilder: (c, e, s) => Icon(Icons.help,
-                    color: ps.isGold ? Colors.amber : Colors.white24),
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(displayName,
-                style: TextStyle(
-                    color: ps.isGold ? Colors.amber : Colors.white70,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold))
-          ],
+              const SizedBox(height: 5),
+              Text(displayName,
+                  textAlign: TextAlign.center, // Ortala
+                  style: TextStyle(
+                      color: ps.isGold ? Colors.amber : Colors.white70,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold))
+            ],
+          ),
         );
       }).toList(),
     );
@@ -1976,7 +2030,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
   Widget _buildModernStatBox(String label, int value) {
     Color color = _getStatColor(value);
     return Container(
-      width: 60, // KÜÇÜLTÜLDÜ
+      width: 50, // DAHA DA KÜÇÜLTÜLDÜ
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 5),
       decoration: BoxDecoration(
         color: Colors.white10,
@@ -1987,13 +2041,13 @@ class _ViewUltimateState extends State<_ViewUltimate> {
         children: [
           Text("$value",
               style:
-                  GoogleFonts.russoOne(fontSize: 18, color: color, height: 1)),
+                  GoogleFonts.russoOne(fontSize: 16, color: color, height: 1)),
           const SizedBox(height: 5),
           Text(
             label,
             textAlign: TextAlign.center,
             style: GoogleFonts.montserrat(
-                fontSize: 9,
+                fontSize: 8,
                 color: Colors.white70,
                 fontWeight: FontWeight.w500),
             maxLines: 2,
@@ -2500,11 +2554,15 @@ Widget _buildCardMenu(BuildContext context, Player p, Function(Player) onSave,
       color: const Color(0xFF1E1E24),
       onSelected: (val) {
         if (val == 'edit')
-          _showEditor(context, p, (newP, oldP) => onSave(newP)); // onSave burada sadece yeni player alıyor, wrapper gerekebilir ama _ViewProfile içinde onSave zaten tek parametreli tanımlanmış, bu yüzden _ViewProfile'ı güncellememiz gerekebilir veya _showEditor'ı uyarlamalıyız.
-          // DÜZELTME: _ViewProfile içindeki onSave tek parametreli (Player). Ancak _showEditor artık (Player, Player?) istiyor.
-          // Bu yüzden _ViewProfile'ı güncellemek yerine _showEditor çağrısını düzeltelim.
-          _showEditor(context, p, (newP, oldP) => onSave(newP)); 
-        else if (val == 'delete') {
+          _showEditor(
+              context,
+              p,
+              (newP, oldP) => onSave(
+                  newP)); // onSave burada sadece yeni player alıyor, wrapper gerekebilir ama _ViewProfile içinde onSave zaten tek parametreli tanımlanmış, bu yüzden _ViewProfile'ı güncellememiz gerekebilir veya _showEditor'ı uyarlamalıyız.
+        // DÜZELTME: _ViewProfile içindeki onSave tek parametreli (Player). Ancak _showEditor artık (Player, Player?) istiyor.
+        // Bu yüzden _ViewProfile'ı güncellemek yerine _showEditor çağrısını düzeltelim.
+        _showEditor(context, p, (newP, oldP) => onSave(newP));
+        if (val == 'delete') {
           showDialog(
               context: context,
               builder: (BuildContext context) {
@@ -2561,7 +2619,8 @@ void _createVersion(BuildContext context, Player p, Function(Player) onSave) {
           }));
 }
 
-void _showEditor(BuildContext context, Player? p, Function(Player, Player?) onSave) {
+void _showEditor(
+    BuildContext context, Player? p, Function(Player, Player?) onSave) {
   showDialog(
       context: context,
       builder: (context) => CreatePlayerDialog(
@@ -2601,6 +2660,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
   String selectedRole = "Avcı Forvet";
   int selectedSkillMoves = 3;
   int selectedWeakFoot = 3;
+  String selectedChemistryStyle = "Basic";
   List<PlayStyle> selectedPlayStyles = [];
   Map<String, int> stats = {};
 
@@ -2627,6 +2687,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
     selectedRole = p.role;
     selectedSkillMoves = p.skillMoves;
     selectedWeakFoot = p.stats['WF'] ?? 3;
+    selectedChemistryStyle = p.chemistryStyle;
     selectedPlayStyles = List.from(p.playstyles);
     stats = Map<String, int>.from(p.stats);
     if (stats.isEmpty) {
@@ -2681,6 +2742,10 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                           _dropdown("Rol", roleDescriptions.keys.toList(),
                               selectedRole, (v) {
                             setState(() => selectedRole = v!);
+                          }),
+                          _dropdown("Kimya Stili", chemistryStylesList,
+                              selectedChemistryStyle, (v) {
+                            setState(() => selectedChemistryStyle = v!);
                           }),
                           _input("Piyasa Değeri (M€)", _marketValueController,
                               isNum: true),
@@ -2955,6 +3020,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
         team: _teamController.text,
         cardType: selectedCardType,
         skillMoves: selectedSkillMoves,
+        chemistryStyle: selectedChemistryStyle,
         marketValue: "€${_marketValueController.text}M", // Otomatik format
         playstyles: selectedPlayStyles,
         stats: stats,

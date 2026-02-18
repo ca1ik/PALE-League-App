@@ -393,40 +393,38 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                         ])),
                               ]),
                             ),
-
-                            // PlayStyle Plus İkonu (En Üst Katman - Sol Alt)
-                            if (goldPs != null && !isBad && !isBasic)
-                              Positioned(
-                                  // DÜZELTME: İkonu sola ve aşağıya kaydırarak dışarı taşırdık
-                                  left: -15,
-                                  bottom: 35,
-                                  child: Container(
-                                      // ... (Geri kalanı aynı) ...
-                                      padding: const EdgeInsets.all(5),
-                                      decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                              color: Colors.amber, width: 2),
-                                          boxShadow: [
-                                            BoxShadow(
-                                                color: Colors.amber
-                                                    .withOpacity(0.5),
-                                                blurRadius: 10)
-                                          ]),
-                                      child: Image.asset(
-                                          goldPs.isGold
-                                              ? "assets/plus/${goldPs.name}Plus.png"
-                                              : goldPs.assetPath,
-                                          width: 30,
-                                          height: 30,
-                                          errorBuilder: (c, e, s) => const Icon(
-                                              Icons.star,
-                                              color: Colors.amber,
-                                              size: 20)))),
                           ]),
                         ),
                       ),
+                      // PlayStyle Plus İkonu (ARTIK CLIPRRECT DIŞINDA)
+                      if (goldPs != null && !isBad && !isBasic)
+                        Positioned(
+                            // Kart 320px, Wrapper 350px. Kart ortalı (soldan 15px boşluk).
+                            // Yarısı dışarıda olması için: left -5 civarı olmalı.
+                            left: -5,
+                            top: 215,
+                            child: Container(
+                                padding: const EdgeInsets.all(5),
+                                decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.amber, width: 2),
+                                    boxShadow: [
+                                      BoxShadow(
+                                          color: Colors.amber.withOpacity(0.5),
+                                          blurRadius: 10)
+                                    ]),
+                                child: Image.asset(
+                                    goldPs.isGold
+                                        ? "assets/plus/${goldPs.name.trim()}Plus.png" // DÜZELTME: .trim() ve Plus yolu
+                                        : "assets/Playstyles/${goldPs.name.trim()}.png",
+                                    width: 30,
+                                    height: 30,
+                                    errorBuilder: (c, e, s) => const Icon(
+                                        Icons.star,
+                                        color: Colors.amber,
+                                        size: 20)))),
                     ],
                   ),
                 ),
