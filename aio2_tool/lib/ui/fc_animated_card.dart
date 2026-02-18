@@ -50,15 +50,13 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
   void _handleHover(bool hover) {
     if (!widget.animateOnHover || widget.player.cardType == "Temel") return;
     if (!mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() => _isHovering = hover);
-      if (hover) {
-        _pulseController.repeat(reverse: true);
-      } else {
-        _pulseController.stop();
-      }
-    });
+    // Hover durumunda rebuild tetiklemek için güvenli yöntem
+    setState(() => _isHovering = hover);
+    if (hover) {
+      _pulseController.repeat(reverse: true);
+    } else {
+      _pulseController.stop();
+    }
   }
 
   @override
@@ -67,7 +65,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     String type = p.cardType;
     bool isBad = type == "BAD";
     bool isBasic = type == "Temel";
-    Map<String, int> cs = p.getCardStats();
+    Map<String, int> cs = p.getCardStats(); // Artık PlayerData'da tanımlı
 
     PlayStyle? goldPs;
     if (p.playstyles.isNotEmpty) {
@@ -78,10 +76,9 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     Color borderColor = _getBorderColor(type);
     String? teamLogo = teamLogos[p.team];
 
-    // --- BURASI KRİTİK DEĞİŞİKLİK ---
-    // FittedBox sayesinde kartı 350x480 olarak tasarlıyoruz ama her yere sığıyor.
+    // --- FIT & SCALE ---
     return FittedBox(
-      fit: BoxFit.contain, // Ebeveynin boyutuna orantılı sığdır
+      fit: BoxFit.contain,
       child: MouseRegion(
         onEnter: (_) => _handleHover(true),
         onExit: (_) => _handleHover(false),
@@ -92,12 +89,13 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                 scale: _isHovering ? 1.02 : 1.0,
                 duration: const Duration(milliseconds: 200),
                 child: SizedBox(
-                  width: 350, // ESKİ SABİT GENİŞLİK
-                  height: 480, // ESKİ SABİT YÜKSEKLİK
+                  width: 350,
+                  height: 480,
                   child: Stack(
                     clipBehavior: Clip.none,
                     alignment: Alignment.center,
                     children: [
+                      // --- ARKA PLAN VE ÇERÇEVE ---
                       Container(
                         width: 320,
                         height: 480,
@@ -117,6 +115,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(20),
                           child: Stack(children: [
+                            // 1. GIF Arka Plan (Varsa)
                             if (_hasGif(type))
                               Positioned.fill(
                                   child: Opacity(
@@ -126,10 +125,12 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                           fit: BoxFit.cover,
                                           errorBuilder: (c, e, s) =>
                                               Container()))),
+
+                            // 2. Kod Efektleri (Animation)
                             if (!_hasGif(type) && !isBasic)
                               _buildCodeEffects(type),
 
-                            // Parlama Efekti
+                            // 3. Parlama Efekti (ShaderMask)
                             if (!isBasic &&
                                 !isBad &&
                                 (type == "TOTS" ||
@@ -150,11 +151,11 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                   BorderRadius.circular(20),
                                               border: Border.all(width: 3, color: Colors.white.withOpacity(0.15)))))),
 
-                            // İçerik
+                            // --- İÇERİK ---
                             Padding(
                               padding: const EdgeInsets.all(20.0),
                               child: Stack(children: [
-                                // Kart Tipi Başlığı
+                                // Kart Tipi Başlığı (BAD, TOTW vb.)
                                 if (!isBasic)
                                   Positioned(
                                       top: 0,
@@ -176,7 +177,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                         blurRadius: 5)
                                                   ])))),
 
-                                // Takım Logosu
+                                // Takım Logosu (Sol Üst)
                                 Positioned(
                                     top: 40,
                                     left: 0,
@@ -191,7 +192,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                         : const Icon(Icons.sports_soccer,
                                             color: Colors.white70, size: 30)),
 
-                                // Palehax Logo
+                                // Palehax Logo / Bayrak Yeri (Sağ Üst)
                                 Positioned(
                                     top: 40,
                                     right: 0,
@@ -206,7 +207,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                             color: Colors.white70,
                                             size: 30))),
 
-                                // Reyting ve Pozisyon
+                                // Reyting ve Pozisyon (Sol Orta)
                                 Positioned(
                                     top: 80,
                                     left: 0,
@@ -229,7 +230,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                   fontWeight: FontWeight.bold))
                                         ])),
 
-                                // Forma No ve Yıldızlar
+                                // Forma No ve Yıldızlar (Sağ Orta)
                                 Positioned(
                                     top: 80,
                                     right: 5,
@@ -237,7 +238,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                         crossAxisAlignment:
                                             CrossAxisAlignment.end,
                                         children: [
-                                          Text("${p.kitNumber}",
+                                          Text(
+                                              "${p.kitNumber}", // PlayerData'dan gelir
                                               style: GoogleFonts.russoOne(
                                                   fontSize: 60,
                                                   color: Colors.white12)),
@@ -250,7 +252,11 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                         size: 14)))
                                         ])),
 
-                                // İsim
+                                // OYUNCU RESMİ (Buraya asset eklenebilir)
+                                // Şu an boş bırakıp isimle devam ediyoruz
+                                // İstersen buraya Image.asset ekleyebilirsin
+
+                                // İsim (Orta)
                                 Positioned(
                                     top: 190,
                                     left: 0,
@@ -264,7 +270,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                 letterSpacing: 1.2),
                                             overflow: TextOverflow.ellipsis))),
 
-                                // İstatistikler (kaleci farklı gösterim)
+                                // İstatistikler (Alt)
                                 Positioned(
                                     top: 250,
                                     left: 10,
@@ -272,9 +278,10 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                     child: Column(children: [
                                       const Divider(color: Colors.white30),
                                       const SizedBox(height: 10),
+                                      // Kaleci mi Saha Oyuncusu mu?
                                       if (p.position.contains("GK") ||
                                           cs.containsKey("REF"))
-                                        // GK layout
+                                        // GK İstatistikleri
                                         Column(children: [
                                           Row(
                                               mainAxisAlignment:
@@ -325,7 +332,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                               ])
                                         ])
                                       else
-                                        // Field player layout
+                                        // Saha Oyuncusu İstatistikleri
                                         Column(children: [
                                           Row(
                                               mainAxisAlignment:
@@ -364,7 +371,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                       const Divider(color: Colors.white30)
                                     ])),
 
-                                // Kimya ve Rol
+                                // Kimya ve Rol (En Alt)
                                 Positioned(
                                     bottom: 10,
                                     left: 0,
@@ -383,16 +390,18 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                   color: Colors.white60,
                                                   letterSpacing: 1,
                                                   fontSize: 10))
-                                        ]))
+                                        ])),
                               ]),
                             ),
 
-                            // PlayStyle Plus İkonu
+                            // PlayStyle Plus İkonu (En Üst Katman - Sol Alt)
                             if (goldPs != null && !isBad && !isBasic)
                               Positioned(
-                                  left: -5,
-                                  top: 220,
+                                  // DÜZELTME: İkonu sola ve aşağıya kaydırarak dışarı taşırdık
+                                  left: -15,
+                                  bottom: 35,
                                   child: Container(
+                                      // ... (Geri kalanı aynı) ...
                                       padding: const EdgeInsets.all(5),
                                       decoration: BoxDecoration(
                                           color: Colors.white,
