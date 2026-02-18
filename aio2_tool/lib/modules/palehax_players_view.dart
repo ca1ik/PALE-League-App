@@ -1318,16 +1318,169 @@ class _ViewProfile extends StatelessWidget {
   }
 }
 
-class _ViewUltimate extends StatelessWidget {
+class _ViewUltimate extends StatefulWidget {
   final Player player;
-  const _ViewUltimate({super.key, required this.player});
+  final List<Player> versions;
+  final int index;
+  final Function(int) onIndex;
+  final BuildContext context;
+  final Function(Player) onSave;
+  final Function(Player) onDelete;
+
+  const _ViewUltimate({
+    super.key,
+    required this.player,
+    required this.versions,
+    required this.index,
+    required this.onIndex,
+    required this.context,
+    required this.onSave,
+    required this.onDelete,
+  });
+
+  @override
+  State<_ViewUltimate> createState() => _ViewUltimateState();
+}
+
+class _ViewUltimateState extends State<_ViewUltimate> {
+  late String aiDescription;
+  // Manuel maç verilerini tutmak için geçici liste (DB yapısı değişmediği için UI state'inde tutuyoruz)
+  List<Map<String, dynamic>> manualMatches = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _generateAiDescription();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ViewUltimate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.player.name != widget.player.name) {
+      _generateAiDescription();
+      manualMatches.clear();
+    }
+  }
+
+  void _generateAiDescription() {
+    Player p = widget.player;
+    List<String> sentences = [];
+
+    // İstatistik Analizi
+    int sho = p.stats['SHO'] ?? p.stats['Şut'] ?? 50;
+    int pas = p.stats['PAS'] ?? p.stats['Pas'] ?? 50;
+    int dri = p.stats['DRI'] ?? p.stats['Dripling'] ?? 50;
+    int def = p.stats['DEF'] ?? p.stats['Defans'] ?? 50;
+    int phy = p.stats['PHY'] ?? p.stats['Fizik'] ?? 50;
+    int pac = p.stats['PAC'] ?? p.stats['Hız'] ?? 50;
+
+    if (sho > 85) {
+      sentences.add(
+          "Sezon içerisinde attığı gollerin kalitesi ve bitiriciliği ile rakip kalecilerin korkulu rüyası.");
+    } else if (sho > 75) {
+      sentences.add(
+          "Boşlukları kollayıp doğru açıdan vurduğunda affetmeyen bir bitirici.");
+    }
+
+    if (pas > 85) {
+      sentences.add(
+          "Oyun görüşü o kadar üst düzey ki, attığı milimetrik paslarla takımını bir maestro gibi yönetiyor.");
+    }
+
+    if (dri > 85) {
+      sentences.add(
+          "Top ayağına yapıştığında durdurulması imkansız, adam eksiltme konusunda tam bir sanatçı.");
+    }
+
+    if (def > 85) {
+      sentences.add(
+          "Savunmada adeta bir duvar; kademe anlayışı ve top çalma yeteneğiyle geçit vermiyor.");
+    }
+
+    if (phy > 85) {
+      sentences.add(
+          "İkili mücadelelerdeki fiziksel üstünlüğü ile sahada dominasyon kuruyor.");
+    }
+
+    if (pac > 90) {
+      sentences.add(
+          "Rüzgarın oğlu! Savunma arkasına yaptığı koşularda onu yakalamak neredeyse imkansız.");
+    }
+
+    // PlayStyle Analizi
+    for (var ps in p.playstyles) {
+      if (ps.name == "Acrobatic") {
+        sentences.add(
+            "Akrobatik pas ve şutları o kadar estetik kullanıyor ki izleyenleri büyülüyor.");
+      }
+      if (ps.name == "PowerShot") {
+        sentences.add(
+            "Ayağından çıkan füzelerle kaleyi uzaktan yoklamayı çok seviyor.");
+      }
+      if (ps.name == "TikiTaka") {
+        sentences.add(
+            "Dar alanda kısa paslaşmalarda hata yapmıyor, oyunun temposunu belirliyor.");
+      }
+      if (ps.name == "Trivela") {
+        sentences.add(
+            "Ayağının dışıyla yaptığı vuruşlar fizik kurallarına meydan okuyor.");
+      }
+      if (ps.name == "DeadBall") {
+        sentences.add(
+            "Duran topların başına geçtiğinde gol olması işten bile değil.");
+      }
+    }
+
+    if (sentences.isEmpty) {
+      sentences.add(
+          "Sahada görevini layıkıyla yapan, takım oyununa sadık bir profil çiziyor.");
+    }
+
+    setState(() {
+      aiDescription = sentences.join(" ");
+    });
+  }
+
+  void _editDescription() {
+    TextEditingController c = TextEditingController(text: aiDescription);
+    showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+              backgroundColor: const Color(0xFF1E1E24),
+              title: const Text("Analizi Düzenle",
+                  style: TextStyle(color: Colors.cyanAccent)),
+              content: TextField(
+                controller: c,
+                maxLines: 10,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                    filled: true, fillColor: Colors.black26),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("İptal")),
+                ElevatedButton(
+                    onPressed: () {
+                      setState(() => aiDescription = c.text);
+                      Navigator.pop(ctx);
+                    },
+                    child: const Text("Kaydet"))
+              ],
+            ));
+  }
 
   @override
   Widget build(BuildContext context) {
+    Player player = widget.player;
     bool isGK = player.position.contains("GK");
+    String? teamLogo = pd.teamLogos[player.team];
+    if (player.team == "CA RIVER PLATE")
+      teamLogo = "assets/takimlar/riverplate.png";
+    if (player.team == "It Spor") teamLogo = "assets/takimlar/itspor.png";
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(30), // Kenar boşluğu eklendi
+      padding: const EdgeInsets.all(30),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1335,19 +1488,96 @@ class _ViewUltimate extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // KART
               FCAnimatedCard(player: player, animateOnHover: true),
               const SizedBox(width: 30),
+              // BİLGİLER
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(player.name.toUpperCase(),
-                        style: GoogleFonts.russoOne(fontSize: 36, color: Colors.white, height: 1)),
-                    Text("${player.position} | ${player.team}",
-                        style: GoogleFonts.montserrat(fontSize: 18, color: Colors.white70)),
+                    Row(
+                      children: [
+                        if (teamLogo != null)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 15),
+                            child: Image.asset(teamLogo, width: 50, height: 50),
+                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(player.name.toUpperCase(),
+                                style: GoogleFonts.russoOne(
+                                    fontSize: 36,
+                                    color: Colors.white,
+                                    height: 1)),
+                            Text("${player.position} | ${player.team}",
+                                style: GoogleFonts.montserrat(
+                                    fontSize: 18, color: Colors.white70)),
+                          ],
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 25),
+
+                    // YAPAY ZEKA ANALİZ KUTUSU
+                    Stack(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(
+                                  color: Colors.cyanAccent.withOpacity(0.3)),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: Colors.cyanAccent.withOpacity(0.05),
+                                    blurRadius: 20)
+                              ]),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.auto_awesome,
+                                      color: Colors.amber, size: 20),
+                                  const SizedBox(width: 10),
+                                  Text("PALEHAX AI ANALİZ",
+                                      style: GoogleFonts.orbitron(
+                                          color: Colors.amber,
+                                          fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                aiDescription,
+                                style: GoogleFonts.montserrat(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    height: 1.5),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Positioned(
+                          top: 5,
+                          right: 5,
+                          child: IconButton(
+                            icon: const Icon(Icons.menu,
+                                color: Colors.white30, size: 20),
+                            tooltip: "Analizi Düzenle",
+                            onPressed: _editDescription,
+                          ),
+                        )
+                      ],
+                    ),
+                    const SizedBox(height: 25),
+
                     Text("OYUN STİLLERİ",
-                        style: GoogleFonts.russoOne(fontSize: 16, color: Colors.amber)),
+                        style: GoogleFonts.russoOne(
+                            fontSize: 16, color: Colors.amber)),
                     const SizedBox(height: 10),
                     _buildPlayStylesList(player),
                   ],
@@ -1363,25 +1593,30 @@ class _ViewUltimate extends StatelessWidget {
           Text("PROFİL DETAYLARI",
               style: GoogleFonts.russoOne(fontSize: 24, color: Colors.white)),
           const SizedBox(height: 20),
-          
+
           Wrap(
             spacing: 20,
             runSpacing: 10,
             children: [
-              _buildInfoTag(Icons.science, "Kimya", player.chemistryStyle, Colors.purpleAccent),
-              _buildInfoTag(Icons.theater_comedy, "Rol", player.role, Colors.orangeAccent),
-              _buildInfoTag(Icons.star, "Yetenek", "${player.skillMoves} Yıldız", Colors.yellowAccent),
-              _buildInfoTag(Icons.euro, "Değer", player.marketValue, Colors.greenAccent),
+              _buildInfoTag(Icons.science, "Kimya", player.chemistryStyle,
+                  Colors.purpleAccent),
+              _buildInfoTag(Icons.theater_comedy, "Rol", player.role,
+                  Colors.orangeAccent),
+              _buildInfoTag(Icons.star, "Yetenek",
+                  "${player.skillMoves} Yıldız", Colors.yellowAccent),
+              _buildInfoTag(
+                  Icons.euro, "Değer", player.marketValue, Colors.greenAccent),
             ],
           ),
           const SizedBox(height: 30),
 
-          // İSTATİSTİKLER (HATA BURADAYDI: pd.statSegments yapıldı)
+          // İSTATİSTİKLER
           ...pd.statSegments.entries.map((entry) {
             String category = entry.key;
             List<String> statsList = entry.value;
-            
-            if (isGK && !['Kaleci', 'Fizik', 'Zeka'].contains(category)) return const SizedBox.shrink();
+
+            if (isGK && !['Kaleci', 'Fizik', 'Zeka'].contains(category))
+              return const SizedBox.shrink();
             if (!isGK && category == 'Kaleci') return const SizedBox.shrink();
 
             return Column(
@@ -1391,10 +1626,12 @@ class _ViewUltimate extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   child: Row(
                     children: [
-                      const Icon(Icons.bar_chart, color: Colors.cyanAccent, size: 20),
+                      const Icon(Icons.bar_chart,
+                          color: Colors.cyanAccent, size: 20),
                       const SizedBox(width: 10),
                       Text(category.toUpperCase(),
-                          style: GoogleFonts.russoOne(color: Colors.cyanAccent, fontSize: 18)),
+                          style: GoogleFonts.russoOne(
+                              color: Colors.cyanAccent, fontSize: 18)),
                     ],
                   ),
                 ),
@@ -1406,51 +1643,205 @@ class _ViewUltimate extends StatelessWidget {
                     return _buildModernStatBox(statName, value);
                   }).toList(),
                 ),
-                 const SizedBox(height: 10),
-                 const Divider(color: Colors.white10),
+                const SizedBox(height: 10),
+                const Divider(color: Colors.white10),
               ],
             );
           }).toList(),
+          const SizedBox(height: 50),
+
+          // --- MANUEL MAÇ GİRİŞİ VE GRAFİK ---
+          _buildMatchPerformanceSection(),
           const SizedBox(height: 50),
         ],
       ),
     );
   }
 
-  // Helper metodlar sınıfın içinde olmalı
-  Widget _buildPlayStylesList(Player p) {
-    if (p.playstyles.isEmpty) return const Text("Yok", style: TextStyle(color: Colors.white54));
-    return Wrap(spacing: 8, runSpacing: 8, children: p.playstyles.map((ps) {
-       String iconPath = ps.isGold ? "assets/Playstyles/plus/${ps.name}Plus.png" : ps.assetPath;
-       return Container(
-         width: 40, height: 40, padding: const EdgeInsets.all(8),
-         decoration: BoxDecoration(
-           color: ps.isGold ? Colors.amber.withOpacity(0.1) : Colors.white10,
-           borderRadius: BorderRadius.circular(8),
-           border: Border.all(color: ps.isGold ? Colors.amber : Colors.white24)
-         ),
-         child: Image.asset(iconPath, color: ps.isGold ? null : Colors.white70)
-       );
-    }).toList());
-  }
+  Widget _buildMatchPerformanceSection() {
+    int totalGoals = manualMatches.fold(0, (sum, m) => sum + (m['g'] as int));
+    int totalAssists = manualMatches.fold(0, (sum, m) => sum + (m['a'] as int));
 
-  Widget _buildInfoTag(IconData i, String l, String v, Color c) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: c.withOpacity(0.3))),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(i, color: c, size: 18), const SizedBox(width: 8), Text("$l: ", style: const TextStyle(color: Colors.white70)), Text(v, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))])
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.02),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white10)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("SEZON PERFORMANSI (MANUEL)",
+                  style: GoogleFonts.orbitron(
+                      color: Colors.greenAccent,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold)),
+              ElevatedButton.icon(
+                onPressed: _addMatchDialog,
+                icon: const Icon(Icons.add, color: Colors.black),
+                label: const Text("MAÇ EKLE",
+                    style: TextStyle(
+                        color: Colors.black, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.greenAccent),
+              )
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              _statCard("TOPLAM GOL", "$totalGoals", Colors.orange),
+              const SizedBox(width: 20),
+              _statCard("TOPLAM ASİST", "$totalAssists", Colors.cyan),
+              const SizedBox(width: 20),
+              _statCard("MAÇ SAYISI", "${manualMatches.length}", Colors.purple),
+            ],
+          ),
+          const SizedBox(height: 30),
+          // GRAFİK ALANI (Basit Çubuklar)
+          if (manualMatches.isNotEmpty)
+            SizedBox(
+              height: 150,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: manualMatches.map((m) {
+                  double rating = (m['r'] as int).toDouble();
+                  double h = (rating / 10.0) * 120; // Max yükseklik 120
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text("${m['r']}",
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold)),
+                        Container(
+                          width: 30,
+                          height: h,
+                          decoration: BoxDecoration(
+                              color: rating >= 8
+                                  ? Colors.green
+                                  : (rating >= 6 ? Colors.amber : Colors.red),
+                              borderRadius: BorderRadius.circular(5)),
+                        ),
+                        const SizedBox(height: 5),
+                        Text("M${manualMatches.indexOf(m) + 1}",
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 10)),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            )
+          else
+            const Center(
+                child: Text("Henüz maç girilmedi.",
+                    style: TextStyle(color: Colors.white24))),
+          const SizedBox(height: 20),
+          const Divider(color: Colors.white10),
+          // LİSTE
+          ...manualMatches.map((m) => ListTile(
+                leading: const Icon(Icons.sports_soccer, color: Colors.white54),
+                title: Text("vs ${m['opp']}",
+                    style: const TextStyle(color: Colors.white)),
+                trailing: Text("G: ${m['g']}  A: ${m['a']}  R: ${m['r']}",
+                    style: const TextStyle(
+                        color: Colors.greenAccent,
+                        fontWeight: FontWeight.bold)),
+              ))
+        ],
+      ),
     );
   }
 
-  Widget _buildModernStatBox(String l, int v) {
-    Color c = v >= 90 ? Colors.greenAccent : (v >= 80 ? Colors.green : (v >= 70 ? Colors.amber : Colors.red));
+  Widget _statCard(String label, String val, Color c) {
     return Container(
-      width: 75, padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(12), border: Border.all(color: c.withOpacity(0.3))),
-      child: Column(children: [Text("$v", style: GoogleFonts.russoOne(fontSize: 22, color: c)), Text(l, style: const TextStyle(fontSize: 10, color: Colors.white70), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis)])
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+      decoration: BoxDecoration(
+          color: c.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: c.withOpacity(0.3))),
+      child: Column(
+        children: [
+          Text(val, style: GoogleFonts.russoOne(color: c, fontSize: 24)),
+          Text(label,
+              style: TextStyle(color: c.withOpacity(0.7), fontSize: 12)),
+        ],
+      ),
     );
   }
-}
+
+  void _addMatchDialog() {
+    TextEditingController oppC = TextEditingController();
+    TextEditingController golC = TextEditingController(text: "0");
+    TextEditingController astC = TextEditingController(text: "0");
+    TextEditingController ratC = TextEditingController(text: "7");
+
+    showDialog(
+        context: context,
+        builder: (c) => AlertDialog(
+              backgroundColor: const Color(0xFF1E1E24),
+              title: const Text("Maç Ekle"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                      controller: oppC,
+                      decoration: const InputDecoration(
+                          labelText: "Rakip Takım", filled: true),
+                      style: const TextStyle(color: Colors.white)),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                          child: TextField(
+                              controller: golC,
+                              decoration: const InputDecoration(
+                                  labelText: "Gol", filled: true),
+                              keyboardType: TextInputType.number,
+                              style: const TextStyle(color: Colors.white))),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: TextField(
+                              controller: astC,
+                              decoration: const InputDecoration(
+                                  labelText: "Asist", filled: true),
+                              keyboardType: TextInputType.number,
+                              style: const TextStyle(color: Colors.white))),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                      controller: ratC,
+                      decoration: const InputDecoration(
+                          labelText: "Maç Reytingi (1-10)", filled: true),
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(color: Colors.white)),
+                ],
+              ),
+              actions: [
+                ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        manualMatches.add({
+                          'opp': oppC.text,
+                          'g': int.tryParse(golC.text) ?? 0,
+                          'a': int.tryParse(astC.text) ?? 0,
+                          'r': int.tryParse(ratC.text) ?? 6
+                        });
+                      });
+                      Navigator.pop(c);
+                    },
+                    child: const Text("EKLE"))
+              ],
+            ));
+  }
 
   // DÜZELTME: PlayStyle Plus ikonlarını doğru klasörden alan fonksiyon
   Widget _buildPlayStylesList(Player p) {
@@ -1458,34 +1849,50 @@ class _ViewUltimate extends StatelessWidget {
       return Text("Oyun stili yok.",
           style: GoogleFonts.montserrat(color: Colors.white54));
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 15,
+      runSpacing: 15,
       children: p.playstyles.map((ps) {
         // Plus ise özel klasörden, değilse normal klasörden al
         String iconPath = ps.isGold
             ? "assets/Playstyles/plus/${ps.name}Plus.png"
             : ps.assetPath;
+        String displayName = playStyleTranslationsReverse[ps.name] ?? ps.name;
 
-        return Tooltip(
-          message: ps.name + (ps.isGold ? " (Plus)" : ""),
-          child: Container(
-            width: 40,
-            height: 40,
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: ps.isGold ? Colors.amber.withOpacity(0.1) : Colors.white10,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                  color: ps.isGold ? Colors.amber : Colors.white24,
-                  width: ps.isGold ? 1.5 : 1),
+        return Column(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color:
+                    ps.isGold ? Colors.amber.withOpacity(0.1) : Colors.white10,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: ps.isGold ? Colors.amber : Colors.white24,
+                    width: ps.isGold ? 2 : 1),
+                boxShadow: ps.isGold
+                    ? [
+                        BoxShadow(
+                            color: Colors.amber.withOpacity(0.3),
+                            blurRadius: 10)
+                      ]
+                    : [],
+              ),
+              child: Image.asset(
+                iconPath,
+                color: ps.isGold ? null : Colors.white70,
+                errorBuilder: (c, e, s) => Icon(Icons.help,
+                    color: ps.isGold ? Colors.amber : Colors.white24),
+              ),
             ),
-            child: Image.asset(
-              iconPath,
-              color: ps.isGold ? null : Colors.white70, // Plus değilse beyaz yap
-              errorBuilder: (c, e, s) => Icon(Icons.help,
-                  color: ps.isGold ? Colors.amber : Colors.white24),
-            ),
-          ),
+            const SizedBox(height: 5),
+            Text(displayName,
+                style: TextStyle(
+                    color: ps.isGold ? Colors.amber : Colors.white70,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold))
+          ],
         );
       }).toList(),
     );
@@ -1506,7 +1913,8 @@ class _ViewUltimate extends StatelessWidget {
           Icon(icon, color: color, size: 18),
           const SizedBox(width: 8),
           Text("$label: ",
-              style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 12)),
+              style:
+                  GoogleFonts.montserrat(color: Colors.white70, fontSize: 12)),
           Text(value,
               style: GoogleFonts.russoOne(color: Colors.white, fontSize: 14)),
         ],
@@ -1528,13 +1936,16 @@ class _ViewUltimate extends StatelessWidget {
       child: Column(
         children: [
           Text("$value",
-              style: GoogleFonts.russoOne(fontSize: 22, color: color, height: 1)),
+              style:
+                  GoogleFonts.russoOne(fontSize: 22, color: color, height: 1)),
           const SizedBox(height: 5),
           Text(
             label,
             textAlign: TextAlign.center,
             style: GoogleFonts.montserrat(
-                fontSize: 10, color: Colors.white70, fontWeight: FontWeight.w500),
+                fontSize: 10,
+                color: Colors.white70,
+                fontWeight: FontWeight.w500),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -2403,9 +2814,9 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
         playstyles: selectedPlayStyles,
         stats: stats,
         role: selectedRole,
-recLink: _recLinkController.text,        // Eski verileri koru eğer varsa
+        recLink: _recLinkController.text,
         manualGoals: widget.playerToEdit?.manualGoals ?? 0,
-      manualAssists: widget.playerToEdit?.manualAssists ?? 0;
+        manualAssists: widget.playerToEdit?.manualAssists ?? 0);
 
     widget.onSave(newP);
     Navigator.pop(context);
