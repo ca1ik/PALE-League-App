@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/language_provider.dart';
 import '../providers/ui_provider.dart';
+import '../data/player_data.dart' as pd;
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -125,6 +126,40 @@ class SettingsScreen extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
+
+            const SizedBox(height: 30),
+
+            // --- BÖLÜM 3: PALEHAX AYARLARI ---
+            _sectionTitle("PaleHax Language"),
+            const SizedBox(height: 10),
+            _buildSettingsCard(
+              child: ValueListenableBuilder<String>(
+                  valueListenable: pd.paleHaxLangNotifier,
+                  builder: (context, currentLang, child) {
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: ["TR", "EN", "SP"].map((langCode) {
+                        bool isSelected = currentLang == langCode;
+                        return TextButton(
+                          onPressed: () {
+                            pd.paleHaxLangNotifier.value = langCode;
+                          },
+                          style: TextButton.styleFrom(
+                            backgroundColor: isSelected
+                                ? Colors.blueAccent.withOpacity(0.2)
+                                : Colors.transparent,
+                          ),
+                          child: Text(langCode,
+                              style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.blueAccent
+                                      : Colors.white54,
+                                  fontWeight: FontWeight.bold)),
+                        );
+                      }).toList(),
+                    );
+                  }),
             ),
           ],
         ),
