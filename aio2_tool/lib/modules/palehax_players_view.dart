@@ -652,7 +652,13 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
     } catch (_) {}
     try {
       var l = jsonDecode(t.playStylesJson) as List;
-      ps = l.map((e) => PlayStyle(e.toString())).toList();
+      ps = l.map((e) {
+        String s = e.toString();
+        if (s.endsWith("+")) {
+          return PlayStyle(s.substring(0, s.length - 1), isGold: true);
+        }
+        return PlayStyle(s, isGold: false);
+      }).toList();
     } catch (_) {}
 
     // WORKAROUND: DB'de kolon yoksa stats içinden oku
@@ -863,8 +869,9 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
         role: drift.Value(p.role),
         marketValue: drift.Value(p.marketValue),
         statsJson: drift.Value(jsonEncode(p.stats)),
-        playStylesJson:
-            drift.Value(jsonEncode(p.playstyles.map((e) => e.name).toList())),
+        playStylesJson: drift.Value(jsonEncode(p.playstyles
+            .map((e) => e.isGold ? "${e.name}+" : e.name)
+            .toList())),
         recLink: drift.Value(p.recLink),
         manualGoals: drift.Value(p.manualGoals),
         manualAssists: drift.Value(p.manualAssists));
@@ -1603,10 +1610,14 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                   children: [
                     Row(
                       children: [
-                        if (teamLogo != null)
+                        if (teamLogo != null && teamLogo.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(right: 15),
-                            child: Image.asset(teamLogo, width: 50, height: 50),
+                            child: Image.asset(teamLogo,
+                                width: 50,
+                                height: 50,
+                                errorBuilder: (c, e, s) =>
+                                    const SizedBox(width: 50, height: 50)),
                           ),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2828,14 +2839,15 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                   Expanded(
                     flex: 2,
                     child: DefaultTabController(
-                      length: 2,
+                      length: 3, // Sekme sayısı 3 oldu
                       child: Column(
                         children: [
                           const TabBar(
                             indicatorColor: Colors.cyanAccent,
                             tabs: [
                               Tab(text: "İSTATİSTİKLER"),
-                              Tab(text: "OYUN STİLLERİ"),
+                              Tab(text: "NORMAL PS"),
+                              Tab(text: "PLUS PS"),
                             ],
                           ),
                           Expanded(
@@ -2909,98 +2921,11 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                                     }).toList(),
                                   ),
                                 ),
-                                // TAB 2: PLAYSTYLES
-                                SingleChildScrollView(
-                                  padding: const EdgeInsets.only(top: 20),
-                                  child: Wrap(
-                                    spacing: 10,
-                                    runSpacing: 10,
-                                    children: playStyleCategories.values
-                                        .expand((e) => e)
-                                        .map((psData) {
-                                      bool isSelected = selectedPlayStyles
-                                          .any((p) => p.name == psData['name']);
-                                      bool isGold = false;
-                                      if (isSelected) {
-                                        isGold = selectedPlayStyles
-                                            .firstWhere(
-                                                (p) => p.name == psData['name'])
-                                            .isGold;
-                                      }
-                                      return GestureDetector(
-                                        onTap: () {
-                                          setState(() {
-                                            if (isSelected) {
-                                              if (!isGold) {
-                                                // Gold yap
-                                                selectedPlayStyles.removeWhere(
-                                                    (p) =>
-                                                        p.name ==
-                                                        psData['name']);
-                                                selectedPlayStyles.add(
-                                                    PlayStyle(psData['name']!,
-                                                        isGold: true));
-                                              } else {
-                                                // Kaldır
-                                                selectedPlayStyles.removeWhere(
-                                                    (p) =>
-                                                        p.name ==
-                                                        psData['name']);
-                                              }
-                                            } else {
-                                              // Ekle (Normal)
-                                              selectedPlayStyles.add(PlayStyle(
-                                                  psData['name']!,
-                                                  isGold: false));
-                                            }
-                                          });
-                                        },
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 8),
-                                          decoration: BoxDecoration(
-                                            color: isSelected
-                                                ? (isGold
-                                                    ? Colors.amber
-                                                        .withOpacity(0.2)
-                                                    : Colors.cyanAccent
-                                                        .withOpacity(0.2))
-                                                : Colors.white10,
-                                            border: Border.all(
-                                                color: isSelected
-                                                    ? (isGold
-                                                        ? Colors.amber
-                                                        : Colors.cyanAccent)
-                                                    : Colors.transparent),
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              if (isSelected)
-                                                Icon(
-                                                    isGold
-                                                        ? Icons.star
-                                                        : Icons.check,
-                                                    size: 14,
-                                                    color: isGold
-                                                        ? Colors.amber
-                                                        : Colors.cyanAccent),
-                                              const SizedBox(width: 5),
-                                              Text(psData['label']!,
-                                                  style: TextStyle(
-                                                      color: isSelected
-                                                          ? Colors.white
-                                                          : Colors.white54,
-                                                      fontSize: 12)),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                )
+                                // TAB 2: NORMAL PLAYSTYLES
+                                _buildPlayStyleSelector(isPlusMode: false),
+
+                                // TAB 3: PLUS PLAYSTYLES
+                                _buildPlayStyleSelector(isPlusMode: true),
                               ],
                             ),
                           ),
@@ -3063,6 +2988,80 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
 
     widget.onSave(newP);
     Navigator.pop(context);
+  }
+
+  Widget _buildPlayStyleSelector({required bool isPlusMode}) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(top: 20),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: playStyleCategories.values.expand((e) => e).map((psData) {
+          // Bu stil seçili mi?
+          bool isSelected =
+              selectedPlayStyles.any((p) => p.name == psData['name']);
+          bool isGold = false;
+
+          if (isSelected) {
+            isGold = selectedPlayStyles
+                .firstWhere((p) => p.name == psData['name'])
+                .isGold;
+          }
+
+          // Eğer bu sekme Plus moduysa ve seçili olan Gold ise -> Aktif
+          // Eğer bu sekme Normal modsa ve seçili olan Gold değilse -> Aktif
+          bool isActiveInThisTab = isSelected && (isPlusMode == isGold);
+
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                // Önce var olanı kaldır (Toggle veya Değişim için)
+                selectedPlayStyles.removeWhere((p) => p.name == psData['name']);
+
+                // Eğer zaten bu modda seçiliyse kaldırdık, işlem bitti (Toggle Off)
+                if (isActiveInThisTab) {
+                  return;
+                }
+
+                // Değilse yeni halini ekle
+                selectedPlayStyles
+                    .add(PlayStyle(psData['name']!, isGold: isPlusMode));
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isActiveInThisTab
+                    ? (isPlusMode
+                        ? Colors.amber.withOpacity(0.2)
+                        : Colors.cyanAccent.withOpacity(0.2))
+                    : Colors.white10,
+                border: Border.all(
+                    color: isActiveInThisTab
+                        ? (isPlusMode ? Colors.amber : Colors.cyanAccent)
+                        : Colors.transparent),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isActiveInThisTab)
+                    Icon(isPlusMode ? Icons.star : Icons.check,
+                        size: 14,
+                        color: isPlusMode ? Colors.amber : Colors.cyanAccent),
+                  const SizedBox(width: 5),
+                  Text(psData['label']!,
+                      style: TextStyle(
+                          color:
+                              isActiveInThisTab ? Colors.white : Colors.white54,
+                          fontSize: 12)),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 
   Widget _input(String label, TextEditingController c, {bool isNum = false}) {

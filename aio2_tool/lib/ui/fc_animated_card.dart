@@ -400,8 +400,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                       // --- PLAYSTYLE PLUS İKONU (SADECE GOLD VARSA) ---
                       if (goldPs != null && !isBad && !isBasic)
                         Positioned(
-                            left: -10,
-                            bottom: 60,
+                            left: -15,
+                            top: 215,
                             child: Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
