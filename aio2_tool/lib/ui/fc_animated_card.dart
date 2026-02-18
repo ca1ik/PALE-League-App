@@ -97,12 +97,12 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     bool isBasic = type == "Temel";
     Map<String, int> cs = p.getCardStats();
 
-    // SADECE VE SADECE GOLD (PLUS) VARSA AL, YOKSA NULL OLSUN
-    PlayStyle? goldPs;
+    // TÜM GOLD PLAYSTYLE'LARI AL (İstiflemek için)
+    List<PlayStyle> goldPsList = [];
     try {
-      goldPs = p.playstyles.firstWhere((ps) => ps.isGold);
+      goldPsList = p.playstyles.where((ps) => ps.isGold).toList();
     } catch (e) {
-      goldPs = null; // Gold yoksa null, ekranda ikon gözükmeyecek
+      // Hata yok
     }
 
     Color borderColor = _getBorderColor(type);
@@ -397,20 +397,24 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                           ]),
                         ),
                       ),
-                      // --- PLAYSTYLE PLUS İKONU (SADECE GOLD VARSA) ---
-                      if (goldPs != null && !isBad && !isBasic)
-                        Positioned(
-                            left: -10,
-                            top: 215,
-                            child: Image.asset(
-                                // YOL GÜNCELLEMESİ: plus klasörü kalktı, isim sonuna Plus eklendi
-                                "assets/Playstyles/${playStyleFileMap[goldPs.name.trim()] ?? goldPs.name.trim()}Plus.png",
-                                width: 45,
-                                height: 45,
-                                errorBuilder: (c, e, s) => const Icon(
-                                    Icons.star,
-                                    color: Colors.amber,
-                                    size: 35))),
+                      // --- PLAYSTYLE PLUS İKONLARI (İSTİFLENMİŞ) ---
+                      if (goldPsList.isNotEmpty && !isBad && !isBasic)
+                        ...List.generate(goldPsList.length, (index) {
+                          var ps = goldPsList[index];
+                          // Her birini biraz aşağı kaydırarak üst üste bindir
+                          return Positioned(
+                              left: -10,
+                              top: 215.0 +
+                                  (index * 35), // 35px aralıkla aşağı in
+                              child: Image.asset(
+                                  "assets/Playstyles/${playStyleFileMap[ps.name.trim()] ?? ps.name.trim()}Plus.png",
+                                  width: 45,
+                                  height: 45,
+                                  errorBuilder: (c, e, s) => const Icon(
+                                      Icons.star,
+                                      color: Colors.amber,
+                                      size: 35)));
+                        }),
                     ],
                   ),
                 ),

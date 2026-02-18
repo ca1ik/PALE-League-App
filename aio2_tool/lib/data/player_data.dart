@@ -36,6 +36,8 @@ class PlayerAdapter extends TypeAdapter<Player> {
       manualAssists: reader.read() ?? 0,
       manualMatches: reader.read() ?? 0,
       instruction: reader.read() ?? "Balanced",
+      style: reader.read() ?? "Temel",
+      styleTier: reader.read() ?? 0,
     );
   }
 
@@ -60,7 +62,9 @@ class PlayerAdapter extends TypeAdapter<Player> {
       ..write(obj.manualGoals)
       ..write(obj.manualAssists)
       ..write(obj.manualMatches)
-      ..write(obj.instruction);
+      ..write(obj.instruction)
+      ..write(obj.style)
+      ..write(obj.styleTier);
   }
 }
 
@@ -177,6 +181,8 @@ class Player extends HiveObject {
   List<SeasonStat> seasons;
   int manualGoals, manualAssists, manualMatches;
   String instruction;
+  String style; // YENİ: Oyun Stili (Örn: Kanat Oyuncusu)
+  int styleTier; // YENİ: 0=Yok, 1=+, 2=++
 
   Player(
       {required this.name,
@@ -197,7 +203,9 @@ class Player extends HiveObject {
       this.manualGoals = 0,
       this.manualAssists = 0,
       this.manualMatches = 0,
-      this.instruction = "Balanced"});
+      this.instruction = "Balanced",
+      this.style = "Temel",
+      this.styleTier = 0});
 
   // --- HESAPLAMA METODLARI (Crash Proof) ---
 
@@ -375,12 +383,12 @@ final Map<String, List<String>> statSegments = {
     "Top Kontrolü"
   ]
 };
-final List<String> gkSkillStats = [
-  "Reflex",
-  "1e1 Savunma",
-  "Çizgide Kurtarış",
-  "Sert Duruş",
-  "Güç"
+final List<String> gkStatsList = [
+  "Refleks",
+  "Çizgi Kaleciliği",
+  "Pozisyon Alma",
+  "Uzun Pas",
+  "Kısa Pas"
 ];
 final List<String> gkPassStats = [
   "Pas",
@@ -440,27 +448,84 @@ final List<String> globalRoles = [
   "Yıldız",
   "Genç Yetenek"
 ];
-final Map<String, String> teamLogos = {"Takımsız": ""};
+final Map<String, String> teamLogos = {
+  "Takımsız": "",
+  "Bursa Spor": "assets/takimlar/bursaspor.png",
+  "Chelsea": "assets/takimlar/chelsea.png",
+  "Fenerbahçe": "assets/takimlar/fenerbahce.png",
+  "Invicta": "assets/takimlar/invicta.png",
+  "İtspor": "assets/takimlar/itspor.png",
+  "Juventus": "assets/takimlar/juventus.png",
+  "Livorno": "assets/takimlar/livorno.png",
+  "Maximilian": "assets/takimlar/maximilian.png",
+  "River Plate": "assets/takimlar/river.png",
+  "Shamrock Rovers": "assets/takimlar/shamrock.png",
+  "Tiyatro FC": "assets/takimlar/tiyatro.png",
+  "Toulouse": "assets/takimlar/toulouse.png",
+  "Werder Weremem": "assets/takimlar/werderweremem.png",
+};
 final Map<String, List<String>> roleCategories = {
   "(1) GK": ["Çizgi Kalecisi"],
   "(9) ST": ["Hedef Forvet"]
 };
 
-// ... Player sınıfı bittikten sonra en alta:
+// YENİ: Türkçe Kimya Çevirileri
+final Map<String, String> chemistryTranslations = {
+  "Basic": "Temel",
+  "Sniper": "Keskin Nişancı",
+  "Finisher": "Bitirici",
+  "Deadeye": "Gözü Kara",
+  "Marksman": "Nişancı",
+  "Hawk": "Şahin",
+  "Artist": "Sanatçı",
+  "Architect": "Mimar",
+  "Powerhouse": "Güç Deposu",
+  "Maestro": "Maestro",
+  "Engine": "Motor",
+  "Sentinel": "Nöbetçi",
+  "Guardian": "Muhafız",
+  "Gladiator": "Gladyatör",
+  "Backbone": "Omurga",
+  "Anchor": "Çapa",
+  "Hunter": "Avcı",
+  "Catalyst": "Katalizör",
+  "Shadow": "Gölge",
+  "GK Basic": "KL Temel",
+  "Wall": "Duvar",
+  "Shield": "Kalkan",
+  "Cat": "Kedi",
+  "Glove": "Eldiven"
+};
+
+// YENİ: Stil Seçenekleri
+final Map<String, List<String>> styleOptions = {
+  "GK": ["Çizgi Kaleci", "Süpürücü Kaleci", "Topla Oynayan Kaleci"],
+  "DEF": ["Çakılı Defans", "Dengeli Defans", "Pasör Defans", "Tutucu Defans"],
+  "MID": ["Box to Box", "Oyun Kurucu", "Derin Oyun Kurucu", "Yarı Kanat OS"],
+  "WING": [
+    "Kanat Oyuncusu",
+    "İç Forvet",
+    "Gizli Forvet",
+    "Avcı Forvet",
+    "Geniş Oyun Kurucu"
+  ],
+  "FWD": [
+    "False 9",
+    "Avcı Forvet",
+    "Gizli Forvet",
+    "Hedef Forvet",
+    "Gelişmiş Forvet"
+  ]
+};
+
+// YENİ: Pozisyon Listesi (Sınırlandırılmış)
 
 const List<String> positions = [
   "(1) GK",
-  "(2) RB",
   "(3) CB",
-  "(4) CB",
-  "(5) LB",
   "(6) CDM",
-  "(7) RM",
-  "(8) CM",
   "(10) CAM",
-  "(11) LM",
   "(7) RW",
   "(11) LW",
-  "(9) ST",
-  "(9) CF"
+  "(9) ST"
 ];

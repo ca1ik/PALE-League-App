@@ -648,18 +648,36 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
   Player _convert(dynamic t) {
     Map<String, int> st = {};
     List<PlayStyle> ps = [];
+    // JSON decode hatalarını önlemek için try-catch blokları
     try {
       st = Map<String, int>.from(jsonDecode(t.statsJson));
     } catch (_) {}
+
+    // YENİ: Style ve StyleTier okuma (Hem DB sütunu hem de JSON workaround desteği)
+    String styleVal = "Temel";
+    int styleTierVal = 0;
+
     try {
       var l = jsonDecode(t.playStylesJson) as List;
-      ps = l.map((e) {
-        String s = e.toString();
-        if (s.endsWith("+")) {
-          return PlayStyle(s.substring(0, s.length - 1), isGold: true);
-        }
-        return PlayStyle(s, isGold: false);
-      }).toList();
+      ps = l
+          .map((e) {
+            String s = e.toString();
+            // WORKAROUND: Stil bilgisini buradan oku
+            if (s.startsWith("STYLE_INFO:")) {
+              var parts = s.split(":");
+              if (parts.length >= 3) {
+                styleVal = parts[1];
+                styleTierVal = int.tryParse(parts[2]) ?? 0;
+              }
+              return null; // Listeye ekleme (PlayStyle değil)
+            }
+            if (s.endsWith("+")) {
+              return PlayStyle(s.substring(0, s.length - 1), isGold: true);
+            }
+            return PlayStyle(s, isGold: false);
+          })
+          .whereType<PlayStyle>()
+          .toList(); // Null'ları temizle
     } catch (_) {}
 
     // WORKAROUND: DB'de kolon yoksa stats içinden oku
@@ -669,6 +687,12 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
     if (csIndex >= 0 && csIndex < chemistryStylesList.length) {
       cs = chemistryStylesList[csIndex];
     }
+
+    // Eğer DB sütunu varsa oradan oku (Öncelik DB sütununda)
+    try {
+      if (t.style != null) styleVal = t.style;
+      if (t.styleTier != null) styleTierVal = t.styleTier;
+    } catch (_) {}
 
     return Player(
       name: t.name,
@@ -687,6 +711,8 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
       chemistryStyle: cs, // Stats'tan okunan değer
       seasons: [], // Varsayılan boş
       matches: [], // Varsayılan boş
+      style: styleVal,
+      styleTier: styleTierVal,
     );
   }
 
@@ -717,6 +743,9 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
               all.where((p) => p.name == selectedPlayer!.name).toList();
           if (currentCardIndex >= versions.length) currentCardIndex = 0;
           Player displayPlayer = versions[currentCardIndex];
+
+          // Sidebar için sadece TEMEL kartları filtrele
+          final sidebarList = all.where((p) => p.cardType == "Temel").toList();
 
           return Row(children: [
             Container(
@@ -839,11 +868,10 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                                   backgroundColor: Colors.cyanAccent)))),
                   Expanded(
                       child: ListView.builder(
-                          itemCount: all.length,
+                          itemCount: sidebarList.length,
                           itemBuilder: (c, i) {
-                            if (i > 0 && all[i - 1].name == all[i].name)
-                              return const SizedBox.shrink();
-                            final p = all[i];
+                            // Temel kartları listeliyoruz
+                            final p = sidebarList[i];
                             return ListTile(
                                 onTap: () => setState(() {
                                       selectedPlayer = p;
@@ -921,6 +949,11 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
     p.stats['CS'] = chemistryStylesList.indexOf(p.chemistryStyle);
     if (p.stats['CS'] == -1) p.stats['CS'] = 0;
 
+    // WORKAROUND: Stil bilgisini playStylesJson içine göm
+    List<String> psList =
+        p.playstyles.map((e) => e.isGold ? "${e.name}+" : e.name).toList();
+    psList.add("STYLE_INFO:${p.style}:${p.styleTier}");
+
     dynamic companion = PlayerTablesCompanion(
         name: drift.Value(p.name),
         rating: drift.Value(p.rating),
@@ -930,9 +963,7 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
         role: drift.Value(p.role),
         marketValue: drift.Value(p.marketValue),
         statsJson: drift.Value(jsonEncode(p.stats)),
-        playStylesJson: drift.Value(jsonEncode(p.playstyles
-            .map((e) => e.isGold ? "${e.name}+" : e.name)
-            .toList())),
+        playStylesJson: drift.Value(jsonEncode(psList)),
         recLink: drift.Value(p.recLink),
         manualGoals: drift.Value(p.manualGoals),
         manualAssists: drift.Value(p.manualAssists));
@@ -1546,6 +1577,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
     int def = p.stats['DEF'] ?? p.stats['Defans'] ?? 50;
     int phy = p.stats['PHY'] ?? p.stats['Fizik'] ?? 50;
     int pac = p.stats['PAC'] ?? p.stats['Hız'] ?? 50;
+    String styleName = p.style;
 
     if (sho > 85) {
       sentences.add(
@@ -1578,6 +1610,23 @@ class _ViewUltimateState extends State<_ViewUltimate> {
     if (pac > 90) {
       sentences.add(
           "Rüzgarın oğlu! Savunma arkasına yaptığı koşularda onu yakalamak neredeyse imkansız.");
+    }
+
+    // STİL ANALİZİ (YENİ)
+    if (styleName != "Temel" && styleName != "Temel Kaleci") {
+      String tierText = "";
+      if (p.styleTier == 2)
+        tierText = "Dünya çapında bir";
+      else if (p.styleTier == 1) tierText = "Elit seviyede bir";
+
+      if (p.styleTier > 0) {
+        sentences.add(
+            "Oyun stili olarak tam anlamıyla $tierText $styleName performansı sergiliyor.");
+        if (p.styleTier == 2) {
+          sentences.add(
+              "Bu rolde o kadar ustalaşmış ki, taktik tahtasında ismi yazılan ilk oyunculardan.");
+        }
+      }
     }
 
     // PlayStyle Analizi
@@ -1652,11 +1701,27 @@ class _ViewUltimateState extends State<_ViewUltimate> {
       teamLogo = "assets/takimlar/riverplate.png";
     if (player.team == "It Spor") teamLogo = "assets/takimlar/itspor.png";
 
+    String styleDisplay = player.style;
+    if (player.styleTier == 1) styleDisplay += "+";
+    if (player.styleTier == 2) styleDisplay += "++";
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(30),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // --- ÜST MENÜ (EDİT / VERSİYON) ---
+          Align(
+            alignment: Alignment.centerRight,
+            child: IconButton(
+              icon: const Icon(Icons.menu,
+                  color: Colors.white12), // Hafif görünür
+              tooltip: "Seçenekler",
+              onPressed: () {
+                _showCardOptions(context, player);
+              },
+            ),
+          ),
           // --- ÜST KISIM ---
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1768,6 +1833,10 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                             player.chemistryStyle, Colors.purpleAccent),
                         _buildInfoTag(Icons.theater_comedy, "Rol", player.role,
                             Colors.orangeAccent),
+                        // YENİ SIRALAMA: Kimya -> Rol -> Stil -> Skill
+                        _buildInfoTag(Icons.style, "Stil", styleDisplay,
+                            Colors.cyanAccent,
+                            isNeon: true),
                         _buildInfoTag(Icons.star, "Yetenek",
                             "${player.skillMoves} Yıldız", Colors.yellowAccent),
                         _buildInfoTag(
@@ -1844,6 +1913,44 @@ class _ViewUltimateState extends State<_ViewUltimate> {
         ],
       ),
     );
+  }
+
+  // Kart Seçenekleri Menüsü (Edit / Yeni Versiyon)
+  void _showCardOptions(BuildContext context, Player p) {
+    showModalBottomSheet(
+        context: context,
+        backgroundColor: const Color(0xFF1E1E24),
+        builder: (c) {
+          return Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.cyanAccent),
+                title: const Text("Kartı Düzenle",
+                    style: TextStyle(color: Colors.white)),
+                subtitle: const Text("Mevcut kartın özelliklerini değiştirir.",
+                    style: TextStyle(color: Colors.white54)),
+                onTap: () {
+                  Navigator.pop(c);
+                  _showEditor(
+                      context, p, (newP, oldP) => widget.onSave(newP, oldP));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy, color: Colors.amber),
+                title: const Text("Yeni Versiyon Oluştur",
+                    style: TextStyle(color: Colors.white)),
+                subtitle: const Text(
+                    "Örn: TOTS, TOTW gibi yeni bir kart çıkarır.",
+                    style: TextStyle(color: Colors.white54)),
+                onTap: () {
+                  Navigator.pop(c);
+                  _createVersion(
+                      context, p, (newP) => widget.onSave(newP, null));
+                },
+              ),
+            ],
+          );
+        });
   }
 
   Widget _buildMatchPerformanceSection() {
@@ -2834,9 +2941,23 @@ class _ShowcaseDialogState extends State<_ShowcaseDialog>
             ),
             child: Column(
               children: [
-                Text("VİTRİN",
-                    style: GoogleFonts.russoOne(
-                        color: Colors.white, fontSize: 40, letterSpacing: 10)),
+                // RGB / Gradient Yazı Efekti
+                ShaderMask(
+                  shaderCallback: (bounds) => const LinearGradient(
+                    colors: [
+                      Colors.cyanAccent,
+                      Colors.purpleAccent,
+                      Colors.amber
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ).createShader(bounds),
+                  child: Text("VİTRİN",
+                      style: GoogleFonts.russoOne(
+                          color: Colors.white, // ShaderMask bunu ezecek
+                          fontSize: 50,
+                          letterSpacing: 10)),
+                ),
                 const SizedBox(height: 20),
                 Expanded(
                   child: SingleChildScrollView(
@@ -2844,29 +2965,33 @@ class _ShowcaseDialogState extends State<_ShowcaseDialog>
                       children: widget.groupedPlayers.entries.map((entry) {
                         Color typeColor = _getCardTypeColor(entry.key);
                         return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.center, // ORTALA
                           children: [
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 20),
                               child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.center, // ORTALA
                                 children: [
-                                  Container(
-                                    width: 5,
-                                    height: 30,
-                                    color: typeColor,
+                                  ShaderMask(
+                                    shaderCallback: (bounds) => LinearGradient(
+                                      colors: [typeColor, Colors.white],
+                                    ).createShader(bounds),
+                                    child: Text(entry.key,
+                                        style: GoogleFonts.orbitron(
+                                            color: Colors.white,
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.bold)),
                                   ),
-                                  const SizedBox(width: 15),
-                                  Text(entry.key,
-                                      style: GoogleFonts.orbitron(
-                                          color: typeColor,
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.bold)),
                                 ],
                               ),
                             ),
                             Wrap(
                               spacing: 30,
                               runSpacing: 30,
+                              alignment:
+                                  WrapAlignment.center, // KARTLARI ORTALA
                               children: entry.value
                                   .map((p) => Transform.scale(
                                       scale: 1.1,
@@ -2874,7 +2999,7 @@ class _ShowcaseDialogState extends State<_ShowcaseDialog>
                                           player: p, animateOnHover: true)))
                                   .toList(),
                             ),
-                            const SizedBox(height: 40),
+                            const SizedBox(height: 60), // BOŞLUK ARTTIRILDI
                             Divider(color: Colors.white.withOpacity(0.1)),
                           ],
                         );
@@ -3172,8 +3297,8 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
         builder: (c, cand, rej) {
           Player? p = squad[index];
           return Container(
-            width: 200, // KART ALANI DAHA DA BÜYÜTÜLDÜ
-            height: 290, // NUMARA İÇİN YER AÇILDI
+            width: 230, // KART ALANI DAHA DA BÜYÜTÜLDÜ
+            height: 320, // NUMARA İÇİN YER AÇILDI
             decoration: BoxDecoration(
                 // DÜZELTME: Kartlar daha belirgin olsun diye arka plan ve gölge
                 color: p == null
@@ -3323,6 +3448,8 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
   int selectedSkillMoves = 3;
   int selectedWeakFoot = 3;
   String selectedChemistryStyle = "Basic";
+  String selectedStyle = "Temel";
+  int selectedStyleTier = 0; // 0, 1, 2
   List<PlayStyle> selectedPlayStyles = [];
   Map<String, int> stats = {};
 
@@ -3363,8 +3490,9 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
       backgroundColor: const Color(0xFF1E1E24),
       insetPadding: const EdgeInsets.all(20),
       child: Container(
-        width: 900,
-        height: 800,
+        // DÜZELTME: Sabit boyut yerine ekran oranlı boyut (Pixel hatasını önler)
+        width: MediaQuery.of(context).size.width * 0.9,
+        height: MediaQuery.of(context).size.height * 0.9,
         padding: const EdgeInsets.all(30),
         child: Column(
           children: [
@@ -3388,11 +3516,18 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _input("Ad Soyad", _nameController),
-                          _input("Takım", _teamController),
+                          // TAKIM SEÇİMİ (DROPDOWN)
+                          _dropdown("Takım", pd.teamLogos.keys.toList(),
+                              _teamController.text, (v) {
+                            setState(() => _teamController.text = v!);
+                          }),
+
                           _input("Reyting", _ratingController, isNum: true),
                           _dropdown("Pozisyon", pd.positions, selectedPosition,
                               (v) {
                             setState(() => selectedPosition = v!);
+                            _checkGKStats(); // Pozisyon değişince statları güncelle
+                            selectedStyle = "Temel"; // Stili sıfırla
                             // Pozisyona göre varsayılan rolü seç
                             // Burada basit bir mantık kurabilirsin
                           }),
@@ -3411,6 +3546,55 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                           }),
                           _input("Piyasa Değeri (M€)", _marketValueController,
                               isNum: true),
+
+                          // YENİ: STİL SEÇİMİ
+                          const SizedBox(height: 10),
+                          Text("Oyun Stili",
+                              style: TextStyle(color: Colors.cyanAccent)),
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: DropdownButtonFormField<String>(
+                                  value: _getAvailableStyles()
+                                          .contains(selectedStyle)
+                                      ? selectedStyle
+                                      : _getAvailableStyles().first,
+                                  items: _getAvailableStyles()
+                                      .map((e) => DropdownMenuItem(
+                                          value: e,
+                                          child: Text(e,
+                                              style: const TextStyle(
+                                                  color: Colors.white))))
+                                      .toList(),
+                                  onChanged: (v) =>
+                                      setState(() => selectedStyle = v!),
+                                  dropdownColor: const Color(0xFF2C2C35),
+                                  decoration: InputDecoration(
+                                      filled: true, fillColor: Colors.black26),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              // TIER SEÇİMİ (+ / ++)
+                              ToggleButtons(
+                                isSelected: [
+                                  selectedStyleTier == 0,
+                                  selectedStyleTier == 1,
+                                  selectedStyleTier == 2
+                                ],
+                                onPressed: (idx) =>
+                                    setState(() => selectedStyleTier = idx),
+                                color: Colors.white54,
+                                selectedColor: Colors.cyanAccent,
+                                fillColor: Colors.cyanAccent.withOpacity(0.2),
+                                children: const [
+                                  Text("-"),
+                                  Text("+"),
+                                  Text("++")
+                                ],
+                              )
+                            ],
+                          ),
 
                           // YETENEK VE ZAYIF AYAK
                           const SizedBox(height: 10),
@@ -3583,6 +3767,45 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
     );
   }
 
+  // Pozisyona göre stil listesi
+  List<String> _getAvailableStyles() {
+    if (selectedPosition.contains("GK"))
+      return ["Temel Kaleci", ...pd.styleOptions["GK"]!];
+    if (selectedPosition.contains("CB"))
+      return ["Temel Defans", ...pd.styleOptions["DEF"]!];
+    if (selectedPosition.contains("CDM"))
+      return ["Temel Defans", ...pd.styleOptions["DEF"]!]; // CDM de defansif
+    if (selectedPosition.contains("CAM"))
+      return ["Temel Orta Saha", ...pd.styleOptions["MID"]!];
+    if (selectedPosition.contains("RW") || selectedPosition.contains("LW"))
+      return ["Temel Kanat", ...pd.styleOptions["WING"]!];
+    if (selectedPosition.contains("ST"))
+      return ["Temel Forvet", ...pd.styleOptions["FWD"]!];
+    return ["Temel"];
+  }
+
+  // GK ise statları değiştir
+  void _checkGKStats() {
+    if (selectedPosition.contains("GK")) {
+      // GK Statlarını ekle
+      for (var s in pd.gkStatsList) {
+        if (!stats.containsKey(s)) stats[s] = 50;
+      }
+    }
+  }
+
+  // Gösterilecek stat listesi
+  List<MapEntry<String, List<String>>> _getStatList() {
+    if (selectedPosition.contains("GK")) {
+      return [
+        MapEntry("KALECİLİK", pd.gkStatsList),
+        MapEntry("FİZİKSEL", ["Güç", "Sert Duruş", "Hız"]),
+        MapEntry("ZİHİNSEL", ["Karar Alma", "Soğukkanlılık", "Liderlik"])
+      ];
+    }
+    return pd.statSegments.entries.toList();
+  }
+
   void _submit() {
     if (_nameController.text.isEmpty) return;
 
@@ -3599,6 +3822,8 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
         chemistryStyle: selectedChemistryStyle,
         marketValue: "€${_marketValueController.text}M", // Otomatik format
         playstyles: selectedPlayStyles,
+        style: selectedStyle,
+        styleTier: selectedStyleTier,
         stats: stats,
         role: selectedRole,
         recLink: widget.playerToEdit?.recLink ??
