@@ -574,6 +574,360 @@ final List<String> chemistryStylesList = [
 ];
 
 // ============================================================================
+// BÖLÜM 1.5: ÇEVİRİLER (TRANSLATIONS)
+// ============================================================================
+
+final Map<String, Map<String, String>> _appStrings = {
+  "tr": {
+    "PLAYERS": "OYUNCULAR",
+    "TEAMS": "TAKIMLAR",
+    "WIKI": "OYUN STİLLERİ (WIKI)",
+    "CARDS": "KART TİPLERİ",
+    "ROLES": "ROLLER",
+    "ADD_FIRST": "İLK OYUNCUYU EKLE",
+    "GLOBAL": "GLOBAL KARTLAR",
+    "SHOWCASE": "VİTRİN",
+    "SQUAD_BUILDER": "VİTRİN TAKIMLARI",
+    "NEW_PLAYER": "YENİ OYUNCU",
+    "PROFILE": "PROFİL",
+    "ULTIMATE": "ULTIMATE ANALİZ",
+    "APP": "UYGULAMA",
+    "WEB": "WEB SİTESİ",
+    "META": "V7 META ANALİZİ",
+    "SQUAD_VAL": "KADRO DEĞERİ",
+    "DETAILED": "DETAYLI ANALİZ",
+    "OTHER_CARDS": "OYUNCUNUN DİĞER KARTLARI",
+    "SEASON_PERF": "SEZON PERFORMANSI",
+    "TOTAL_GOL": "TOPLAM GOL",
+    "TOTAL_AST": "TOPLAM ASİST",
+    "MATCHES": "MAÇ SAYISI",
+    "NO_MATCH": "Henüz maç girilmedi.",
+    "ADD_MATCH": "MAÇ EKLE",
+    "OPPONENT": "Rakip Takım",
+    "GOAL": "Gol",
+    "ASSIST": "Asist",
+    "RATING": "Maç Reytingi (1-10)",
+    "ADD": "EKLE",
+    "CLOSE": "KAPAT",
+    "CANCEL": "İPTAL",
+    "SAVE": "KAYDET",
+    "CREATE_TITLE": "YENİ OYUNCU OLUŞTUR",
+    "EDIT_TITLE": "OYUNCUYU DÜZENLE",
+    "NAME": "Ad Soyad",
+    "TEAM": "Takım",
+    "POS": "Pozisyon",
+    "CARD": "Kart Tipi",
+    "ROLE": "Rol",
+    "CHEM": "Kimya Stili",
+    "MARKET": "Piyasa Değeri (M€)",
+    "STYLE": "Oyun Stili",
+    "SKILL": "Yetenek & Zayıf Ayak",
+    "STATS": "İSTATİSTİKLER",
+    "NORMAL_PS": "NORMAL PS",
+    "PLUS_PS": "PLUS PS",
+    "SEARCH": "Ara...",
+    "FILTER": "Tümü",
+    "SORT_RTG": "Reyting",
+    "SORT_AZ": "A-Z",
+    "SORT_NEW": "En Yeni",
+    "OPTIONS": "Seçenekler",
+    "EDIT_CARD": "Kartı Düzenle",
+    "EDIT_DESC": "Mevcut kartın özelliklerini değiştirir.",
+    "NEW_VER": "Yeni Versiyon Oluştur",
+    "NEW_VER_DESC": "Örn: TOTS, TOTW gibi yeni bir kart çıkarır.",
+    "DELETE": "Kartı Sil",
+    "DEL_CONFIRM": "silinsin mi?",
+    "DELETE_BTN": "Sil",
+    "AI_ANALYSIS": "AI ANALİZ",
+    "EDIT_AI": "Analizi Düzenle",
+    "PLAYSTYLES": "OYUN STİLLERİ",
+    "NO_PS": "Oyun stili yok.",
+    "CHEM_L": "Kimya",
+    "ROLE_L": "Rol",
+    "STYLE_L": "Stil",
+    "SKILL_L": "Yetenek",
+    "WF_L": "Zayıf Ayak",
+    "VAL_L": "Değer",
+    "TREND_BAL": "DENGELİ",
+    "TREND_UP": "YÜKSELİŞTE 📈",
+    "TREND_DOWN": "DÜŞÜŞTE 📉",
+    "GK": "KALECİLİK",
+    "PHY": "FİZİKSEL",
+    "MEN": "ZİHİNSEL",
+    "TEAM_NAME": "TAKIM İSMİ",
+    "DOWNLOAD": "İNDİR (PNG)",
+    "ORIENT": "Yönü Değiştir",
+    "IMG_SAVED": "Görüntü kaydedildi!",
+    "CARD_NOT_FOUND": "Bu oyuncunun kartı henüz oluşturulmamış.",
+    "NEW_P_TEAM": "Yeni Oyuncu",
+    "MAKE_CAP": "Kaptan Yap",
+    "REMOVE": "Sil",
+    "TOTS_NAME": "TEAM OF THE SEASON",
+    // STYLES & ROLES (TR)
+    "Temel": "Temel",
+    "Temel Kaleci": "Temel Kaleci",
+    "Temel Defans": "Temel Defans",
+    "Temel Orta Saha": "Temel Orta Saha",
+    "Temel Kanat": "Temel Kanat",
+    "Temel Forvet": "Temel Forvet",
+    "Çizgi Kalecisi": "Çizgi Kalecisi",
+    "Süpürücü Kaleci": "Süpürücü Kaleci",
+    "Oyun Kurucu Kaleci": "Oyun Kurucu Kaleci",
+    "Savunmatik": "Savunmatik",
+    "Libero": "Libero",
+    "Oyun Kurucu Stoper": "Oyun Kurucu Stoper",
+    "Tutucu": "Tutucu",
+    "Derin Oyun Kurucu": "Derin Oyun Kurucu",
+    "Savaşçı": "Savaşçı",
+    "Oyun Kurucu": "Oyun Kurucu",
+    "Box to Box": "Box to Box",
+    "Mezzala": "Mezzala",
+    "Gölge Forvet": "Gölge Forvet",
+    "Enganche": "Enganche",
+    "İç Forvet": "İç Forvet",
+    "Kanat Oyuncusu": "Kanat Oyuncusu",
+    "Gizli Forvet": "Gizli Forvet",
+    "Avcı Forvet": "Avcı Forvet",
+    "Hedef Forvet": "Hedef Forvet",
+    "Yanlış 9": "Yanlış 9",
+    "Kanat Bek": "Kanat Bek",
+    "Hücum Bek": "Hücum Bek",
+  },
+  "en": {
+    "PLAYERS": "PLAYERS",
+    "TEAMS": "TEAMS",
+    "WIKI": "PLAYSTYLES (WIKI)",
+    "CARDS": "CARD TYPES",
+    "ROLES": "ROLES",
+    "ADD_FIRST": "ADD FIRST PLAYER",
+    "GLOBAL": "GLOBAL CARDS",
+    "SHOWCASE": "SHOWCASE",
+    "SQUAD_BUILDER": "SQUAD BUILDER",
+    "NEW_PLAYER": "NEW PLAYER",
+    "PROFILE": "PROFILE",
+    "ULTIMATE": "ULTIMATE ANALYSIS",
+    "APP": "APP",
+    "WEB": "WEBSITE",
+    "META": "V7 META ANALYSIS",
+    "SQUAD_VAL": "SQUAD VALUE",
+    "DETAILED": "DETAILED ANALYSIS",
+    "OTHER_CARDS": "OTHER CARDS",
+    "SEASON_PERF": "SEASON PERFORMANCE",
+    "TOTAL_GOL": "TOTAL GOALS",
+    "TOTAL_AST": "TOTAL ASSISTS",
+    "MATCHES": "MATCHES",
+    "NO_MATCH": "No matches entered yet.",
+    "ADD_MATCH": "ADD MATCH",
+    "OPPONENT": "Opponent",
+    "GOAL": "Goals",
+    "ASSIST": "Assists",
+    "RATING": "Match Rating (1-10)",
+    "ADD": "ADD",
+    "CLOSE": "CLOSE",
+    "CANCEL": "CANCEL",
+    "SAVE": "SAVE",
+    "CREATE_TITLE": "CREATE NEW PLAYER",
+    "EDIT_TITLE": "EDIT PLAYER",
+    "NAME": "Name Surname",
+    "TEAM": "Team",
+    "POS": "Position",
+    "CARD": "Card Type",
+    "ROLE": "Role",
+    "CHEM": "Chemistry Style",
+    "MARKET": "Market Value (M€)",
+    "STYLE": "PlayStyle",
+    "SKILL": "Skills & Weak Foot",
+    "STATS": "STATS",
+    "NORMAL_PS": "NORMAL PS",
+    "PLUS_PS": "PLUS PS",
+    "SEARCH": "Search...",
+    "FILTER": "All",
+    "SORT_RTG": "Rating",
+    "SORT_AZ": "A-Z",
+    "SORT_NEW": "Newest",
+    "OPTIONS": "Options",
+    "EDIT_CARD": "Edit Card",
+    "EDIT_DESC": "Modify current card attributes.",
+    "NEW_VER": "Create New Version",
+    "NEW_VER_DESC": "e.g. Create TOTS, TOTW version.",
+    "DELETE": "Delete Card",
+    "DEL_CONFIRM": "delete?",
+    "DELETE_BTN": "Delete",
+    "AI_ANALYSIS": "AI ANALYSIS",
+    "EDIT_AI": "Edit Analysis",
+    "PLAYSTYLES": "PLAYSTYLES",
+    "NO_PS": "No playstyle.",
+    "CHEM_L": "Chem",
+    "ROLE_L": "Role",
+    "STYLE_L": "Style",
+    "SKILL_L": "Skill",
+    "WF_L": "Weak Foot",
+    "VAL_L": "Value",
+    "TREND_BAL": "BALANCED",
+    "TREND_UP": "RISING 📈",
+    "TREND_DOWN": "FALLING 📉",
+    "GK": "GOALKEEPING",
+    "PHY": "PHYSICAL",
+    "MEN": "MENTAL",
+    "TEAM_NAME": "TEAM NAME",
+    "DOWNLOAD": "DOWNLOAD (PNG)",
+    "ORIENT": "Change Orientation",
+    "IMG_SAVED": "Image saved!",
+    "CARD_NOT_FOUND": "Card not created yet.",
+    "NEW_P_TEAM": "New Player",
+    "MAKE_CAP": "Make Captain",
+    "REMOVE": "Remove",
+    "TOTS_NAME": "TEAM OF THE SEASON",
+    // STYLES & ROLES (EN)
+    "Temel": "Basic",
+    "Temel Kaleci": "Basic GK",
+    "Temel Defans": "Basic Def",
+    "Temel Orta Saha": "Basic Mid",
+    "Temel Kanat": "Basic Wing",
+    "Temel Forvet": "Basic Fwd",
+    "Çizgi Kalecisi": "Line Keeper",
+    "Süpürücü Kaleci": "Sweeper Keeper",
+    "Oyun Kurucu Kaleci": "Playmaker GK",
+    "Savunmatik": "Defensive",
+    "Libero": "Libero",
+    "Oyun Kurucu Stoper": "Ball Playing Defender",
+    "Tutucu": "Holding",
+    "Derin Oyun Kurucu": "Deep Lying Playmaker",
+    "Savaşçı": "Ball Winner",
+    "Oyun Kurucu": "Playmaker",
+    "Box to Box": "Box to Box",
+    "Mezzala": "Mezzala",
+    "Gölge Forvet": "Shadow Striker",
+    "Enganche": "Enganche",
+    "İç Forvet": "Inside Forward",
+    "Kanat Oyuncusu": "Winger",
+    "Gizli Forvet": "Secret Forward",
+    "Avcı Forvet": "Poacher",
+    "Hedef Forvet": "Target Man",
+    "Yanlış 9": "False 9",
+    "Kanat Bek": "Wing Back",
+    "Hücum Bek": "Attacking Fullback",
+  },
+  "es": {
+    "PLAYERS": "JUGADORES",
+    "TEAMS": "EQUIPOS",
+    "WIKI": "ESTILOS (WIKI)",
+    "CARDS": "TIPOS DE CARTA",
+    "ROLES": "ROLES",
+    "ADD_FIRST": "AÑADIR PRIMER JUGADOR",
+    "GLOBAL": "CARTAS GLOBALES",
+    "SHOWCASE": "ESCAPARATE",
+    "SQUAD_BUILDER": "CONSTRUCTOR DE EQUIPO",
+    "NEW_PLAYER": "NUEVO JUGADOR",
+    "PROFILE": "PERFIL",
+    "ULTIMATE": "ANÁLISIS ULTIMATE",
+    "APP": "APLICACIÓN",
+    "WEB": "SITIO WEB",
+    "META": "ANÁLISIS META V7",
+    "SQUAD_VAL": "VALOR DE PLANTILLA",
+    "DETAILED": "ANÁLISIS DETALLADO",
+    "OTHER_CARDS": "OTRAS CARTAS",
+    "SEASON_PERF": "RENDIMIENTO TEMPORADA",
+    "TOTAL_GOL": "GOLES TOTALES",
+    "TOTAL_AST": "ASISTENCIAS TOTALES",
+    "MATCHES": "PARTIDOS",
+    "NO_MATCH": "Aún no hay partidos.",
+    "ADD_MATCH": "AÑADIR PARTIDO",
+    "OPPONENT": "Oponente",
+    "GOAL": "Goles",
+    "ASSIST": "Asistencias",
+    "RATING": "Valoración (1-10)",
+    "ADD": "AÑADIR",
+    "CLOSE": "CERRAR",
+    "CANCEL": "CANCELAR",
+    "SAVE": "GUARDAR",
+    "CREATE_TITLE": "CREAR JUGADOR",
+    "EDIT_TITLE": "EDITAR JUGADOR",
+    "NAME": "Nombre Apellido",
+    "TEAM": "Equipo",
+    "POS": "Posición",
+    "CARD": "Tipo de Carta",
+    "ROLE": "Rol",
+    "CHEM": "Estilo de Química",
+    "MARKET": "Valor de Mercado (M€)",
+    "STYLE": "Estilo de Juego",
+    "SKILL": "Habilidades y Pie Débil",
+    "STATS": "ESTADÍSTICAS",
+    "NORMAL_PS": "PS NORMAL",
+    "PLUS_PS": "PS PLUS",
+    "SEARCH": "Buscar...",
+    "FILTER": "Todos",
+    "SORT_RTG": "Valoración",
+    "SORT_AZ": "A-Z",
+    "SORT_NEW": "Más Nuevos",
+    "OPTIONS": "Opciones",
+    "EDIT_CARD": "Editar Carta",
+    "EDIT_DESC": "Modificar atributos actuales.",
+    "NEW_VER": "Crear Nueva Versión",
+    "NEW_VER_DESC": "ej. Crear versión TOTS, TOTW.",
+    "DELETE": "Eliminar Carta",
+    "DEL_CONFIRM": "¿eliminar?",
+    "DELETE_BTN": "Eliminar",
+    "AI_ANALYSIS": "ANÁLISIS IA",
+    "EDIT_AI": "Editar Análisis",
+    "PLAYSTYLES": "ESTILOS DE JUEGO",
+    "NO_PS": "Sin estilo de juego.",
+    "CHEM_L": "Química",
+    "ROLE_L": "Rol",
+    "STYLE_L": "Estilo",
+    "SKILL_L": "Habilidad",
+    "WF_L": "Pie Débil",
+    "VAL_L": "Valor",
+    "TREND_BAL": "EQUILIBRADO",
+    "TREND_UP": "SUBIENDO 📈",
+    "TREND_DOWN": "BAJANDO 📉",
+    "GK": "PORTERO",
+    "PHY": "FÍSICO",
+    "MEN": "MENTAL",
+    "TEAM_NAME": "NOMBRE DEL EQUIPO",
+    "DOWNLOAD": "DESCARGAR (PNG)",
+    "ORIENT": "Cambiar Orientación",
+    "IMG_SAVED": "¡Imagen guardada!",
+    "CARD_NOT_FOUND": "Carta aún no creada.",
+    "NEW_P_TEAM": "Nuevo Jugador",
+    "MAKE_CAP": "Hacer Capitán",
+    "REMOVE": "Eliminar",
+    "TOTS_NAME": "EQUIPO DE LA TEMPORADA",
+    // STYLES & ROLES (ES)
+    "Temel": "Básico",
+    "Temel Kaleci": "Portero Básico",
+    "Temel Defans": "Defensa Básico",
+    "Temel Orta Saha": "Medio Básico",
+    "Temel Kanat": "Extremo Básico",
+    "Temel Forvet": "Delantero Básico",
+    "Çizgi Kalecisi": "Portero de Línea",
+    "Süpürücü Kaleci": "Portero Cierre",
+    "Oyun Kurucu Kaleci": "Portero Jugón",
+    "Savunmatik": "Defensivo",
+    "Libero": "Líbero",
+    "Oyun Kurucu Stoper": "Defensa con Toque",
+    "Tutucu": "Contención",
+    "Derin Oyun Kurucu": "Pivote Organizador",
+    "Savaşçı": "Recuperador",
+    "Oyun Kurucu": "Organizador",
+    "Box to Box": "Box to Box",
+    "Mezzala": "Mezzala",
+    "Gölge Forvet": "Segundo Delantero",
+    "Enganche": "Enganche",
+    "İç Forvet": "Delantero Interior",
+    "Kanat Oyuncusu": "Extremo",
+    "Gizli Forvet": "Delantero Sorpresa",
+    "Avcı Forvet": "Cazagoles",
+    "Hedef Forvet": "Hombre Objetivo",
+    "Yanlış 9": "Falso 9",
+    "Kanat Bek": "Carrilero",
+    "Hücum Bek": "Lateral Ofensivo",
+  }
+};
+
+String t(String key, String lang) => _appStrings[lang]?[key] ?? key;
+
+// ============================================================================
 // BÖLÜM 2: ANA EKRAN VE UI (Logic)
 // ============================================================================
 
@@ -584,6 +938,9 @@ class PaleHaxPlayersView extends StatefulWidget {
 }
 
 class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
+  String lang = "tr"; // Varsayılan Dil
+  Offset _chatbotPos = const Offset(30, 500); // Chatbot başlangıç konumu
+
   @override
   Widget build(BuildContext context) {
     final database = Provider.of<AppDatabase>(context);
@@ -595,34 +952,72 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
             backgroundColor: Colors.transparent,
             elevation: 0,
             toolbarHeight: 0,
-            bottom: const TabBar(
+            bottom: TabBar(
                 indicatorColor: Colors.cyanAccent,
                 labelColor: Colors.cyanAccent,
                 unselectedLabelColor: Colors.white54,
                 tabs: [
-                  Tab(text: "OYUNCULAR"),
-                  Tab(text: "TAKIMLAR"),
-                  Tab(text: "OYUN STİLLERİ (WIKI)"),
-                  Tab(text: "KART TİPLERİ"),
-                  Tab(text: "ROLLER")
+                  Tab(text: t("PLAYERS", lang)),
+                  Tab(text: t("TEAMS", lang)),
+                  Tab(text: t("WIKI", lang)),
+                  Tab(text: t("CARDS", lang)),
+                  Tab(text: t("ROLES", lang))
                 ]),
           ),
-          body: TabBarView(
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _SubTabPlayers(database: database),
-                _SubTabTeams(database: database),
-                const SubTabPlayStyles(),
-                const SubTabCardTypes(),
-                const SubTabRoles()
-              ]),
+          body: Stack(
+            children: [
+              TabBarView(
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _SubTabPlayers(
+                        database: database,
+                        lang: lang,
+                        onLangChange: (l) => setState(() => lang = l)),
+                    _SubTabTeams(database: database, lang: lang),
+                    SubTabPlayStyles(lang: lang),
+                    const SubTabCardTypes(),
+                    const SubTabRoles()
+                  ]),
+              // DRAGGABLE CHATBOT
+              Positioned(
+                left: _chatbotPos.dx,
+                top: _chatbotPos.dy,
+                child: GestureDetector(
+                  onPanUpdate: (details) {
+                    setState(() {
+                      _chatbotPos += details.delta;
+                    });
+                  },
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E24),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.cyanAccent, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.cyanAccent.withOpacity(0.3),
+                              blurRadius: 15,
+                              spreadRadius: 2)
+                        ]),
+                    child: const Icon(Icons.smart_toy,
+                        color: Colors.cyanAccent, size: 30),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ));
   }
 }
 
 class _SubTabPlayers extends StatefulWidget {
   final AppDatabase database;
-  const _SubTabPlayers({required this.database});
+  final String lang;
+  final Function(String) onLangChange;
+  const _SubTabPlayers(
+      {required this.database, required this.lang, required this.onLangChange});
   @override
   State<_SubTabPlayers> createState() => _SubTabPlayersState();
 }
@@ -728,9 +1123,9 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
           if (all.isEmpty)
             return Center(
                 child: ElevatedButton(
-                    onPressed: () => _showEditor(
-                        context, null, (newP, oldP) => _save(newP, oldP)),
-                    child: const Text("İLK OYUNCUYU EKLE")));
+                    onPressed: () => _showEditor(context, null,
+                        (newP, oldP) => _save(newP, oldP), widget.lang),
+                    child: Text(t("ADD_FIRST", widget.lang))));
 
           if (selectedPlayer == null ||
               !all.any((p) => p.name == selectedPlayer!.name))
@@ -773,20 +1168,22 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                                   shadowColor: Colors.transparent,
                                   padding:
                                       const EdgeInsets.symmetric(vertical: 15)),
-                              onPressed: () =>
-                                  _showGlobal(context, widget.database, (pT) {
+                              onPressed: () => _showGlobal(
+                                      context, widget.database, widget.lang,
+                                      (pT) {
                                     setState(() {
                                       selectedPlayer = _convert(pT);
                                       currentCardIndex = 0;
                                     });
                                   }),
-                              child: const Row(
+                              child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.public, color: Colors.white),
-                                    SizedBox(width: 8),
-                                    Text("GLOBAL KARTLAR",
-                                        style: TextStyle(
+                                    const Icon(Icons.public,
+                                        color: Colors.white),
+                                    const SizedBox(width: 8),
+                                    Text(t("GLOBAL", widget.lang),
+                                        style: const TextStyle(
                                             color: Colors.white,
                                             fontWeight: FontWeight.bold))
                                   ])))),
@@ -807,14 +1204,14 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                           style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,
                               shadowColor: Colors.transparent),
-                          onPressed: () =>
-                              _showGlobalShowcase(context, widget.database),
+                          onPressed: () => _showGlobalShowcase(
+                              context, widget.database, widget.lang),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const Icon(Icons.stars, color: Colors.cyanAccent),
                               const SizedBox(width: 8),
-                              Text("VİTRİN",
+                              Text(t("SHOWCASE", widget.lang),
                                   style: GoogleFonts.russoOne(
                                       color: Colors.cyanAccent, fontSize: 14)),
                             ],
@@ -835,15 +1232,15 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                           style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,
                               shadowColor: Colors.transparent),
-                          onPressed: () =>
-                              _showSquadBuilder(context, widget.database),
-                          child: const Row(
+                          onPressed: () => _showSquadBuilder(
+                              context, widget.database, widget.lang),
+                          child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.view_quilt, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text("VİTRİN TAKIMLARI",
-                                  style: TextStyle(
+                              const Icon(Icons.view_quilt, color: Colors.white),
+                              const SizedBox(width: 8),
+                              Text(t("SQUAD_BUILDER", widget.lang),
+                                  style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold)),
                             ],
@@ -856,12 +1253,15 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                       child: SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                              onPressed: () => _showEditor(context, null,
-                                  (newP, oldP) => _save(newP, oldP)),
+                              onPressed: () => _showEditor(
+                                  context,
+                                  null,
+                                  (newP, oldP) => _save(newP, oldP),
+                                  widget.lang),
                               icon: const Icon(Icons.person_add,
                                   color: Colors.black, size: 20),
-                              label: const Text("YENİ OYUNCU",
-                                  style: TextStyle(
+                              label: Text(t("NEW_PLAYER", widget.lang),
+                                  style: const TextStyle(
                                       color: Colors.black,
                                       fontWeight: FontWeight.bold)),
                               style: ElevatedButton.styleFrom(
@@ -904,34 +1304,60 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                           fontSize: 22,
                           letterSpacing: 5,
                           fontWeight: FontWeight.bold))),
-              Container(
-                  color: Colors.black26,
-                  child: TabBar(
-                      controller: _innerTabController,
-                      indicatorColor: Colors.cyanAccent,
-                      labelColor: Colors.cyanAccent,
-                      unselectedLabelColor: Colors.white54,
-                      tabs: const [
-                        Tab(text: "PROFİL"),
-                        Tab(text: "ULTIMATE ANALİZ")
-                      ])),
               Expanded(
-                  child: TabBarView(controller: _innerTabController, children: [
-                _ViewProfile(
-                    player: displayPlayer,
-                    versions: versions,
-                    onSelect: (p) => setState(() {
-                          selectedPlayer = p;
-                          currentCardIndex = versions.indexOf(p);
-                        })),
-                _ViewUltimate(
-                    player: displayPlayer,
-                    versions: versions,
-                    index: currentCardIndex,
-                    onIndex: (i) => setState(() => currentCardIndex = i),
-                    context: context,
-                    onSave: (newP, oldP) => _save(newP, oldP),
-                    onDelete: (p) => _delete(p))
+                  child: Stack(children: [
+                Column(children: [
+                  Container(
+                      color: Colors.black26,
+                      child: TabBar(
+                          controller: _innerTabController,
+                          indicatorColor: Colors.cyanAccent,
+                          labelColor: Colors.cyanAccent,
+                          unselectedLabelColor: Colors.white54,
+                          tabs: [
+                            Tab(text: t("PROFILE", widget.lang)),
+                            Tab(text: t("ULTIMATE", widget.lang))
+                          ])),
+                  Expanded(
+                      child: TabBarView(
+                          controller: _innerTabController,
+                          children: [
+                        _ViewProfile(
+                            player: displayPlayer,
+                            versions: versions,
+                            lang: widget.lang,
+                            onSelect: (p) => setState(() {
+                                  selectedPlayer = p;
+                                  currentCardIndex = versions.indexOf(p);
+                                })),
+                        _ViewUltimate(
+                            player: displayPlayer,
+                            versions: versions,
+                            index: currentCardIndex,
+                            lang: widget.lang,
+                            onIndex: (i) =>
+                                setState(() => currentCardIndex = i),
+                            context: context,
+                            onSave: (newP, oldP) => _save(newP, oldP),
+                            onDelete: (p) => _delete(p))
+                      ]))
+                ]),
+                Positioned(
+                    bottom: 10,
+                    left: 10,
+                    child: PopupMenuButton<String>(
+                        icon: const Icon(Icons.drag_handle,
+                            color: Colors.white12),
+                        tooltip: "Language / Dil",
+                        onSelected: widget.onLangChange,
+                        itemBuilder: (c) => [
+                              const PopupMenuItem(
+                                  value: "tr", child: Text("Türkçe")),
+                              const PopupMenuItem(
+                                  value: "en", child: Text("English")),
+                              const PopupMenuItem(
+                                  value: "es", child: Text("Español")),
+                            ]))
               ]))
             ]))
           ]);
@@ -982,7 +1408,8 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
 
 class _SubTabTeams extends StatefulWidget {
   final AppDatabase database;
-  const _SubTabTeams({required this.database});
+  final String lang;
+  const _SubTabTeams({required this.database, required this.lang});
   @override
   State<_SubTabTeams> createState() => _SubTabTeamsState();
 }
@@ -1010,8 +1437,10 @@ class _SubTabTeamsState extends State<_SubTabTeams> {
                   color: Colors.white10,
                   borderRadius: BorderRadius.circular(20)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                _btn("UYGULAMA", !isWeb, () => setState(() => isWeb = false)),
-                _btn("WEB SİTESİ", isWeb, () => setState(() => isWeb = true))
+                _btn(t("APP", widget.lang), !isWeb,
+                    () => setState(() => isWeb = false)),
+                _btn(t("WEB", widget.lang), isWeb,
+                    () => setState(() => isWeb = true))
               ]))),
       const SizedBox(height: 15),
       Expanded(
@@ -1036,8 +1465,8 @@ class _SubTabTeamsState extends State<_SubTabTeams> {
                   if (name == "It Spor") logo = "assets/takimlar/itspor.png";
                   String marketValue = teamMarketValues[name] ?? "€0M";
                   return GestureDetector(
-                      onTap: () =>
-                          _showTeamDialog(context, name, logo, widget.database),
+                      onTap: () => _showTeamDialog(
+                          context, name, logo, widget.database, widget.lang),
                       child: Container(
                           width: 200,
                           height: 210,
@@ -1082,7 +1511,8 @@ class _SubTabTeamsState extends State<_SubTabTeams> {
 // ============================================================================
 
 class SubTabPlayStyles extends StatelessWidget {
-  const SubTabPlayStyles({super.key});
+  final String lang;
+  const SubTabPlayStyles({super.key, required this.lang});
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -1102,7 +1532,7 @@ class SubTabPlayStyles extends StatelessWidget {
                 Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("V7 META ANALİZİ",
+                      Text(t("META", lang),
                           style: GoogleFonts.orbitron(
                               color: Colors.cyanAccent,
                               fontSize: 24,
@@ -1359,8 +1789,12 @@ class _ViewProfile extends StatelessWidget {
   final Player player;
   final List<Player> versions;
   final Function(Player) onSelect;
+  final String lang;
   const _ViewProfile(
-      {required this.player, required this.versions, required this.onSelect});
+      {required this.player,
+      required this.versions,
+      required this.onSelect,
+      required this.lang});
 
   @override
   Widget build(BuildContext context) {
@@ -1398,12 +1832,12 @@ class _ViewProfile extends StatelessWidget {
                                 width: 220,
                                 height: 55,
                                 child: ElevatedButton.icon(
-                                    onPressed: () =>
-                                        _showDetailedStats(context, player),
+                                    onPressed: () => _showDetailedStats(
+                                        context, player, lang),
                                     icon: const Icon(Icons.analytics,
                                         color: Colors.black, size: 24),
-                                    label: const Text("DETAYLI ANALİZ",
-                                        style: TextStyle(
+                                    label: Text(t("DETAYLI ANALİZ", lang),
+                                        style: const TextStyle(
                                             color: Colors.black,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 16)),
@@ -1414,7 +1848,7 @@ class _ViewProfile extends StatelessWidget {
                                                 BorderRadius.circular(12))))))
                       ]),
                   const SizedBox(height: 35),
-                  Text("OYUN STİLLERİ",
+                  Text(t("PLAYSTYLES", lang),
                       style: GoogleFonts.orbitron(
                           color: Colors.amber,
                           fontWeight: FontWeight.bold,
@@ -1456,7 +1890,7 @@ class _ViewProfile extends StatelessWidget {
                       }).toList()),
                   const SizedBox(height: 40),
                   if (versions.length > 1) ...[
-                    Text("OYUNCUNUN DİĞER KARTLARI",
+                    Text(t("OTHER_CARDS", lang),
                         style: GoogleFonts.orbitron(
                             color: Colors.purpleAccent,
                             fontWeight: FontWeight.bold,
@@ -1506,6 +1940,7 @@ class _ViewUltimate extends StatefulWidget {
   final BuildContext context;
   final Function(Player, Player?) onSave;
   final Function(Player) onDelete;
+  final String lang;
 
   const _ViewUltimate({
     super.key,
@@ -1516,6 +1951,7 @@ class _ViewUltimate extends StatefulWidget {
     required this.context,
     required this.onSave,
     required this.onDelete,
+    required this.lang,
   });
 
   @override
@@ -1564,6 +2000,10 @@ class _ViewUltimateState extends State<_ViewUltimate> {
       }
       _generateAiDescription();
     }
+    // Dil değişirse yeniden oluştur
+    if (oldWidget.lang != widget.lang) {
+      _generateAiDescription();
+    }
   }
 
   void _generateAiDescription() {
@@ -1580,51 +2020,50 @@ class _ViewUltimateState extends State<_ViewUltimate> {
     String styleName = p.style;
 
     if (sho > 85) {
-      sentences.add(
-          "Sezon içerisinde attığı gollerin kalitesi ve bitiriciliği ile rakip kalecilerin korkulu rüyası.");
+      sentences.add(t("AI_SENTENCE_1", widget.lang));
     } else if (sho > 75) {
-      sentences.add(
-          "Boşlukları kollayıp doğru açıdan vurduğunda affetmeyen bir bitirici.");
+      sentences.add(t("AI_SENTENCE_2", widget.lang));
     }
 
     if (pas > 85) {
-      sentences.add(
-          "Oyun görüşü o kadar üst düzey ki, attığı milimetrik paslarla takımını bir maestro gibi yönetiyor.");
+      sentences.add(t("AI_SENTENCE_3", widget.lang));
     }
 
     if (dri > 85) {
-      sentences.add(
-          "Top ayağına yapıştığında durdurulması imkansız, adam eksiltme konusunda tam bir sanatçı.");
+      sentences.add(t("AI_SENTENCE_4", widget.lang));
     }
 
     if (def > 85) {
-      sentences.add(
-          "Savunmada adeta bir duvar; kademe anlayışı ve top çalma yeteneğiyle geçit vermiyor.");
+      sentences.add(t("AI_SENTENCE_5", widget.lang));
     }
 
     if (phy > 85) {
-      sentences.add(
-          "İkili mücadelelerdeki fiziksel üstünlüğü ile sahada dominasyon kuruyor.");
+      sentences.add(t("AI_SENTENCE_6", widget.lang));
     }
 
     if (pac > 90) {
-      sentences.add(
-          "Rüzgarın oğlu! Savunma arkasına yaptığı koşularda onu yakalamak neredeyse imkansız.");
+      sentences.add(t("AI_SENTENCE_7", widget.lang));
     }
 
     // STİL ANALİZİ (YENİ)
     if (styleName != "Temel" && styleName != "Temel Kaleci") {
       String tierText = "";
       if (p.styleTier == 2)
-        tierText = "Dünya çapında bir";
-      else if (p.styleTier == 1) tierText = "Elit seviyede bir";
+        tierText = t("STYLE_TIER_2", widget.lang);
+      else if (p.styleTier == 1) tierText = t("STYLE_TIER_1", widget.lang);
 
       if (p.styleTier > 0) {
-        sentences.add(
-            "Oyun stili olarak tam anlamıyla $tierText $styleName performansı sergiliyor.");
-        if (p.styleTier == 2) {
+        if (widget.lang == "tr") {
           sentences.add(
-              "Bu rolde o kadar ustalaşmış ki, taktik tahtasında ismi yazılan ilk oyunculardan.");
+              "Oyun stili olarak tam anlamıyla $tierText $styleName performansı sergiliyor.");
+        } else {
+          String translatedStyle = t(styleName, widget.lang);
+          sentences.add(
+              "${t("AI_SENTENCE_8", widget.lang)} $tierText $translatedStyle ${t("AI_SENTENCE_9", widget.lang)}");
+        }
+
+        if (p.styleTier == 2) {
+          sentences.add(t("AI_SENTENCE_10", widget.lang));
         }
       }
     }
@@ -1632,30 +2071,24 @@ class _ViewUltimateState extends State<_ViewUltimate> {
     // PlayStyle Analizi
     for (var ps in p.playstyles) {
       if (ps.name == "Acrobatic") {
-        sentences.add(
-            "Akrobatik pas ve şutları o kadar estetik kullanıyor ki izleyenleri büyülüyor.");
+        sentences.add(t("AI_SENTENCE_11", widget.lang));
       }
       if (ps.name == "PowerShot") {
-        sentences.add(
-            "Ayağından çıkan füzelerle kaleyi uzaktan yoklamayı çok seviyor.");
+        sentences.add(t("AI_SENTENCE_12", widget.lang));
       }
       if (ps.name == "TikiTaka") {
-        sentences.add(
-            "Dar alanda kısa paslaşmalarda hata yapmıyor, oyunun temposunu belirliyor.");
+        sentences.add(t("AI_SENTENCE_13", widget.lang));
       }
       if (ps.name == "Trivela") {
-        sentences.add(
-            "Ayağının dışıyla yaptığı vuruşlar fizik kurallarına meydan okuyor.");
+        sentences.add(t("AI_SENTENCE_14", widget.lang));
       }
       if (ps.name == "DeadBall") {
-        sentences.add(
-            "Duran topların başına geçtiğinde gol olması işten bile değil.");
+        sentences.add(t("AI_SENTENCE_15", widget.lang));
       }
     }
 
     if (sentences.isEmpty) {
-      sentences.add(
-          "Sahada görevini layıkıyla yapan, takım oyununa sadık bir profil çiziyor.");
+      sentences.add(t("AI_SENTENCE_DEFAULT", widget.lang));
     }
 
     setState(() {
@@ -1669,8 +2102,8 @@ class _ViewUltimateState extends State<_ViewUltimate> {
         context: context,
         builder: (ctx) => AlertDialog(
               backgroundColor: const Color(0xFF1E1E24),
-              title: const Text("Analizi Düzenle",
-                  style: TextStyle(color: Colors.cyanAccent)),
+              title: Text(t("EDIT_AI", widget.lang),
+                  style: const TextStyle(color: Colors.cyanAccent)),
               content: TextField(
                 controller: c,
                 maxLines: 10,
@@ -1681,13 +2114,13 @@ class _ViewUltimateState extends State<_ViewUltimate> {
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text("İptal")),
+                    child: Text(t("CANCEL", widget.lang))),
                 ElevatedButton(
                     onPressed: () {
                       setState(() => aiDescription = c.text);
                       Navigator.pop(ctx);
                     },
-                    child: const Text("Kaydet"))
+                    child: Text(t("SAVE", widget.lang)))
               ],
             ));
   }
@@ -1701,7 +2134,8 @@ class _ViewUltimateState extends State<_ViewUltimate> {
       teamLogo = "assets/takimlar/riverplate.png";
     if (player.team == "It Spor") teamLogo = "assets/takimlar/itspor.png";
 
-    String styleDisplay = player.style;
+    // STİL İSMİNİ ÇEVİR
+    String styleDisplay = t(player.style, widget.lang);
     if (player.styleTier == 1) styleDisplay += "+";
     if (player.styleTier == 2) styleDisplay += "++";
 
@@ -1762,7 +2196,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                     ),
                     const SizedBox(height: 25),
 
-                    Text("OYUN STİLLERİ",
+                    Text(t("PLAYSTYLES", widget.lang),
                         style: GoogleFonts.russoOne(
                             fontSize: 16, color: Colors.amber)),
                     const SizedBox(height: 10),
@@ -1793,7 +2227,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                                   const Icon(Icons.auto_awesome,
                                       color: Colors.amber, size: 20),
                                   const SizedBox(width: 10),
-                                  Text("AI ANALİZ",
+                                  Text(t("AI_ANALYSIS", widget.lang),
                                       style: GoogleFonts.orbitron(
                                           color: Colors.amber,
                                           fontWeight: FontWeight.bold)),
@@ -1829,20 +2263,26 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                       spacing: 15,
                       runSpacing: 10,
                       children: [
-                        _buildInfoTag(Icons.science, "Kimya",
+                        _buildInfoTag(Icons.science, t("CHEM_L", widget.lang),
                             player.chemistryStyle, Colors.purpleAccent),
-                        _buildInfoTag(Icons.theater_comedy, "Rol", player.role,
+                        _buildInfoTag(
+                            Icons.theater_comedy,
+                            t("ROLE_L", widget.lang),
+                            t(player.role, widget.lang), // ROLÜ ÇEVİR
                             Colors.orangeAccent),
                         // YENİ SIRALAMA: Kimya -> Rol -> Stil -> Skill
-                        _buildInfoTag(Icons.style, "Stil", styleDisplay,
-                            Colors.cyanAccent,
+                        _buildInfoTag(Icons.style, t("STYLE_L", widget.lang),
+                            styleDisplay, Colors.cyanAccent,
                             isNeon: true),
-                        _buildInfoTag(Icons.star, "Yetenek",
+                        _buildInfoTag(Icons.star, t("SKILL_L", widget.lang),
                             "${player.skillMoves} ✭", Colors.yellowAccent),
-                        _buildInfoTag(Icons.sports_football, "Zayıf Ayak",
-                            "${player.stats['WF'] ?? 3} ✭", Colors.redAccent),
-                        _buildInfoTag(Icons.euro, "Değer", player.marketValue,
-                            Colors.greenAccent),
+                        _buildInfoTag(
+                            Icons.sports_football,
+                            t("WF_L", widget.lang),
+                            "${player.stats['WF'] ?? 3} ✭",
+                            Colors.redAccent),
+                        _buildInfoTag(Icons.euro, t("VAL_L", widget.lang),
+                            player.marketValue, Colors.greenAccent),
                       ],
                     ),
                   ],
@@ -1866,6 +2306,14 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                     String category = entry.key;
                     List<String> statsList = entry.value;
 
+                    String catTrans = category == "Kaleci"
+                        ? t("GK", widget.lang)
+                        : (category == "Fizik"
+                            ? t("PHY", widget.lang)
+                            : (category == "Zeka"
+                                ? t("MEN", widget.lang)
+                                : category));
+
                     if (isGK && !['Kaleci', 'Fizik', 'Zeka'].contains(category))
                       return const SizedBox.shrink();
                     if (!isGK && category == 'Kaleci')
@@ -1881,7 +2329,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                               const Icon(Icons.bar_chart,
                                   color: Colors.cyanAccent, size: 20),
                               const SizedBox(width: 10),
-                              Text(category.toUpperCase(),
+                              Text(catTrans.toUpperCase(),
                                   style: GoogleFonts.russoOne(
                                       color: Colors.cyanAccent, fontSize: 18)),
                             ],
@@ -1922,27 +2370,26 @@ class _ViewUltimateState extends State<_ViewUltimate> {
             children: [
               ListTile(
                 leading: const Icon(Icons.edit, color: Colors.cyanAccent),
-                title: const Text("Kartı Düzenle",
-                    style: TextStyle(color: Colors.white)),
-                subtitle: const Text("Mevcut kartın özelliklerini değiştirir.",
-                    style: TextStyle(color: Colors.white54)),
+                title: Text(t("EDIT_CARD", widget.lang),
+                    style: const TextStyle(color: Colors.white)),
+                subtitle: Text(t("EDIT_DESC", widget.lang),
+                    style: const TextStyle(color: Colors.white54)),
                 onTap: () {
                   Navigator.pop(c);
-                  _showEditor(
-                      context, p, (newP, oldP) => widget.onSave(newP, oldP));
+                  _showEditor(context, p,
+                      (newP, oldP) => widget.onSave(newP, oldP), widget.lang);
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.copy, color: Colors.amber),
-                title: const Text("Yeni Versiyon Oluştur",
-                    style: TextStyle(color: Colors.white)),
-                subtitle: const Text(
-                    "Örn: TOTS, TOTW gibi yeni bir kart çıkarır.",
-                    style: TextStyle(color: Colors.white54)),
+                title: Text(t("NEW_VER", widget.lang),
+                    style: const TextStyle(color: Colors.white)),
+                subtitle: Text(t("NEW_VER_DESC", widget.lang),
+                    style: const TextStyle(color: Colors.white54)),
                 onTap: () {
                   Navigator.pop(c);
-                  _createVersion(
-                      context, p, (newP) => widget.onSave(newP, null));
+                  _createVersion(context, p,
+                      (newP) => widget.onSave(newP, null), widget.lang);
                 },
               ),
             ],
@@ -1959,13 +2406,13 @@ class _ViewUltimateState extends State<_ViewUltimate> {
         manualMatches.map((m) => (m['r'] as int).toDouble()).toList();
 
     // Trend Analizi
-    String trend = "DENGELİ";
+    String trend = t("TREND_BAL", widget.lang);
     if (ratings.length >= 2) {
       trend = ratings.last > ratings[ratings.length - 2]
-          ? "YÜKSELİŞTE 📈"
+          ? t("TREND_UP", widget.lang)
           : (ratings.last < ratings[ratings.length - 2]
-              ? "DÜŞÜŞTE 📉"
-              : "DENGELİ");
+              ? t("TREND_DOWN", widget.lang)
+              : t("TREND_BAL", widget.lang));
     }
 
     return Container(
@@ -1980,24 +2427,22 @@ class _ViewUltimateState extends State<_ViewUltimate> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("SEZON PERFORMANSI",
+              Text(t("SEASON_PERF", widget.lang),
                   style: GoogleFonts.orbitron(
                       color: Colors.greenAccent,
                       fontSize: 22,
                       fontWeight: FontWeight.bold)),
               Text(trend,
                   style: TextStyle(
-                      color: trend.contains("YÜKSELİŞ")
+                      color: trend.contains("📈")
                           ? Colors.green
-                          : (trend.contains("DÜŞÜŞ")
-                              ? Colors.red
-                              : Colors.amber),
+                          : (trend.contains("📉") ? Colors.red : Colors.amber),
                       fontWeight: FontWeight.bold)),
               ElevatedButton.icon(
                 onPressed: _addMatchDialog,
                 icon: const Icon(Icons.add, color: Colors.black),
-                label: const Text("MAÇ EKLE",
-                    style: TextStyle(
+                label: Text(t("ADD_MATCH", widget.lang),
+                    style: const TextStyle(
                         color: Colors.black, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.greenAccent),
@@ -2007,11 +2452,14 @@ class _ViewUltimateState extends State<_ViewUltimate> {
           const SizedBox(height: 20),
           Row(
             children: [
-              _statCard("TOPLAM GOL", "$totalGoals", Colors.orange),
+              _statCard(
+                  t("TOTAL_GOL", widget.lang), "$totalGoals", Colors.orange),
               const SizedBox(width: 20),
-              _statCard("TOPLAM ASİST", "$totalAssists", Colors.cyan),
+              _statCard(
+                  t("TOTAL_AST", widget.lang), "$totalAssists", Colors.cyan),
               const SizedBox(width: 20),
-              _statCard("MAÇ SAYISI", "${manualMatches.length}", Colors.purple),
+              _statCard(t("MATCHES", widget.lang), "${manualMatches.length}",
+                  Colors.purple),
             ],
           ),
           const SizedBox(height: 30),
@@ -2024,9 +2472,9 @@ class _ViewUltimateState extends State<_ViewUltimate> {
               child: CustomPaint(painter: _RatingGraphPainter(ratings)),
             )
           else
-            const Center(
-                child: Text("Henüz maç girilmedi.",
-                    style: TextStyle(color: Colors.white24))),
+            Center(
+                child: Text(t("NO_MATCH", widget.lang),
+                    style: const TextStyle(color: Colors.white24))),
           const SizedBox(height: 20),
           const Divider(color: Colors.white10),
           // LİSTE
@@ -2071,14 +2519,14 @@ class _ViewUltimateState extends State<_ViewUltimate> {
         context: context,
         builder: (c) => AlertDialog(
               backgroundColor: const Color(0xFF1E1E24),
-              title: const Text("Maç Ekle"),
+              title: Text(t("ADD_MATCH", widget.lang)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                       controller: oppC,
-                      decoration: const InputDecoration(
-                          labelText: "Rakip Takım", filled: true),
+                      decoration: InputDecoration(
+                          labelText: t("OPPONENT", widget.lang), filled: true),
                       style: const TextStyle(color: Colors.white)),
                   const SizedBox(height: 10),
                   Row(
@@ -2086,16 +2534,18 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                       Expanded(
                           child: TextField(
                               controller: golC,
-                              decoration: const InputDecoration(
-                                  labelText: "Gol", filled: true),
+                              decoration: InputDecoration(
+                                  labelText: t("GOAL", widget.lang),
+                                  filled: true),
                               keyboardType: TextInputType.number,
                               style: const TextStyle(color: Colors.white))),
                       const SizedBox(width: 10),
                       Expanded(
                           child: TextField(
                               controller: astC,
-                              decoration: const InputDecoration(
-                                  labelText: "Asist", filled: true),
+                              decoration: InputDecoration(
+                                  labelText: t("ASSIST", widget.lang),
+                                  filled: true),
                               keyboardType: TextInputType.number,
                               style: const TextStyle(color: Colors.white))),
                     ],
@@ -2103,8 +2553,8 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                   const SizedBox(height: 10),
                   TextField(
                       controller: ratC,
-                      decoration: const InputDecoration(
-                          labelText: "Maç Reytingi (1-10)", filled: true),
+                      decoration: InputDecoration(
+                          labelText: t("RATING", widget.lang), filled: true),
                       keyboardType: TextInputType.number,
                       style: const TextStyle(color: Colors.white)),
                 ],
@@ -2143,7 +2593,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                       });
                       Navigator.pop(c);
                     },
-                    child: const Text("EKLE"))
+                    child: Text(t("ADD", widget.lang)))
               ],
             ));
   }
@@ -2151,7 +2601,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
   // DÜZELTME: PlayStyle Plus ikonlarını doğru klasörden alan fonksiyon
   Widget _buildPlayStylesList(Player p) {
     if (p.playstyles.isEmpty)
-      return Text("Oyun stili yok.",
+      return Text(t("NO_PS", widget.lang),
           style: GoogleFonts.montserrat(color: Colors.white54));
     return Wrap(
       spacing: 15,
@@ -2323,8 +2773,8 @@ class _RatingGraphPainter extends CustomPainter {
 // BÖLÜM 4: GLOBAL YARDIMCI METODLAR VE WIDGET'LAR
 // ============================================================================
 
-void _showTeamDialog(
-    BuildContext context, String teamName, String? logo, AppDatabase db) {
+void _showTeamDialog(BuildContext context, String teamName, String? logo,
+    AppDatabase db, String lang) {
   List<String> roster = List.from(manualTeamRosters[teamName] ?? []);
   String marketValue = teamMarketValues[teamName] ?? "€0M";
   showDialog(
@@ -2363,10 +2813,11 @@ void _showTeamDialog(
                                 onPressed: () => _addNewPlayerToRoster(
                                     context,
                                     teamName,
+                                    lang,
                                     (newName) => setModalState(
                                         () => roster.add(newName))))
                           ]),
-                      Text("KADRO DEĞERİ: $marketValue",
+                      Text("${t("SQUAD_VAL", lang)}: $marketValue",
                           style: GoogleFonts.russoOne(
                               color: Colors.greenAccent, fontSize: 18)),
                       const Divider(color: Colors.white24),
@@ -2379,7 +2830,7 @@ void _showTeamDialog(
                                 String clean = raw.replaceAll("⭐", "").trim();
                                 return ListTile(
                                     onTap: () =>
-                                        _tryOpenCard(context, db, clean),
+                                        _tryOpenCard(context, db, clean, lang),
                                     leading: Text("${i + 1}.",
                                         style: TextStyle(
                                             color: isCap
@@ -2414,14 +2865,15 @@ void _showTeamDialog(
                                                   });
                                               },
                                               itemBuilder: (c) => [
-                                                    const PopupMenuItem(
+                                                    PopupMenuItem(
                                                         value: 'make_cap',
-                                                        child:
-                                                            Text("Kaptan Yap")),
-                                                    const PopupMenuItem(
+                                                        child: Text(t(
+                                                            "MAKE_CAP", lang))),
+                                                    PopupMenuItem(
                                                         value: 'remove',
-                                                        child: Text("Sil",
-                                                            style: TextStyle(
+                                                        child: Text(
+                                                            t("REMOVE", lang),
+                                                            style: const TextStyle(
                                                                 color: Colors
                                                                     .redAccent)))
                                                   ])
@@ -2429,27 +2881,27 @@ void _showTeamDialog(
                               })),
                       ElevatedButton(
                           onPressed: () => Navigator.pop(context),
-                          child: const Text("KAPAT"))
+                          child: Text(t("CLOSE", lang)))
                     ])));
           }));
 }
 
-void _addNewPlayerToRoster(
-    BuildContext context, String teamName, Function(String) onAdd) {
+void _addNewPlayerToRoster(BuildContext context, String teamName, String lang,
+    Function(String) onAdd) {
   TextEditingController ctrl = TextEditingController();
   showDialog(
       context: context,
       builder: (context) => AlertDialog(
               backgroundColor: const Color(0xFF1E1E24),
-              title: Text("$teamName - Yeni Oyuncu"),
+              title: Text("$teamName - ${t("NEW_P_TEAM", lang)}"),
               content: TextField(
                   controller: ctrl,
                   style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(hintText: "Ad Soyad")),
+                  decoration: InputDecoration(hintText: t("NAME", lang))),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text("İptal")),
+                    child: Text(t("CANCEL", lang))),
                 ElevatedButton(
                     onPressed: () {
                       if (ctrl.text.isNotEmpty) {
@@ -2457,12 +2909,12 @@ void _addNewPlayerToRoster(
                         Navigator.pop(context);
                       }
                     },
-                    child: const Text("Ekle"))
+                    child: Text(t("ADD", lang)))
               ]));
 }
 
-void _tryOpenCard(
-    BuildContext context, AppDatabase db, String playerName) async {
+void _tryOpenCard(BuildContext context, AppDatabase db, String playerName,
+    String lang) async {
   final allPlayers = await db.select(db.playerTables).get();
   try {
     final match = allPlayers.firstWhere(
@@ -2489,16 +2941,16 @@ void _tryOpenCard(
               const SizedBox(height: 20),
               ElevatedButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text("KAPAT"))
+                  child: Text(t("CLOSE", lang)))
             ])));
   } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text("Bu oyuncunun kartı henüz oluşturulmamış."),
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(t("CARD_NOT_FOUND", lang)),
         backgroundColor: Colors.redAccent));
   }
 }
 
-void _showDetailedStats(BuildContext context, Player p) {
+void _showDetailedStats(BuildContext context, Player p, String lang) {
   showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -2508,7 +2960,7 @@ void _showDetailedStats(BuildContext context, Player p) {
               height: 700,
               padding: const EdgeInsets.all(30),
               child: Column(children: [
-                Text("DETAYLI OYUNCU ANALİZİ",
+                Text(t("DETAYLI ANALİZ", lang),
                     style: GoogleFonts.orbitron(
                         color: Colors.cyanAccent,
                         fontSize: 24,
@@ -2574,13 +3026,13 @@ void _showDetailedStats(BuildContext context, Player p) {
                     onPressed: () => Navigator.pop(context),
                     style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white10),
-                    child: const Text("KAPAT"))
+                    child: Text(t("CLOSE", lang)))
               ]))));
 }
 
-void _showGlobal(
-    BuildContext context, AppDatabase db, Function(dynamic) onSelect) {
-  String sort = "Reyting", filter = "Tümü", query = "";
+void _showGlobal(BuildContext context, AppDatabase db, String lang,
+    Function(dynamic) onSelect) {
+  String sort = t("SORT_RTG", lang), filter = t("FILTER", lang), query = "";
   showDialog(
       context: context,
       builder: (c) => StatefulBuilder(
@@ -2596,9 +3048,9 @@ void _showGlobal(
                           width: 250,
                           child: TextField(
                               style: const TextStyle(color: Colors.white),
-                              decoration: const InputDecoration(
-                                  hintText: "Ara...",
-                                  prefixIcon: Icon(Icons.search,
+                              decoration: InputDecoration(
+                                  hintText: t("SEARCH", lang),
+                                  prefixIcon: const Icon(Icons.search,
                                       color: Colors.cyanAccent)),
                               onChanged: (v) => setS(() => query = v))),
                       const SizedBox(width: 30),
@@ -2606,7 +3058,7 @@ void _showGlobal(
                           value: filter,
                           dropdownColor: const Color(0xFF1E1E24),
                           style: const TextStyle(color: Colors.white),
-                          items: ["Tümü", ...pd.globalCardTypes]
+                          items: [t("FILTER", lang), ...pd.globalCardTypes]
                               .map((e) =>
                                   DropdownMenuItem(value: e, child: Text(e)))
                               .toList(),
@@ -2616,7 +3068,11 @@ void _showGlobal(
                           value: sort,
                           dropdownColor: const Color(0xFF1E1E24),
                           style: const TextStyle(color: Colors.white),
-                          items: ["Reyting", "A-Z", "En Yeni"]
+                          items: [
+                            t("SORT_RTG", lang),
+                            t("SORT_AZ", lang),
+                            t("SORT_NEW", lang)
+                          ]
                               .map((e) =>
                                   DropdownMenuItem(value: e, child: Text(e)))
                               .toList(),
@@ -2760,35 +3216,33 @@ Widget _buildMatchHistory(Player p, bool showRec) {
 }
 
 Widget _buildCardMenu(BuildContext context, Player p, Function(Player) onSave,
-    Function(Player) onDelete) {
+    Function(Player) onDelete, String lang) {
   return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert, color: Colors.white),
       color: const Color(0xFF1E1E24),
       onSelected: (val) {
         if (val == 'edit')
-          _showEditor(
-              context,
-              p,
-              (newP, oldP) => onSave(
-                  newP)); // onSave burada sadece yeni player alıyor, wrapper gerekebilir ama _ViewProfile içinde onSave zaten tek parametreli tanımlanmış, bu yüzden _ViewProfile'ı güncellememiz gerekebilir veya _showEditor'ı uyarlamalıyız.
+          _showEditor(context, p, (newP, oldP) => onSave(newP),
+              lang); // onSave burada sadece yeni player alıyor, wrapper gerekebilir ama _ViewProfile içinde onSave zaten tek parametreli tanımlanmış, bu yüzden _ViewProfile'ı güncellememiz gerekebilir veya _showEditor'ı uyarlamalıyız.
         // DÜZELTME: _ViewProfile içindeki onSave tek parametreli (Player). Ancak _showEditor artık (Player, Player?) istiyor.
         // Bu yüzden _ViewProfile'ı güncellemek yerine _showEditor çağrısını düzeltelim.
-        _showEditor(context, p, (newP, oldP) => onSave(newP));
+        _showEditor(context, p, (newP, oldP) => onSave(newP), lang);
         if (val == 'delete') {
           showDialog(
               context: context,
               builder: (BuildContext context) {
                 return AlertDialog(
                     backgroundColor: const Color(0xFF1E1E24),
-                    title: const Text("Kartı Sil"),
-                    content: Text("${p.name} (${p.cardType}) silinsin mi?"),
+                    title: Text(t("DELETE", lang)),
+                    content: Text(
+                        "${p.name} (${p.cardType}) ${t("DEL_CONFIRM", lang)}"),
                     actions: [
                       TextButton(
-                          child: const Text("İptal"),
+                          child: Text(t("CANCEL", lang)),
                           onPressed: () => Navigator.pop(context)),
                       TextButton(
-                          child: const Text("Sil",
-                              style: TextStyle(color: Colors.redAccent)),
+                          child: Text(t("DELETE_BTN", lang),
+                              style: const TextStyle(color: Colors.redAccent)),
                           onPressed: () {
                             onDelete(p);
                             Navigator.pop(context);
@@ -2798,14 +3252,16 @@ Widget _buildCardMenu(BuildContext context, Player p, Function(Player) onSave,
         }
       },
       itemBuilder: (c) => [
-            const PopupMenuItem(value: 'edit', child: Text("Düzenle")),
-            const PopupMenuItem(
+            PopupMenuItem(value: 'edit', child: Text(t("EDIT_CARD", lang))),
+            PopupMenuItem(
                 value: 'delete',
-                child: Text("Sil", style: TextStyle(color: Colors.redAccent)))
+                child: Text(t("DELETE_BTN", lang),
+                    style: const TextStyle(color: Colors.redAccent)))
           ]);
 }
 
-void _createVersion(BuildContext context, Player p, Function(Player) onSave) {
+void _createVersion(
+    BuildContext context, Player p, Function(Player) onSave, String lang) {
   Player nV = Player(
       name: p.name,
       rating: p.rating,
@@ -2826,6 +3282,7 @@ void _createVersion(BuildContext context, Player p, Function(Player) onSave) {
       builder: (c) => CreatePlayerDialog(
           playerToEdit: nV,
           isNewVersion: true,
+          lang: lang,
           onSave: (p) {
             if (p != null) onSave(p);
           }));
@@ -2835,7 +3292,8 @@ void _createVersion(BuildContext context, Player p, Function(Player) onSave) {
 // BÖLÜM 6: VİTRİN VE SQUAD BUILDER FONKSİYONLARI
 // ============================================================================
 
-void _showGlobalShowcase(BuildContext context, AppDatabase db) async {
+void _showGlobalShowcase(
+    BuildContext context, AppDatabase db, String lang) async {
   // Verileri çek
   final allRows = await db.select(db.playerTables).get();
 
@@ -2882,13 +3340,15 @@ void _showGlobalShowcase(BuildContext context, AppDatabase db) async {
 
   showDialog(
       context: context,
-      builder: (c) => _ShowcaseDialog(groupedPlayers: groupedPlayers));
+      builder: (c) =>
+          _ShowcaseDialog(groupedPlayers: groupedPlayers, lang: lang));
 }
 
 // Animasyonlu Arka Plan İçin Widget
 class _ShowcaseDialog extends StatefulWidget {
   final Map<String, List<Player>> groupedPlayers;
-  const _ShowcaseDialog({required this.groupedPlayers});
+  final String lang;
+  const _ShowcaseDialog({required this.groupedPlayers, required this.lang});
 
   @override
   State<_ShowcaseDialog> createState() => _ShowcaseDialogState();
@@ -2954,7 +3414,7 @@ class _ShowcaseDialogState extends State<_ShowcaseDialog>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ).createShader(bounds),
-                  child: Text("VİTRİN",
+                  child: Text(t("SHOWCASE", widget.lang),
                       style: GoogleFonts.russoOne(
                           color: Colors.white, // ShaderMask bunu ezecek
                           fontSize: 50,
@@ -3016,7 +3476,7 @@ class _ShowcaseDialogState extends State<_ShowcaseDialog>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 40, vertical: 20)),
                     onPressed: () => Navigator.pop(context),
-                    child: const Text("KAPAT",
+                    child: Text(t("CLOSE", widget.lang),
                         style: TextStyle(color: Colors.white)))
               ],
             ),
@@ -3027,16 +3487,17 @@ class _ShowcaseDialogState extends State<_ShowcaseDialog>
   }
 }
 
-void _showSquadBuilder(BuildContext context, AppDatabase db) {
+void _showSquadBuilder(BuildContext context, AppDatabase db, String lang) {
   showDialog(
     context: context,
-    builder: (c) => _SquadBuilderDialog(database: db),
+    builder: (c) => _SquadBuilderDialog(database: db, lang: lang),
   );
 }
 
 class _SquadBuilderDialog extends StatefulWidget {
   final AppDatabase database;
-  const _SquadBuilderDialog({required this.database});
+  final String lang;
+  const _SquadBuilderDialog({required this.database, required this.lang});
 
   @override
   State<_SquadBuilderDialog> createState() => _SquadBuilderDialogState();
@@ -3044,13 +3505,19 @@ class _SquadBuilderDialog extends StatefulWidget {
 
 class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
   final ScreenshotController _screenshotController = ScreenshotController();
-  TextEditingController _teamNameController =
-      TextEditingController(text: "TEAM OF THE SEASON");
+  late TextEditingController _teamNameController;
   bool isVertical = true;
   String searchQuery = "";
 
   // 7 Pozisyon: 0:GK, 1:LCB, 2:RCB, 3:CAM, 4:LW, 5:RW, 6:ST
   List<Player?> squad = List.filled(7, null);
+
+  @override
+  void initState() {
+    super.initState();
+    _teamNameController =
+        TextEditingController(text: t("TOTS_NAME", widget.lang));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3081,10 +3548,11 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
                             controller: _teamNameController,
                             style: GoogleFonts.russoOne(
                                 color: Colors.white, fontSize: 24),
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                                 border: InputBorder.none,
-                                hintText: "TAKIM İSMİ",
-                                hintStyle: TextStyle(color: Colors.white24)),
+                                hintText: t("TEAM_NAME", widget.lang),
+                                hintStyle:
+                                    const TextStyle(color: Colors.white24)),
                           ),
                         ),
                         Row(
@@ -3095,7 +3563,7 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
                                       ? Icons.stay_current_portrait
                                       : Icons.stay_current_landscape,
                                   color: Colors.white),
-                              tooltip: "Yönü Değiştir",
+                              tooltip: t("ORIENT", widget.lang),
                               onPressed: () =>
                                   setState(() => isVertical = !isVertical),
                             ),
@@ -3104,8 +3572,8 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
                               onPressed: _capture,
                               icon: const Icon(Icons.download,
                                   color: Colors.black),
-                              label: const Text("İNDİR (PNG)",
-                                  style: TextStyle(
+                              label: Text(t("DOWNLOAD", widget.lang),
+                                  style: const TextStyle(
                                       color: Colors.black,
                                       fontWeight: FontWeight.bold)),
                               style: ElevatedButton.styleFrom(
@@ -3205,7 +3673,7 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
                   TextField(
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                        hintText: "Oyuncu Ara...",
+                        hintText: t("SEARCH", widget.lang),
                         prefixIcon:
                             const Icon(Icons.search, color: Colors.cyanAccent),
                         filled: true,
@@ -3356,8 +3824,9 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
     final image =
         await _screenshotController.capture(pixelRatio: 3.0); // Yüksek Kalite
     if (image != null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Görüntü kaydedildi!"), backgroundColor: Colors.green));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(t("IMG_SAVED", widget.lang)),
+          backgroundColor: Colors.green));
       // Burada dosya kaydetme işlemi yapılabilir (path_provider ile)
     }
   }
@@ -3408,12 +3877,13 @@ class _PitchLinesPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
-void _showEditor(
-    BuildContext context, Player? p, Function(Player, Player?) onSave) {
+void _showEditor(BuildContext context, Player? p,
+    Function(Player, Player?) onSave, String lang) {
   showDialog(
       context: context,
       builder: (context) => CreatePlayerDialog(
           playerToEdit: p,
+          lang: lang,
           onSave: (player) {
             if (player != null) onSave(player, p);
           }));
@@ -3427,12 +3897,14 @@ class CreatePlayerDialog extends StatefulWidget {
   final Player? playerToEdit;
   final Function(Player?) onSave;
   final bool isNewVersion;
+  final String lang;
 
   const CreatePlayerDialog(
       {super.key,
       this.playerToEdit,
       required this.onSave,
-      this.isNewVersion = false});
+      this.isNewVersion = false,
+      required this.lang});
 
   @override
   State<CreatePlayerDialog> createState() => _CreatePlayerDialogState();
@@ -3500,8 +3972,8 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
           children: [
             Text(
                 widget.playerToEdit == null
-                    ? "YENİ OYUNCU OLUŞTUR"
-                    : "OYUNCUYU DÜZENLE",
+                    ? t("CREATE_TITLE", widget.lang)
+                    : t("EDIT_TITLE", widget.lang),
                 style: GoogleFonts.orbitron(
                     color: Colors.cyanAccent,
                     fontSize: 24,
@@ -3517,42 +3989,47 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _input("Ad Soyad", _nameController),
+                          _input(t("NAME", widget.lang), _nameController),
                           // TAKIM SEÇİMİ (DROPDOWN)
-                          _dropdown("Takım", pd.teamLogos.keys.toList(),
+                          _dropdown(
+                              t("TEAM", widget.lang),
+                              pd.teamLogos.keys.toList(),
                               _teamController.text, (v) {
                             setState(() => _teamController.text = v!);
                           }),
 
-                          _input("Reyting", _ratingController, isNum: true),
-                          _dropdown("Pozisyon", pd.positions, selectedPosition,
-                              (v) {
+                          _input(t("SORT_RTG", widget.lang), _ratingController,
+                              isNum: true),
+                          _dropdown(t("POS", widget.lang), pd.positions,
+                              selectedPosition, (v) {
                             setState(() => selectedPosition = v!);
                             _checkGKStats(); // Pozisyon değişince statları güncelle
                             selectedStyle = "Temel"; // Stili sıfırla
                             // Pozisyona göre varsayılan rolü seç
                             // Burada basit bir mantık kurabilirsin
                           }),
-                          _dropdown(
-                              "Kart Tipi", pd.globalCardTypes, selectedCardType,
-                              (v) {
+                          _dropdown(t("CARD", widget.lang), pd.globalCardTypes,
+                              selectedCardType, (v) {
                             setState(() => selectedCardType = v!);
                           }),
-                          _dropdown("Rol", roleDescriptions.keys.toList(),
+                          _dropdown(
+                              t("ROLE", widget.lang),
+                              roleDescriptions.keys.toList(),
                               selectedRole, (v) {
                             setState(() => selectedRole = v!);
                           }),
-                          _dropdown("Kimya Stili", chemistryStylesList,
+                          _dropdown(t("CHEM", widget.lang), chemistryStylesList,
                               selectedChemistryStyle, (v) {
                             setState(() => selectedChemistryStyle = v!);
                           }),
-                          _input("Piyasa Değeri (M€)", _marketValueController,
+                          _input(
+                              t("MARKET", widget.lang), _marketValueController,
                               isNum: true),
 
                           // YENİ: STİL SEÇİMİ
                           const SizedBox(height: 10),
-                          Text("Oyun Stili",
-                              style: TextStyle(color: Colors.cyanAccent)),
+                          Text(t("STYLE", widget.lang),
+                              style: const TextStyle(color: Colors.cyanAccent)),
                           Row(
                             children: [
                               Expanded(
@@ -3600,15 +4077,16 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
 
                           // YETENEK VE ZAYIF AYAK
                           const SizedBox(height: 10),
-                          Text("Yetenek & Zayıf Ayak",
-                              style: TextStyle(color: Colors.amber)),
+                          Text(t("SKILL", widget.lang),
+                              style: const TextStyle(color: Colors.amber)),
                           Row(
                             children: [
                               Expanded(
                                   child: Column(
                                 children: [
                                   Text("SM: $selectedSkillMoves ⭐",
-                                      style: TextStyle(color: Colors.white)),
+                                      style:
+                                          const TextStyle(color: Colors.white)),
                                   Slider(
                                       value: selectedSkillMoves.toDouble(),
                                       min: 1,
@@ -3623,7 +4101,8 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                                   child: Column(
                                 children: [
                                   Text("WF: $selectedWeakFoot ⭐",
-                                      style: TextStyle(color: Colors.white)),
+                                      style:
+                                          const TextStyle(color: Colors.white)),
                                   Slider(
                                       value: selectedWeakFoot.toDouble(),
                                       min: 1,
@@ -3648,12 +4127,12 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                       length: 3, // Sekme sayısı 3 oldu
                       child: Column(
                         children: [
-                          const TabBar(
+                          TabBar(
                             indicatorColor: Colors.cyanAccent,
                             tabs: [
-                              Tab(text: "İSTATİSTİKLER"),
-                              Tab(text: "NORMAL PS"),
-                              Tab(text: "PLUS PS"),
+                              Tab(text: t("STATS", widget.lang)),
+                              Tab(text: t("NORMAL_PS", widget.lang)),
+                              Tab(text: t("PLUS_PS", widget.lang)),
                             ],
                           ),
                           Expanded(
@@ -3748,14 +4227,14 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
               children: [
                 TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text("İPTAL",
-                        style: TextStyle(color: Colors.white54))),
+                    child: Text(t("CANCEL", widget.lang),
+                        style: const TextStyle(color: Colors.white54))),
                 const SizedBox(width: 20),
                 ElevatedButton.icon(
                     onPressed: _submit,
                     icon: const Icon(Icons.save, color: Colors.black),
-                    label: const Text("KAYDET",
-                        style: TextStyle(
+                    label: Text(t("SAVE", widget.lang),
+                        style: const TextStyle(
                             color: Colors.black, fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.cyanAccent,
