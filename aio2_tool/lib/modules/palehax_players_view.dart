@@ -1982,12 +1982,11 @@ class _ViewUltimateState extends State<_ViewUltimate> {
       runSpacing: 15,
       children: p.playstyles.map((ps) {
         // Plus ise özel klasörden, değilse normal klasörden al
-        String fileName = playStyleFileMap[ps.name.trim()] ?? ps.name.trim();
+        String fileName = playStyleFileMap[ps.name] ?? ps.name;
         String iconPath = ps.isGold
             ? "assets/Playstyles/${fileName}Plus.png"
             : "assets/Playstyles/$fileName.png";
-        String displayName =
-            playStyleTranslationsReverse[ps.name.trim()] ?? ps.name;
+        String displayName = playStyleTranslationsReverse[ps.name] ?? ps.name;
 
         // DÜZELTME: Profildeki gibi sabit genişlik (SizedBox)
         return SizedBox(
@@ -2016,7 +2015,6 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                 ),
                 child: Image.asset(
                   iconPath,
-                  color: ps.isGold ? null : Colors.white70,
                   errorBuilder: (c, e, s) => Icon(Icons.help,
                       color: ps.isGold ? Colors.amber : Colors.white24),
                 ),
