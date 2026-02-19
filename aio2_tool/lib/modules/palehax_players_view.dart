@@ -692,6 +692,99 @@ final Map<String, Map<String, String>> _appStrings = {
     "Yanlış 9": "Yanlış 9",
     "Kanat Bek": "Kanat Bek",
     "Hücum Bek": "Hücum Bek",
+    // STAT CATEGORIES (TR)
+    "1. Top Sürme & Fizik": "1. Top Sürme & Fizik",
+    "2. Şut & Zihinsel": "2. Şut & Zihinsel",
+    "3. Savunma & Güç": "3. Savunma & Güç",
+    "4. Pas & Vizyon": "4. Pas & Vizyon",
+    // CHEM STYLES (TR)
+    "Basic": "Temel",
+    "Sniper": "Keskin Nişancı",
+    "Finisher": "Bitirici",
+    "Deadeye": "Gözü Kara",
+    "Marksman": "Nişancı",
+    "Hawk": "Şahin",
+    "Artist": "Sanatçı",
+    "Architect": "Mimar",
+    "Powerhouse": "Güç Deposu",
+    "Maestro": "Maestro",
+    "Engine": "Motor",
+    "Sentinel": "Nöbetçi",
+    "Guardian": "Muhafız",
+    "Gladiator": "Gladyatör",
+    "Backbone": "Omurga",
+    "Anchor": "Çapa",
+    "Hunter": "Avcı",
+    "Catalyst": "Katalizör",
+    "Shadow": "Gölge",
+    "GK Basic": "KL Temel",
+    "Wall": "Duvar",
+    "Shield": "Kalkan",
+    "Cat": "Kedi",
+    "Glove": "Eldiven",
+    // PLAYSTYLES (TR)
+    "GameChanger": "Oyun Kurucu",
+    "Acrobatic": "Akrobatik",
+    "PowerShot": "Sert Şut",
+    "FinesseShot": "Plase Şut",
+    "ChipShot": "Aşırtma",
+    "IncisivePass": "Keskin Pas",
+    "PingedPass": "Adrese Teslim",
+    "LongBallPass": "Uzun Pas",
+    "TikiTaka": "Tiki Taka",
+    "WhippedPass": "Kırbaç Pas",
+    "Inventive": "Yaratıcı",
+    "Jockey": "Jokey",
+    "Block": "Blok",
+    "Intercept": "Top Kesici",
+    "Anticipate": "Sezgici",
+    "Bruiser": "Kavgacı",
+    "AerialFortress": "Hava Hakimiyeti",
+    "Technical": "Teknik",
+    "Rapid": "Ani",
+    "FirstTouch": "İlk Dokunuş",
+    "Trickster": "Hilebaz",
+    "PressProven": "Baskı Yemez",
+    "QuickStep": "Hızlı Adım",
+    "FarReach": "Uzak Erişim",
+    "Footwork": "Ayak Hareketleri",
+    "CrossClaimer": "Çapraz Muhafız",
+    "RushOut": "Dışarı Terk",
+    "DeadBall": "Duran Top",
+    "Trivela": "Trivela",
+    // AI SENTENCES (TR - Fallback keys if needed, but mainly handled by pd.PaleHaxLoc.ai)
+    "AI_SENTENCE_1":
+        "Sezon içerisinde attığı gollerin kalitesi ve bitiriciliği ile rakip kalecilerin korkulu rüyası.",
+    "AI_SENTENCE_2":
+        "Boşlukları kollayıp doğru açıdan vurduğunda affetmeyen bir bitirici.",
+    "AI_SENTENCE_3":
+        "Oyun görüşü o kadar üst düzey ki, attığı milimetrik paslarla takımını bir maestro gibi yönetiyor.",
+    "AI_SENTENCE_4":
+        "Top ayağına yapıştığında durdurulması imkansız, adam eksiltme konusunda tam bir sanatçı.",
+    "AI_SENTENCE_5":
+        "Savunmada adeta bir duvar; kademe anlayışı ve top çalma yeteneğiyle geçit vermiyor.",
+    "AI_SENTENCE_6":
+        "İkili mücadelelerdeki fiziksel üstünlüğü ile sahada dominasyon kuruyor.",
+    "AI_SENTENCE_7":
+        "Rüzgarın oğlu! Savunma arkasına yaptığı koşularda onu yakalamak neredeyse imkansız.",
+    "AI_SENTENCE_8": "Oyun stili olarak tam anlamıyla",
+    "AI_SENTENCE_9": "performansı sergiliyor.",
+    "AI_SENTENCE_10":
+        "Bu rolde o kadar ustalaşmış ki, taktik tahtasında ismi yazılan ilk oyunculardan.",
+    "AI_SENTENCE_11":
+        "Akrobatik vuruşları ve estetik paslarıyla tribünleri ayağa kaldırıyor.",
+    "AI_SENTENCE_12":
+        "Ceza sahası dışından çektiği sert şutlarla kaleyi her an tehdit ediyor.",
+    "AI_SENTENCE_13":
+        "Kısa pas trafiğinde hata yapmayarak takımın pas ritmini belirliyor.",
+    "AI_SENTENCE_14":
+        "Ayağının dışıyla yaptığı vuruşlar ve paslar rakipleri şaşırtıyor.",
+    "AI_SENTENCE_15":
+        "Duran toplarda topun başına geçtiğinde gol ihtimali her zaman yüksek.",
+    "AI_SENTENCE_DEFAULT":
+        "Sahada görevini layıkıyla yapan, takım oyununa sadık bir profil çiziyor.",
+    "STYLE_TIER_1": "Elit seviyede bir",
+    "STYLE_TIER_2": "Dünya çapında bir",
   },
   "en": {
     "PLAYERS": "PLAYERS",
@@ -807,6 +900,99 @@ final Map<String, Map<String, String>> _appStrings = {
     "Yanlış 9": "False 9",
     "Kanat Bek": "Wing Back",
     "Hücum Bek": "Attacking Fullback",
+    // STAT CATEGORIES (EN)
+    "1. Top Sürme & Fizik": "1. Dribbling & Physical",
+    "2. Şut & Zihinsel": "2. Shooting & Mental",
+    "3. Savunma & Güç": "3. Defense & Strength",
+    "4. Pas & Vizyon": "4. Passing & Vision",
+    // CHEM STYLES (EN)
+    "Basic": "Basic",
+    "Sniper": "Sniper",
+    "Finisher": "Finisher",
+    "Deadeye": "Deadeye",
+    "Marksman": "Marksman",
+    "Hawk": "Hawk",
+    "Artist": "Artist",
+    "Architect": "Architect",
+    "Powerhouse": "Powerhouse",
+    "Maestro": "Maestro",
+    "Engine": "Engine",
+    "Sentinel": "Sentinel",
+    "Guardian": "Guardian",
+    "Gladiator": "Gladiator",
+    "Backbone": "Backbone",
+    "Anchor": "Anchor",
+    "Hunter": "Hunter",
+    "Catalyst": "Catalyst",
+    "Shadow": "Shadow",
+    "GK Basic": "GK Basic",
+    "Wall": "Wall",
+    "Shield": "Shield",
+    "Cat": "Cat",
+    "Glove": "Glove",
+    // PLAYSTYLES (EN)
+    "GameChanger": "Playmaker",
+    "Acrobatic": "Acrobatic",
+    "PowerShot": "Power Shot",
+    "FinesseShot": "Finesse Shot",
+    "ChipShot": "Chip Shot",
+    "IncisivePass": "Incisive Pass",
+    "PingedPass": "Pinged Pass",
+    "LongBallPass": "Long Ball",
+    "TikiTaka": "Tiki Taka",
+    "WhippedPass": "Whipped Pass",
+    "Inventive": "Inventive",
+    "Jockey": "Jockey",
+    "Block": "Block",
+    "Intercept": "Intercept",
+    "Anticipate": "Anticipate",
+    "Bruiser": "Bruiser",
+    "AerialFortress": "Aerial",
+    "Technical": "Technical",
+    "Rapid": "Rapid",
+    "FirstTouch": "First Touch",
+    "Trickster": "Trickster",
+    "PressProven": "Press Proven",
+    "QuickStep": "Quick Step",
+    "FarReach": "Far Reach",
+    "Footwork": "Footwork",
+    "CrossClaimer": "Cross Claimer",
+    "RushOut": "Rush Out",
+    "DeadBall": "Dead Ball",
+    "Trivela": "Trivela",
+    // AI SENTENCES (EN)
+    "AI_SENTENCE_1":
+        "A nightmare for goalkeepers with the quality of goals and finishing shown throughout the season.",
+    "AI_SENTENCE_2":
+        "An unforgiving finisher when finding space and striking from the right angle.",
+    "AI_SENTENCE_3":
+        "Vision is so high level, manages the team like a maestro with millimetric passes.",
+    "AI_SENTENCE_4":
+        "Impossible to stop when the ball sticks to feet, a true artist in beating opponents.",
+    "AI_SENTENCE_5":
+        "Like a wall in defense; does not let anyone pass with positioning and tackling ability.",
+    "AI_SENTENCE_6":
+        "Establishes domination on the field with physical superiority in duels.",
+    "AI_SENTENCE_7":
+        "Son of the wind! Almost impossible to catch on runs behind the defense.",
+    "AI_SENTENCE_8": "Displays a truly",
+    "AI_SENTENCE_9": "performance as a playstyle.",
+    "AI_SENTENCE_10":
+        "So mastered in this role that they are one of the first names on the tactics board.",
+    "AI_SENTENCE_11":
+        "Excites the crowd with acrobatic shots and aesthetic passes.",
+    "AI_SENTENCE_12":
+        "Threatens the goal at any moment with powerful shots from outside the box.",
+    "AI_SENTENCE_13":
+        "Determines the team's passing rhythm by making no mistakes in short pass traffic.",
+    "AI_SENTENCE_14":
+        "Surprises opponents with shots and passes made with the outside of the foot.",
+    "AI_SENTENCE_15":
+        "Goal probability is always high when stepping up to set pieces.",
+    "AI_SENTENCE_DEFAULT":
+        "Draws a profile loyal to team play, performing duties properly on the field.",
+    "STYLE_TIER_1": "Elite level",
+    "STYLE_TIER_2": "World class",
   },
   "es": {
     "PLAYERS": "JUGADORES",
@@ -922,6 +1108,99 @@ final Map<String, Map<String, String>> _appStrings = {
     "Yanlış 9": "Falso 9",
     "Kanat Bek": "Carrilero",
     "Hücum Bek": "Lateral Ofensivo",
+    // STAT CATEGORIES (ES)
+    "1. Top Sürme & Fizik": "1. Regate y Físico",
+    "2. Şut & Zihinsel": "2. Tiro y Mental",
+    "3. Savunma & Güç": "3. Defensa y Fuerza",
+    "4. Pas & Vizyon": "4. Pase y Visión",
+    // CHEM STYLES (ES)
+    "Basic": "Básico",
+    "Sniper": "Francotirador",
+    "Finisher": "Rematador",
+    "Deadeye": "Ojo De Halcón",
+    "Marksman": "Tirador",
+    "Hawk": "Halcón",
+    "Artist": "Artista",
+    "Architect": "Arquitecto",
+    "Powerhouse": "Energía",
+    "Maestro": "Maestro",
+    "Engine": "Motor",
+    "Sentinel": "Centinela",
+    "Guardian": "Guardián",
+    "Gladiator": "Gladiador",
+    "Backbone": "Columna",
+    "Anchor": "Ancla",
+    "Hunter": "Cazador",
+    "Catalyst": "Catalizador",
+    "Shadow": "Sombra",
+    "GK Basic": "POR Básico",
+    "Wall": "Muro",
+    "Shield": "Escudo",
+    "Cat": "Gato",
+    "Glove": "Guante",
+    // PLAYSTYLES (ES)
+    "GameChanger": "Creador",
+    "Acrobatic": "Acrobático",
+    "PowerShot": "Zapatazo",
+    "FinesseShot": "Tiro de Calidad",
+    "ChipShot": "Vaselina",
+    "IncisivePass": "Pase Incisivo",
+    "PingedPass": "Pase Preciso",
+    "LongBallPass": "Balón Largo",
+    "TikiTaka": "Tiki Taka",
+    "WhippedPass": "Pase con Efecto",
+    "Inventive": "Inventivo",
+    "Jockey": "Jockey",
+    "Block": "Bloqueo",
+    "Intercept": "Interceptar",
+    "Anticipate": "Anticipar",
+    "Bruiser": "Leñero",
+    "AerialFortress": "Aéreo",
+    "Technical": "Técnico",
+    "Rapid": "Rápido",
+    "FirstTouch": "Primer Toque",
+    "Trickster": "Ilusionista",
+    "PressProven": "Resistente",
+    "QuickStep": "Paso Rápido",
+    "FarReach": "Alcance Lejano",
+    "Footwork": "Juego de Pies",
+    "CrossClaimer": "Caza Centros",
+    "RushOut": "Salida Rápida",
+    "DeadBall": "Balón Parado",
+    "Trivela": "Trivela",
+    // AI SENTENCES (ES)
+    "AI_SENTENCE_1":
+        "Una pesadilla para los porteros con la calidad de goles y definición mostrada durante la temporada.",
+    "AI_SENTENCE_2":
+        "Un finalizador implacable cuando encuentra espacio y golpea desde el ángulo correcto.",
+    "AI_SENTENCE_3":
+        "La visión es de tan alto nivel, maneja al equipo como un maestro con pases milimétricos.",
+    "AI_SENTENCE_4":
+        "Imposible de parar cuando el balón se pega a los pies, un verdadero artista regateando.",
+    "AI_SENTENCE_5":
+        "Como un muro en defensa; no deja pasar a nadie con su posicionamiento y capacidad de robo.",
+    "AI_SENTENCE_6":
+        "Establece dominación en el campo con superioridad física en los duelos.",
+    "AI_SENTENCE_7":
+        "¡Hijo del viento! Casi imposible de atrapar en carreras detrás de la defensa.",
+    "AI_SENTENCE_8": "Muestra un rendimiento verdaderamente",
+    "AI_SENTENCE_9": "de estilo de juego.",
+    "AI_SENTENCE_10":
+        "Tan dominado en este rol que es uno de los primeros nombres en la pizarra táctica.",
+    "AI_SENTENCE_11":
+        "Emociona a la grada con remates acrobáticos y pases estéticos.",
+    "AI_SENTENCE_12":
+        "Amenaza la portería en cualquier momento con potentes disparos desde fuera del área.",
+    "AI_SENTENCE_13":
+        "Determina el ritmo de pase del equipo al no cometer errores en el tráfico de pases cortos.",
+    "AI_SENTENCE_14":
+        "Sorprende a los oponentes con tiros y pases realizados con el exterior del pie.",
+    "AI_SENTENCE_15":
+        "La probabilidad de gol es siempre alta cuando se dispone a lanzar a balón parado.",
+    "AI_SENTENCE_DEFAULT":
+        "Dibuja un perfil leal al juego de equipo, cumpliendo sus deberes adecuadamente en el campo.",
+    "STYLE_TIER_1": "Nivel élite",
+    "STYLE_TIER_2": "Clase mundial",
   }
 };
 
@@ -1867,8 +2146,7 @@ class _ViewProfile extends StatelessWidget {
                       spacing: 20,
                       runSpacing: 15,
                       children: sortedPs.map((ps) {
-                        String translatedName =
-                            playStyleTranslationsReverse[ps.name] ?? ps.name;
+                        String translatedName = t(ps.name, lang);
                         String displayName =
                             ps.isGold ? "$translatedName+" : translatedName;
                         String fileName = playStyleFileMap[ps.name] ?? ps.name;
@@ -2029,29 +2307,29 @@ class _ViewUltimateState extends State<_ViewUltimate> {
     String styleName = p.style;
 
     if (sho > 85) {
-      sentences.add(t("AI_SENTENCE_1", widget.lang));
+      sentences.add(pd.PaleHaxLoc.ai("ai_sho_85"));
     } else if (sho > 75) {
-      sentences.add(t("AI_SENTENCE_2", widget.lang));
+      sentences.add(pd.PaleHaxLoc.ai("ai_sho_75"));
     }
 
     if (pas > 85) {
-      sentences.add(t("AI_SENTENCE_3", widget.lang));
+      sentences.add(pd.PaleHaxLoc.ai("ai_pas_85"));
     }
 
     if (dri > 85) {
-      sentences.add(t("AI_SENTENCE_4", widget.lang));
+      sentences.add(pd.PaleHaxLoc.ai("ai_dri_85"));
     }
 
     if (def > 85) {
-      sentences.add(t("AI_SENTENCE_5", widget.lang));
+      sentences.add(pd.PaleHaxLoc.ai("ai_def_85"));
     }
 
     if (phy > 85) {
-      sentences.add(t("AI_SENTENCE_6", widget.lang));
+      sentences.add(pd.PaleHaxLoc.ai("ai_phy_85"));
     }
 
     if (pac > 90) {
-      sentences.add(t("AI_SENTENCE_7", widget.lang));
+      sentences.add(pd.PaleHaxLoc.ai("ai_pac_90"));
     }
 
     // STİL ANALİZİ (YENİ)
@@ -2063,41 +2341,49 @@ class _ViewUltimateState extends State<_ViewUltimate> {
 
       if (p.styleTier > 0) {
         if (widget.lang == "tr") {
-          sentences.add(
-              "Oyun stili olarak tam anlamıyla $tierText $styleName performansı sergiliyor.");
+          sentences.add(pd.PaleHaxLoc.ai("ai_style_perf",
+              params: {"tier": tierText, "style": styleName}));
         } else {
           String translatedStyle = t(styleName, widget.lang);
-          sentences.add(
-              "${t("AI_SENTENCE_8", widget.lang)} $tierText $translatedStyle ${t("AI_SENTENCE_9", widget.lang)}");
+          sentences.add(pd.PaleHaxLoc.ai("ai_style_perf",
+              params: {"tier": tierText, "style": translatedStyle}));
         }
 
         if (p.styleTier == 2) {
-          sentences.add(t("AI_SENTENCE_10", widget.lang));
+          sentences.add(pd.PaleHaxLoc.ai("ai_style_master"));
         }
       }
     }
 
     // PlayStyle Analizi
     for (var ps in p.playstyles) {
+      // Bu kısımlar için player_data.dart içinde özel bir yapı yoksa
+      // fallback olarak _appStrings içindeki AI_SENTENCE_X anahtarlarını kullanabiliriz
+      // veya pd.PaleHaxLoc.ai'ye yeni anahtarlar ekleyebiliriz.
       if (ps.name == "Acrobatic") {
-        sentences.add(t("AI_SENTENCE_11", widget.lang));
+        sentences
+            .add(t("AI_SENTENCE_11", widget.lang)); // Fallback to UI strings
       }
       if (ps.name == "PowerShot") {
-        sentences.add(t("AI_SENTENCE_12", widget.lang));
+        sentences
+            .add(t("AI_SENTENCE_12", widget.lang)); // Fallback to UI strings
       }
       if (ps.name == "TikiTaka") {
-        sentences.add(t("AI_SENTENCE_13", widget.lang));
+        sentences
+            .add(t("AI_SENTENCE_13", widget.lang)); // Fallback to UI strings
       }
       if (ps.name == "Trivela") {
-        sentences.add(t("AI_SENTENCE_14", widget.lang));
+        sentences
+            .add(t("AI_SENTENCE_14", widget.lang)); // Fallback to UI strings
       }
       if (ps.name == "DeadBall") {
-        sentences.add(t("AI_SENTENCE_15", widget.lang));
+        sentences
+            .add(t("AI_SENTENCE_15", widget.lang)); // Fallback to UI strings
       }
     }
 
     if (sentences.isEmpty) {
-      sentences.add(t("AI_SENTENCE_DEFAULT", widget.lang));
+      sentences.add(pd.PaleHaxLoc.ai("ai_default"));
     }
 
     setState(() {
@@ -2272,8 +2558,11 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                       spacing: 15,
                       runSpacing: 10,
                       children: [
-                        _buildInfoTag(Icons.science, t("CHEM_L", widget.lang),
-                            player.chemistryStyle, Colors.purpleAccent),
+                        _buildInfoTag(
+                            Icons.science,
+                            t("CHEM_L", widget.lang),
+                            t(player.chemistryStyle, widget.lang),
+                            Colors.purpleAccent),
                         _buildInfoTag(
                             Icons.theater_comedy,
                             t("ROLE_L", widget.lang),
@@ -2315,13 +2604,11 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                     String category = entry.key;
                     List<String> statsList = entry.value;
 
-                    String catTrans = category == "Kaleci"
-                        ? t("GK", widget.lang)
-                        : (category == "Fizik"
-                            ? t("PHY", widget.lang)
-                            : (category == "Zeka"
-                                ? t("MEN", widget.lang)
-                                : category));
+                    String catTrans = t(category, widget.lang);
+                    // Özel durumlar için fallback (Eğer t() içinde yoksa)
+                    if (category == "Kaleci") catTrans = t("GK", widget.lang);
+                    if (category == "Fizik") catTrans = t("PHY", widget.lang);
+                    if (category == "Zeka") catTrans = t("MEN", widget.lang);
 
                     if (isGK && !['Kaleci', 'Fizik', 'Zeka'].contains(category))
                       return const SizedBox.shrink();
@@ -2349,7 +2636,8 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                           runSpacing: 10,
                           children: statsList.map((statName) {
                             int value = player.stats[statName] ?? 0;
-                            return _buildModernStatBox(statName, value);
+                            return _buildModernStatBox(
+                                pd.PaleHaxLoc.stat(statName), value);
                           }).toList(),
                         ),
                         const SizedBox(height: 10),
@@ -2623,7 +2911,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
         String iconPath = ps.isGold
             ? "assets/Playstyles/${fileName}Plus.png"
             : "assets/Playstyles/$fileName.png";
-        String displayName = playStyleTranslationsReverse[ps.name] ?? ps.name;
+        String displayName = t(ps.name, widget.lang);
 
         // DÜZELTME: Profildeki gibi sabit genişlik (SizedBox)
         return SizedBox(
