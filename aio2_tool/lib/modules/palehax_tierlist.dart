@@ -36,6 +36,7 @@ class _TierListViewState extends State<TierListView> {
 
   @override
   Widget build(BuildContext context) {
+    bool isMobile = MediaQuery.of(context).size.width < 900;
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D12),
       appBar: AppBar(
@@ -51,7 +52,8 @@ class _TierListViewState extends State<TierListView> {
               tooltip: "PNG Olarak İndir")
         ],
       ),
-      body: Row(
+      body: Flex(
+        direction: isMobile ? Axis.vertical : Axis.horizontal,
         children: [
           // SOL TARAF: TIER LIST
           Expanded(
@@ -73,7 +75,10 @@ class _TierListViewState extends State<TierListView> {
           ),
           // SAĞ TARAF: OYUNCU HAVUZU
           Container(
-            width: 320, // Sağ paneli biraz daralttım ki sola yer kalsın
+            width: isMobile
+                ? double.infinity
+                : 320, // Sağ paneli biraz daralttım ki sola yer kalsın
+            height: isMobile ? 200 : double.infinity,
             decoration: const BoxDecoration(
                 border: Border(left: BorderSide(color: Colors.white10)),
                 color: Color(0xFF101014)),
