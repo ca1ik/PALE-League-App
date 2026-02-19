@@ -89,11 +89,13 @@ class _CleaningModuleState extends State<CleaningModule> {
 
       // GERÇEK TEMİZLİK KODLARI
       try {
-        if (item.name == "Windows Temp")
-          _deleteDir(Directory(r'C:\Windows\Temp'));
-        if (item.name == "User Temp") _deleteDir(Directory.systemTemp);
-        if (item.name == "DNS Cache")
-          await Process.run('ipconfig', ['/flushdns']);
+        if (Platform.isWindows) {
+          if (item.name == "Windows Temp")
+            _deleteDir(Directory(r'C:\Windows\Temp'));
+          if (item.name == "User Temp") _deleteDir(Directory.systemTemp);
+          if (item.name == "DNS Cache")
+            await Process.run('ipconfig', ['/flushdns']);
+        }
         // Diğerleri için benzer mantık...
       } catch (e) {
         debugPrint("Hata: $e");

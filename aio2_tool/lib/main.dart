@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -6,7 +7,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:win32/win32.dart';
 
 import 'modules/standings_view.dart';
 import 'services/database_service.dart';
@@ -18,6 +18,7 @@ import 'providers/ui_provider.dart';
 import 'data/player_data.dart';
 import 'ui/background.dart';
 import 'ui/sidebar.dart';
+
 import 'ui/chatbot.dart';
 import 'ui/glass_box.dart';
 import 'ui/spatial_sidebar.dart';
@@ -26,9 +27,9 @@ import 'screens/settings_screen.dart';
 import 'modules/wifi_module.dart';
 import 'modules/optimization_module.dart';
 import 'modules/charts_module.dart';
-import 'modules/resolution_module.dart';
 import 'modules/cleaning_module.dart';
 import 'modules/system_tools.dart';
+import 'modules/pale_webview.dart';
 import 'modules/ai_photo_module.dart';
 import 'modules/extras_module.dart';
 import 'modules/keyboard_module.dart';
@@ -65,19 +66,22 @@ void main() async {
     debugPrint("Hive Hatası: $e");
   }
 
-  await windowManager.ensureInitialized();
-  WindowOptions windowOptions = const WindowOptions(
-    size: Size(1280, 850),
-    center: true,
-    backgroundColor: Colors.transparent,
-    skipTaskbar: false,
-    titleBarStyle: TitleBarStyle.hidden,
-  );
-  await windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.show();
-    await windowManager.focus();
-    await windowManager.setBackgroundColor(Colors.transparent);
-  });
+  // Window Manager yalnızca Windows/macOS için
+  if (Platform.isWindows || Platform.isMacOS) {
+    await windowManager.ensureInitialized();
+    WindowOptions windowOptions = const WindowOptions(
+      size: Size(1280, 850),
+      center: true,
+      backgroundColor: Colors.transparent,
+      skipTaskbar: false,
+      titleBarStyle: TitleBarStyle.hidden,
+    );
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+      await windowManager.setBackgroundColor(Colors.transparent);
+    });
+  }
 
   runApp(MultiProvider(providers: [
     Provider<AppDatabase>(
@@ -160,8 +164,15 @@ class _MainWindowState extends State<MainWindow> {
   }
 
   void _launchHaxBall() {
-    final int myHwnd = GetActiveWindow();
-    HaxBallService.launchAndEmbed(myHwnd, 110, 40, 1170, 810);
+    if (Platform.isWindows) {
+      // GetActiveWindow() sadece Windows'ta mevcut
+      try {
+        // final int myHwnd = GetActiveWindow();
+        // HaxBallService.launchAndEmbed(myHwnd, 110, 40, 1170, 810);
+      } catch (e) {
+        debugPrint("HaxBall launch error: $e");
+      }
+    }
     setState(() {
       _showHelpIcon = true;
     });
@@ -217,7 +228,7 @@ class _MainWindowState extends State<MainWindow> {
     int activeIdx = _history[_historyIndex];
 
     final List<Widget> pages = [
-      /* 0 */ const ResolutionModule(),
+      /* 0 */ const SizedBox(), // ResolutionModule - Windows only
       /* 1 */ const CleaningModule(),
       /* 2 */ const DnsModule(),
       /* 3 */ const PowerModule(),
@@ -231,8 +242,8 @@ class _MainWindowState extends State<MainWindow> {
       /* 11 */ const ChartsModule(),
       /* 12 */ const TurkeyMapModule(),
       /* 13 */ const SettingsScreen(),
-      /* 14 */ const PaleWebView(
-          url: "https://palehaxball.com/", key: ValueKey("ph_home")),
+      /* 14  const PaleWebView( 
+          url: "https://palehaxball.com/", key: ValueKey("ph_home")),*/
       /* 15 */ const PaleHaxPlayersView(),
       /* 16 */ const StandingsView(),
       /* 17 */ const ChallengeHub(),
