@@ -2610,10 +2610,6 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                   children: (isGK
                           ? [
                               MapEntry("KALECİLİK", pd.gkStatsList),
-                              MapEntry(
-                                  "FİZİKSEL", ["Güç", "Sert Duruş", "Hız"]),
-                              MapEntry("ZİHİNSEL",
-                                  ["Karar Alma", "Soğukkanlılık", "Liderlik"])
                             ]
                           : pd.statSegments.entries.toList())
                       .map((entry) {
@@ -4666,8 +4662,6 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
     if (selectedPosition.contains("GK")) {
       return [
         MapEntry("KALECİLİK", pd.gkStatsList),
-        MapEntry("FİZİKSEL", ["Güç", "Sert Duruş", "Hız"]),
-        MapEntry("ZİHİNSEL", ["Karar Alma", "Soğukkanlılık", "Liderlik"])
       ];
     }
     return pd.statSegments.entries.toList();
