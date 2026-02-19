@@ -310,7 +310,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                               children: [
                                                 _cStat("ÇİZ", cs["ÇİZ"] ?? 50,
                                                     type, isBad),
-                                                _cStat("KIS", cs["KIS"] ?? 50,
+                                                _cStat("POZ", cs["POZ"] ?? 50,
                                                     type, isBad)
                                               ]),
                                           const SizedBox(height: 5),
@@ -319,9 +319,9 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                   MainAxisAlignment
                                                       .spaceBetween,
                                               children: [
-                                                _cStat("UZU", cs["UZU"] ?? 50,
+                                                _cStat("KAR", cs["KAR"] ?? 50,
                                                     type, isBad),
-                                                _cStat("POZ", cs["POZ"] ?? 50,
+                                                _cStat("PAS", cs["PAS"] ?? 50,
                                                     type, isBad)
                                               ])
                                         ])

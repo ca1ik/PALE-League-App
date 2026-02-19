@@ -4526,8 +4526,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                                   child: Wrap(
                                     spacing: 20,
                                     runSpacing: 20,
-                                    children:
-                                        pd.statSegments.entries.map((entry) {
+                                    children: _getStatList().map((entry) {
                                       return Container(
                                         width: 250,
                                         padding: const EdgeInsets.all(15),

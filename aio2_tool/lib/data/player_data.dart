@@ -253,11 +253,11 @@ class Player extends HiveObject {
     if (position.contains("GK") || position.contains("(1)")) {
       return {
         "REF": stats["Refleks"] ?? 50,
+        "1v1": stats["1v1"] ?? 50,
         "ÇİZ": stats["Çizgi Koruma"] ?? 50,
         "POZ": stats["Pozisyon Alma"] ?? 50,
-        "KIS": stats["Kısa Pas"] ?? 50,
-        "UZU": stats["Uzun Pas"] ?? 50,
-        "1v1": stats["1v1"] ?? 50,
+        "KAR": stats["Karar Alma"] ?? 50,
+        "PAS": stats["Pas"] ?? 50,
       };
     }
     return {
@@ -385,11 +385,11 @@ final Map<String, List<String>> statSegments = {
 };
 final List<String> gkStatsList = [
   "Refleks",
+  "1v1",
   "Çizgi Koruma",
   "Pozisyon Alma",
-  "Kısa Pas",
-  "Uzun Pas",
-  "1v1"
+  "Karar Alma",
+  "Pas"
 ];
 final List<String> gkPassStats = [
   "Pas",
