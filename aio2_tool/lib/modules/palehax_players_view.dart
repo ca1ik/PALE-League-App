@@ -3683,16 +3683,48 @@ void _showGlobalShowcase(
   for (var row in allRows) {
     // Temel kartları atla
     if (row.cardType != "Temel") {
-      // Basit convert işlemi
+      // --- GELİŞMİŞ CONVERT İŞLEMİ (Profil ile aynı mantık) ---
+      Map<String, int> st = {};
+      try {
+        st = Map<String, int>.from(jsonDecode(row.statsJson));
+      } catch (_) {}
+
+      String styleVal = "Temel";
+      int styleTierVal = 0;
       List<PlayStyle> ps = [];
+
       try {
         var l = jsonDecode(row.playStylesJson) as List;
-        ps = l.map((e) {
-          String s = e.toString();
-          return s.endsWith("+")
-              ? PlayStyle(s.substring(0, s.length - 1), isGold: true)
-              : PlayStyle(s, isGold: false);
-        }).toList();
+        ps = l
+            .map((e) {
+              String s = e.toString();
+              if (s.startsWith("STYLE_INFO:")) {
+                var parts = s.split(":");
+                if (parts.length >= 3) {
+                  styleVal = parts[1];
+                  styleTierVal = int.tryParse(parts[2]) ?? 0;
+                }
+                return null;
+              }
+              return s.endsWith("+")
+                  ? PlayStyle(s.substring(0, s.length - 1), isGold: true)
+                  : PlayStyle(s, isGold: false);
+            })
+            .whereType<PlayStyle>()
+            .toList();
+      } catch (_) {}
+
+      int sm = st['SM'] ?? 3;
+      int csIndex = st['CS'] ?? 0;
+      String cs = "Basic";
+      if (csIndex >= 0 && csIndex < chemistryStylesList.length) {
+        cs = chemistryStylesList[csIndex];
+      }
+
+      try {
+        dynamic dRow = row;
+        if (dRow.style != null) styleVal = dRow.style;
+        if (dRow.styleTier != null) styleTierVal = dRow.styleTier;
       } catch (_) {}
 
       Player p = Player(
@@ -3702,8 +3734,12 @@ void _showGlobalShowcase(
           playstyles: ps,
           cardType: row.cardType,
           team: row.team,
-          stats: {},
-          role: row.role ?? "Yok");
+          stats: st,
+          role: row.role ?? "Yok",
+          skillMoves: sm,
+          chemistryStyle: cs,
+          style: styleVal,
+          styleTier: styleTierVal);
 
       if (!groupedPlayers.containsKey(row.cardType)) {
         groupedPlayers[row.cardType] = [];
