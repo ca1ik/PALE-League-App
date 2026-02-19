@@ -10,7 +10,6 @@ import 'package:window_manager/window_manager.dart';
 
 import 'modules/standings_view.dart';
 import 'services/database_service.dart';
-import 'services/haxball_service.dart';
 import 'providers/music_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/language_provider.dart';
@@ -31,14 +30,12 @@ import 'modules/cleaning_module.dart';
 import 'modules/system_tools.dart';
 import 'modules/pale_webview.dart';
 import 'modules/ai_photo_module.dart';
-import 'modules/extras_module.dart';
 import 'modules/keyboard_module.dart';
 import 'modules/turkey_map_module.dart';
 import 'modules/palehax_players_view.dart';
 import 'modules/challenge_hub.dart';
 import 'modules/squad_builder_module.dart';
 
-// --- MODÜLLER ---
 import 'modules/palehax_tierlist.dart';
 import 'modules/palehax_ultimate.dart';
 import 'modules/palehax_games.dart';

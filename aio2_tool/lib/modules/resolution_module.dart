@@ -1,14 +1,13 @@
 import 'dart:convert';
 import 'dart:ffi';
-import 'dart:io' show Platform;
 import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Win32 import only on Windows
-import 'package:win32/win32.dart' 
-  if (dart.library.html) 'package:flutter/material.dart' // Dummy import for web/mobile
+import 'package:win32/win32.dart'
+    if (dart.library.html) 'package:flutter/material.dart'; // Dummy import for web/mobile
 
 // Veri Modelleri
 class ResolutionOption {
