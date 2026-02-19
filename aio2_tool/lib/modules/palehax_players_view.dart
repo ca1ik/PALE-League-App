@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:screenshot/screenshot.dart'; // EKLENDİ: Ekran görüntüsü için
 
 // Kendi proje yapına göre bu importların doğruluğundan emin ol
@@ -2301,7 +2300,6 @@ class _ViewUltimate extends StatefulWidget {
   final String lang;
 
   const _ViewUltimate({
-    super.key,
     required this.player,
     required this.versions,
     required this.index,
@@ -3582,56 +3580,6 @@ void _showGlobal(BuildContext context, AppDatabase db, String lang,
                   ])))));
 }
 
-Widget _infoBadge(String label, String val, {Color color = Colors.white}) =>
-    Column(children: [
-      Text(label, style: const TextStyle(color: Colors.white38, fontSize: 11)),
-      const SizedBox(height: 4),
-      Text(val,
-          style: TextStyle(
-              color: color, fontWeight: FontWeight.bold, fontSize: 16))
-    ]);
-Widget _statBox(String l, String v, Color c) => Container(
-    padding: const EdgeInsets.all(12),
-    width: 110,
-    decoration: BoxDecoration(
-        color: c.withOpacity(0.1),
-        border: Border.all(color: c.withOpacity(0.3)),
-        borderRadius: BorderRadius.circular(12)),
-    child: Column(children: [
-      Text(v,
-          style:
-              TextStyle(color: c, fontSize: 20, fontWeight: FontWeight.bold)),
-      Text(l, style: TextStyle(color: c.withOpacity(0.7), fontSize: 11))
-    ]));
-
-class _MiniPitchPainter extends CustomPainter {
-  final Offset playerPos;
-  _MiniPitchPainter({required this.playerPos});
-  @override
-  void paint(Canvas c, Size s) {
-    Paint lp = Paint()
-      ..color = Colors.white24
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    c.drawRect(Rect.fromLTWH(0, 0, s.width, s.height), lp);
-    c.drawLine(Offset(0, s.height / 2), Offset(s.width, s.height / 2), lp);
-    c.drawCircle(Offset(s.width / 2, s.height / 2), 15, lp);
-    c.drawRect(
-        Rect.fromLTWH(s.width * 0.25, 0, s.width * 0.5, s.height * 0.15), lp);
-    c.drawRect(
-        Rect.fromLTWH(
-            s.width * 0.25, s.height * 0.85, s.width * 0.5, s.height * 0.15),
-        lp);
-    c.drawCircle(
-        Offset(playerPos.dx * s.width, playerPos.dy * s.height),
-        6,
-        Paint()
-          ..color = Colors.redAccent
-          ..style = PaintingStyle.fill);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
 Color _getRatingColor(int r) =>
@@ -3808,7 +3756,7 @@ void _showGlobalShowcase(
           cardType: row.cardType,
           team: row.team,
           stats: st,
-          role: row.role ?? "Yok",
+          role: row.role,
           skillMoves: sm,
           chemistryStyle: cs,
           style: styleVal,
