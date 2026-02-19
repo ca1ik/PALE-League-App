@@ -1428,12 +1428,10 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
           // Sidebar için sadece TEMEL kartları filtrele
           final sidebarList = all.where((p) => p.cardType == "Temel").toList();
 
-          return Row(children: [
-            Container(
-                width: 260,
-                decoration: const BoxDecoration(
-                    border: Border(right: BorderSide(color: Colors.white10))),
-                child: Column(children: [
+          return LayoutBuilder(builder: (context, constraints) {
+            bool isMobile = constraints.maxWidth < 900;
+
+            Widget sidebarContent = Column(children: [
                   Padding(
                       padding: const EdgeInsets.all(10),
                       child: Container(
@@ -1559,10 +1557,13 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                             // Temel kartları listeliyoruz
                             final p = sidebarList[i];
                             return ListTile(
-                                onTap: () => setState(() {
+                                onTap: () {
+                                  if (isMobile) Navigator.pop(context);
+                                  setState(() {
                                       selectedPlayer = p;
                                       currentCardIndex = 0;
-                                    }),
+                                    });
+                                },
                                 selected: selectedPlayer?.name == p.name,
                                 selectedTileColor:
                                     Colors.cyanAccent.withOpacity(0.1),
@@ -1604,21 +1605,34 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                             ])
                       ],
                     ),
-                  )
-                ])),
-            Expanded(
-                child: Column(children: [
+                  ));
+
+            Widget mainContent = Column(children: [
               Container(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   width: double.infinity,
                   alignment: Alignment.center,
                   color: Colors.black12,
-                  child: Text(selectedPlayer!.name.toUpperCase(),
-                      style: GoogleFonts.orbitron(
-                          color: Colors.white,
-                          fontSize: 22,
-                          letterSpacing: 5,
-                          fontWeight: FontWeight.bold))),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (isMobile)
+                        Builder(
+                            builder: (c) => IconButton(
+                                icon:
+                                    const Icon(Icons.menu, color: Colors.white),
+                                onPressed: () => Scaffold.of(c).openDrawer())),
+                      Flexible(
+                        child: Text(selectedPlayer!.name.toUpperCase(),
+                            style: GoogleFonts.orbitron(
+                                color: Colors.white,
+                                fontSize: 22,
+                                letterSpacing: 5,
+                                fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  )),
               Expanded(
                   child: Column(children: [
                 Container(
@@ -1654,8 +1668,27 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                       onDelete: (p) => _delete(p))
                 ]))
               ])),
-            ]))
-          ]);
+            ]);
+
+            if (isMobile) {
+              return Scaffold(
+                backgroundColor: Colors.transparent,
+                drawer: Drawer(
+                    backgroundColor: const Color(0xFF1E1E24),
+                    child: SafeArea(child: sidebarContent)),
+                body: mainContent,
+              );
+            }
+
+            return Row(children: [
+              Container(
+                  width: 260,
+                  decoration: const BoxDecoration(
+                      border: Border(right: BorderSide(color: Colors.white10))),
+                  child: sidebarContent),
+              Expanded(child: mainContent)
+            ]);
+          });
         });
   }
 
@@ -1747,7 +1780,7 @@ class _SubTabTeamsState extends State<_SubTabTeams> {
 
   Widget _buildTeamsBody() {
     return SingleChildScrollView(
-        padding: const EdgeInsets.all(40),
+        padding: const EdgeInsets.all(20),
         child: Center(
             child: Wrap(
                 spacing: 30,
@@ -1939,10 +1972,12 @@ class SubTabCardTypes extends StatelessWidget {
   const SubTabCardTypes({super.key});
   @override
   Widget build(BuildContext context) {
+    double width = MediaQuery.of(context).size.width;
+    int crossCount = (width / 160).floor().clamp(2, 6);
     return GridView.builder(
-        padding: const EdgeInsets.all(40),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5,
+        padding: const EdgeInsets.all(20),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossCount,
             childAspectRatio: 0.65,
             crossAxisSpacing: 20,
             mainAxisSpacing: 20),
@@ -2095,10 +2130,12 @@ class _ViewProfile extends StatelessWidget {
   Widget build(BuildContext context) {
     List<PlayStyle> sortedPs = List.from(player.playstyles)
       ..sort((a, b) => (b.isGold ? 1 : 0).compareTo(a.isGold ? 1 : 0));
-    return ListView(padding: const EdgeInsets.all(35), children: [
-      Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
+    bool isMobile = MediaQuery.of(context).size.width < 800;
+    return ListView(padding: const EdgeInsets.all(20), children: [
+      Flex(
+          direction: isMobile ? Axis.vertical : Axis.horizontal,
+          mainAxisAlignment: isMobile ? MainAxisAlignment.center : MainAxisAlignment.center,
+          crossAxisAlignment: isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
           children: [
             FCAnimatedCard(player: player, animateOnHover: true),
             const SizedBox(width: 50),
@@ -2435,6 +2472,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
     if (player.team == "CA RIVER PLATE")
       teamLogo = "assets/takimlar/riverplate.png";
     if (player.team == "It Spor") teamLogo = "assets/takimlar/itspor.png";
+    bool isMobile = MediaQuery.of(context).size.width < 900;
 
     // STİL İSMİNİ ÇEVİR
     String styleDisplay = t(player.style, widget.lang);
@@ -2459,8 +2497,9 @@ class _ViewUltimateState extends State<_ViewUltimate> {
             ),
           ),
           // --- ÜST KISIM ---
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Flex(
+            direction: isMobile ? Axis.vertical : Axis.horizontal,
+            crossAxisAlignment: isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
             children: [
               // KART
               FCAnimatedCard(player: player, animateOnHover: true),
@@ -2600,8 +2639,9 @@ class _ViewUltimateState extends State<_ViewUltimate> {
           const SizedBox(height: 20),
 
           // --- İSTATİSTİKLER VE PERFORMANS (YAN YANA) ---
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Flex(
+            direction: isMobile ? Axis.vertical : Axis.horizontal,
+            crossAxisAlignment: isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
             children: [
               // SOL: İSTATİSTİKLER
               Expanded(
@@ -2799,7 +2839,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(t("SEASON_PERF", widget.lang),
@@ -2825,7 +2865,9 @@ class _ViewUltimateState extends State<_ViewUltimate> {
             ],
           ),
           const SizedBox(height: 20),
-          Row(
+          Wrap(
+            spacing: 20,
+            runSpacing: 10,
             children: [
               _statCard(
                   t("TOTAL_GOL", widget.lang), "$totalGoals", Colors.orange),
@@ -3416,8 +3458,8 @@ void _showGlobal(BuildContext context, AppDatabase db, String lang,
           builder: (c, setS) => Dialog(
               backgroundColor: const Color(0xFF0D0D12),
               child: Container(
-                  width: 1100,
-                  height: 850,
+                  width: MediaQuery.of(context).size.width * 0.95,
+                  height: MediaQuery.of(context).size.height * 0.9,
                   padding: const EdgeInsets.all(25),
                   child: Column(children: [
                     Row(children: [
@@ -3470,10 +3512,11 @@ void _showGlobal(BuildContext context, AppDatabase db, String lang,
                               if (!sn.hasData)
                                 return const Center(
                                     child: CircularProgressIndicator());
+                              double w = MediaQuery.of(context).size.width;
                               return GridView.builder(
                                   gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                          crossAxisCount: 5,
+                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: (w / 160).floor().clamp(2, 6),
                                           childAspectRatio: 0.65),
                                   itemCount: sn.data!.length,
                                   itemBuilder: (c, i) {
@@ -3939,13 +3982,15 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
 
   @override
   Widget build(BuildContext context) {
+    bool isMobile = MediaQuery.of(context).size.width < 900;
     return Dialog(
       backgroundColor: const Color(0xFF0D0D12),
       insetPadding: EdgeInsets.zero, // Full screen hissiyatı
       child: SizedBox(
         width: MediaQuery.of(context).size.width, // TAM EKRAN
         height: MediaQuery.of(context).size.height, // TAM EKRAN
-        child: Row(
+        child: Flex(
+          direction: isMobile ? Axis.vertical : Axis.horizontal,
           children: [
             // --- SOL: SAHA VE KADRO ---
             Expanded(
@@ -4083,7 +4128,8 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
             ),
             // --- SAĞ: OYUNCU HAVUZU ---
             Container(
-              width: 350,
+              width: isMobile ? double.infinity : 350,
+              height: isMobile ? 200 : double.infinity,
               color: const Color(0xFF101014),
               padding: const EdgeInsets.all(10),
               child: Column(
