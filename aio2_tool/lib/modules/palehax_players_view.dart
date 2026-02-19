@@ -1289,7 +1289,36 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold),
                                     overflow: TextOverflow.ellipsis));
-                          }))
+                          })),
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    decoration: const BoxDecoration(
+                        border: Border(top: BorderSide(color: Colors.white10))),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        const SizedBox(width: 20),
+                        const Icon(Icons.language,
+                            color: Colors.white54, size: 18),
+                        const SizedBox(width: 10),
+                        DropdownButton<String>(
+                            value: widget.lang,
+                            dropdownColor: const Color(0xFF1E1E24),
+                            underline: const SizedBox(),
+                            icon: const Icon(Icons.arrow_drop_down,
+                                color: Colors.white54),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold),
+                            onChanged: (v) => widget.onLangChange(v!),
+                            items: const [
+                              DropdownMenuItem(value: "tr", child: Text("TR")),
+                              DropdownMenuItem(value: "en", child: Text("EN")),
+                              DropdownMenuItem(value: "es", child: Text("ES")),
+                            ])
+                      ],
+                    ),
+                  )
                 ])),
             Expanded(
                 child: Column(children: [
@@ -1305,60 +1334,40 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                           letterSpacing: 5,
                           fontWeight: FontWeight.bold))),
               Expanded(
-                  child: Stack(children: [
-                Column(children: [
-                  Container(
-                      color: Colors.black26,
-                      child: TabBar(
-                          controller: _innerTabController,
-                          indicatorColor: Colors.cyanAccent,
-                          labelColor: Colors.cyanAccent,
-                          unselectedLabelColor: Colors.white54,
-                          tabs: [
-                            Tab(text: t("PROFILE", widget.lang)),
-                            Tab(text: t("ULTIMATE", widget.lang))
-                          ])),
-                  Expanded(
-                      child: TabBarView(
-                          controller: _innerTabController,
-                          children: [
-                        _ViewProfile(
-                            player: displayPlayer,
-                            versions: versions,
-                            lang: widget.lang,
-                            onSelect: (p) => setState(() {
-                                  selectedPlayer = p;
-                                  currentCardIndex = versions.indexOf(p);
-                                })),
-                        _ViewUltimate(
-                            player: displayPlayer,
-                            versions: versions,
-                            index: currentCardIndex,
-                            lang: widget.lang,
-                            onIndex: (i) =>
-                                setState(() => currentCardIndex = i),
-                            context: context,
-                            onSave: (newP, oldP) => _save(newP, oldP),
-                            onDelete: (p) => _delete(p))
-                      ]))
-                ]),
-                Positioned(
-                    bottom: 10,
-                    left: 10,
-                    child: PopupMenuButton<String>(
-                        icon: const Icon(Icons.drag_handle,
-                            color: Colors.white12),
-                        tooltip: "Language / Dil",
-                        onSelected: widget.onLangChange,
-                        itemBuilder: (c) => [
-                              const PopupMenuItem(
-                                  value: "tr", child: Text("Türkçe")),
-                              const PopupMenuItem(
-                                  value: "en", child: Text("English")),
-                              const PopupMenuItem(
-                                  value: "es", child: Text("Español")),
-                            ]))
-              ]))
+                  child: Column(children: [
+                Container(
+                    color: Colors.black26,
+                    child: TabBar(
+                        controller: _innerTabController,
+                        indicatorColor: Colors.cyanAccent,
+                        labelColor: Colors.cyanAccent,
+                        unselectedLabelColor: Colors.white54,
+                        tabs: [
+                          Tab(text: t("PROFILE", widget.lang)),
+                          Tab(text: t("ULTIMATE", widget.lang))
+                        ])),
+                Expanded(
+                    child:
+                        TabBarView(controller: _innerTabController, children: [
+                  _ViewProfile(
+                      player: displayPlayer,
+                      versions: versions,
+                      lang: widget.lang,
+                      onSelect: (p) => setState(() {
+                            selectedPlayer = p;
+                            currentCardIndex = versions.indexOf(p);
+                          })),
+                  _ViewUltimate(
+                      player: displayPlayer,
+                      versions: versions,
+                      index: currentCardIndex,
+                      lang: widget.lang,
+                      onIndex: (i) => setState(() => currentCardIndex = i),
+                      context: context,
+                      onSave: (newP, oldP) => _save(newP, oldP),
+                      onDelete: (p) => _delete(p))
+                ]))
+              ])),
             ]))
           ]);
         });
@@ -2588,7 +2597,9 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                             marketValue: updated.marketValue,
                             recLink: jsonHistory, // BURAYA KAYDEDİYORUZ
                             manualGoals: updated.manualGoals,
-                            manualAssists: updated.manualAssists);
+                            manualAssists: updated.manualAssists,
+                            style: updated.style,
+                            styleTier: updated.styleTier);
                         widget.onSave(newP, widget.player);
                       });
                       Navigator.pop(c);
@@ -3276,7 +3287,9 @@ void _createVersion(
       seasons: p.seasons,
       recLink: p.recLink,
       manualGoals: p.manualGoals,
-      manualAssists: p.manualAssists);
+      manualAssists: p.manualAssists,
+      style: p.style,
+      styleTier: p.styleTier);
   showDialog(
       context: context,
       builder: (c) => CreatePlayerDialog(
