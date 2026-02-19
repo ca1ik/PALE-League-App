@@ -252,12 +252,12 @@ class Player extends HiveObject {
     }
     if (position.contains("GK") || position.contains("(1)")) {
       return {
-        "REF": stats["Reflex"] ?? 50,
-        "DIV": stats["Çizgide Kurtarış"] ?? 50,
-        "HAN": stats["Top Kontrolü"] ?? 50,
-        "KIC": stats["Güç"] ?? 50,
-        "POS": stats["Pozisyon Alma"] ?? 50,
-        "1v1": stats["1e1 Savunma"] ?? 50,
+        "REF": stats["Refleks"] ?? 50,
+        "ÇİZ": stats["Çizgi Koruma"] ?? 50,
+        "POZ": stats["Pozisyon Alma"] ?? 50,
+        "KIS": stats["Kısa Pas"] ?? 50,
+        "UZU": stats["Uzun Pas"] ?? 50,
+        "1v1": stats["1v1"] ?? 50,
       };
     }
     return {
@@ -385,10 +385,11 @@ final Map<String, List<String>> statSegments = {
 };
 final List<String> gkStatsList = [
   "Refleks",
-  "Çizgi Kaleciliği",
+  "Çizgi Koruma",
   "Pozisyon Alma",
+  "Kısa Pas",
   "Uzun Pas",
-  "Kısa Pas"
+  "1v1"
 ];
 final List<String> gkPassStats = [
   "Pas",
@@ -465,7 +466,7 @@ final Map<String, String> teamLogos = {
   "Werder Weremem": "assets/takimlar/werderweremem.png",
 };
 final Map<String, List<String>> roleCategories = {
-  "(1) GK": ["Çizgi Kalecisi"],
+  "(1) GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
   "(9) ST": ["Hedef Forvet"]
 };
 
@@ -791,10 +792,10 @@ class PaleHaxLoc {
       "Orta Yapma": "Crossing",
       "Top Kontrolü": "Ball Control",
       "Refleks": "Reflexes",
-      "Çizgi Kaleciliği": "Diving",
-      "Uzun Pas": "Kicking",
-      "Kısa Pas": "Handling",
-      "1e1 Savunma": "1v1",
+      "Çizgi Koruma": "Line Keeper",
+      "Uzun Pas": "Long Pass",
+      "Kısa Pas": "Short Pass",
+      "1v1": "1v1",
       "1. Top Sürme & Fizik": "1. Dribbling & Physical",
       "2. Şut & Zihinsel": "2. Shooting & Mental",
       "3. Savunma & Güç": "3. Defense & Strength",
@@ -833,10 +834,10 @@ class PaleHaxLoc {
       "Orta Yapma": "Centros",
       "Top Kontrolü": "Control Balón",
       "Refleks": "Reflejos",
-      "Çizgi Kaleciliği": "Estirada",
-      "Uzun Pas": "Saque",
-      "Kısa Pas": "Manejo",
-      "1e1 Savunma": "1v1",
+      "Çizgi Koruma": "Portero de Línea",
+      "Uzun Pas": "Pase Largo",
+      "Kısa Pas": "Pase Corto",
+      "1v1": "1v1",
       "1. Top Sürme & Fizik": "1. Regate y Físico",
       "2. Şut & Zihinsel": "2. Tiro y Mental",
       "3. Savunma & Güç": "3. Defensa y Fuerza",

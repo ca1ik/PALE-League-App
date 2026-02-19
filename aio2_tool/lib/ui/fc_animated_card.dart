@@ -308,9 +308,9 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                   MainAxisAlignment
                                                       .spaceBetween,
                                               children: [
-                                                _cStat("DIV", cs["DIV"] ?? 50,
+                                                _cStat("ÇİZ", cs["ÇİZ"] ?? 50,
                                                     type, isBad),
-                                                _cStat("HAN", cs["HAN"] ?? 50,
+                                                _cStat("KIS", cs["KIS"] ?? 50,
                                                     type, isBad)
                                               ]),
                                           const SizedBox(height: 5),
@@ -319,20 +319,10 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                   MainAxisAlignment
                                                       .spaceBetween,
                                               children: [
-                                                _cStat(
-                                                    "KIC",
-                                                    cs["KIC"] ??
-                                                        cs["Güç"] ??
-                                                        50,
-                                                    type,
-                                                    isBad),
-                                                _cStat(
-                                                    "POS",
-                                                    cs["POS"] ??
-                                                        cs["Pozisyon Alma"] ??
-                                                        50,
-                                                    type,
-                                                    isBad)
+                                                _cStat("UZU", cs["UZU"] ?? 50,
+                                                    type, isBad),
+                                                _cStat("POZ", cs["POZ"] ?? 50,
+                                                    type, isBad)
                                               ])
                                         ])
                                       else

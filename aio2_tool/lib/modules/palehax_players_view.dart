@@ -1251,7 +1251,14 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
                     _SubTabPlayers(
                         database: database,
                         lang: lang,
-                        onLangChange: (l) => setState(() => lang = l)),
+                        onLangChange: (l) {
+                          setState(() => lang = l);
+                          // PlayerData içindeki dil ayarını güncelle (Stat çevirileri için)
+                          String pdLang = "TR";
+                          if (l == "en") pdLang = "EN";
+                          if (l == "es") pdLang = "SP";
+                          pd.paleHaxLangNotifier.value = pdLang;
+                        }),
                     _SubTabTeams(database: database, lang: lang),
                     SubTabPlayStyles(lang: lang),
                     const SubTabCardTypes(),
@@ -2600,20 +2607,20 @@ class _ViewUltimateState extends State<_ViewUltimate> {
               Expanded(
                 flex: 3,
                 child: Column(
-                  children: pd.statSegments.entries.map((entry) {
+                  children: (isGK
+                          ? [
+                              MapEntry("KALECİLİK", pd.gkStatsList),
+                              MapEntry(
+                                  "FİZİKSEL", ["Güç", "Sert Duruş", "Hız"]),
+                              MapEntry("ZİHİNSEL",
+                                  ["Karar Alma", "Soğukkanlılık", "Liderlik"])
+                            ]
+                          : pd.statSegments.entries.toList())
+                      .map((entry) {
                     String category = entry.key;
                     List<String> statsList = entry.value;
 
                     String catTrans = t(category, widget.lang);
-                    // Özel durumlar için fallback (Eğer t() içinde yoksa)
-                    if (category == "Kaleci") catTrans = t("GK", widget.lang);
-                    if (category == "Fizik") catTrans = t("PHY", widget.lang);
-                    if (category == "Zeka") catTrans = t("MEN", widget.lang);
-
-                    if (isGK && !['Kaleci', 'Fizik', 'Zeka'].contains(category))
-                      return const SizedBox.shrink();
-                    if (!isGK && category == 'Kaleci')
-                      return const SizedBox.shrink();
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2689,8 +2696,83 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                       (newP) => widget.onSave(newP, null), widget.lang);
                 },
               ),
+              ListTile(
+                leading:
+                    const Icon(Icons.delete_sweep, color: Colors.redAccent),
+                title: Text(
+                    widget.lang == "tr"
+                        ? "Kartları Seç ve Sil"
+                        : "Select & Delete Cards",
+                    style: const TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(c);
+                  _showMultiDeleteDialog();
+                },
+              ),
             ],
           );
+        });
+  }
+
+  void _showMultiDeleteDialog() {
+    List<Player> selectedToDelete = [];
+    showDialog(
+        context: context,
+        builder: (ctx) {
+          return StatefulBuilder(builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E1E24),
+              title: Text(widget.lang == "tr" ? "Kartları Sil" : "Delete Cards",
+                  style: const TextStyle(color: Colors.white)),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: widget.versions.length,
+                  itemBuilder: (c, i) {
+                    Player ver = widget.versions[i];
+                    bool isSelected = selectedToDelete.contains(ver);
+                    return CheckboxListTile(
+                      activeColor: Colors.redAccent,
+                      checkColor: Colors.white,
+                      title: Text("${ver.cardType} - ${ver.rating}",
+                          style: const TextStyle(color: Colors.white)),
+                      subtitle: Text(ver.position,
+                          style: const TextStyle(color: Colors.white54)),
+                      value: isSelected,
+                      onChanged: (val) {
+                        setDialogState(() {
+                          if (val == true) {
+                            selectedToDelete.add(ver);
+                          } else {
+                            selectedToDelete.remove(ver);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(t("CANCEL", widget.lang)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent),
+                  onPressed: () {
+                    for (var p in selectedToDelete) {
+                      widget.onDelete(p);
+                    }
+                    Navigator.pop(ctx);
+                  },
+                  child: Text(t("DELETE_BTN", widget.lang),
+                      style: const TextStyle(color: Colors.white)),
+                )
+              ],
+            );
+          });
         });
   }
 
@@ -3715,11 +3797,14 @@ class _ShowcaseDialogState extends State<_ShowcaseDialog>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ).createShader(bounds),
-                  child: Text(t("SHOWCASE", widget.lang),
-                      style: GoogleFonts.russoOne(
-                          color: Colors.white, // ShaderMask bunu ezecek
-                          fontSize: 50,
-                          letterSpacing: 10)),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(t("SHOWCASE", widget.lang),
+                        style: GoogleFonts.russoOne(
+                            color: Colors.white, // ShaderMask bunu ezecek
+                            fontSize: 50,
+                            letterSpacing: 10)),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Expanded(
