@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:drift/drift.dart' as drift;
-import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'package:screenshot/screenshot.dart'; // EKLENDİ: Ekran görüntüsü için
 
 // Kendi proje yapına göre bu importların doğruluğundan emin ol
@@ -12,7 +12,6 @@ import '../data/player_data.dart' show Player, PlayStyle;
 import '../services/database_service.dart';
 import '../ui/fc_animated_card.dart'; // Kart tasarımı dosyan
 // import '../modules/player_editor.dart'; // BUNU KAPATTIM, AŞAĞIYA EKLEDİM
-import 'pale_webview.dart';
 
 // ============================================================================
 // BÖLÜM 1: SABİT VERİLER
@@ -1428,197 +1427,203 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
           // Sidebar için sadece TEMEL kartları filtrele
           final sidebarList = all.where((p) => p.cardType == "Temel").toList();
 
-          return Row(children: [
-            Container(
-                width: 260,
-                decoration: const BoxDecoration(
-                    border: Border(right: BorderSide(color: Colors.white10))),
-                child: Column(children: [
-                  Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: Container(
-                          decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [
-                                Colors.purpleAccent,
-                                Colors.blueAccent
-                              ]),
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: [
-                                BoxShadow(
-                                    color: Colors.purple.withOpacity(0.5),
-                                    blurRadius: 10)
-                              ]),
-                          child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 15)),
-                              onPressed: () => _showGlobal(
-                                      context, widget.database, widget.lang,
-                                      (pT) {
-                                    setState(() {
-                                      selectedPlayer = _convert(pT);
-                                      currentCardIndex = 0;
-                                    });
-                                  }),
-                              child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.public,
-                                        color: Colors.white),
-                                    const SizedBox(width: 8),
-                                    Text(t("GLOBAL", widget.lang),
-                                        style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold))
-                                  ])))),
-                  // --- VİTRİN BUTONU ---
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    child: Container(
+          return LayoutBuilder(builder: (context, constraints) {
+            bool isMobile = constraints.maxWidth < 900;
+
+            Widget sidebarContent = Column(children: [
+              Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Container(
                       decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [
-                            Color(0xFF000000),
-                            Color(0xFF311B92)
-                          ]), // TOTS Renkleri
+                          gradient: const LinearGradient(
+                              colors: [Colors.purpleAccent, Colors.blueAccent]),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: Colors.cyanAccent.withOpacity(0.5))),
+                          boxShadow: [
+                            BoxShadow(
+                                color: Colors.purple.withOpacity(0.5),
+                                blurRadius: 10)
+                          ]),
                       child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent),
-                          onPressed: () => _showGlobalShowcase(
-                              context, widget.database, widget.lang),
+                              shadowColor: Colors.transparent,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 15)),
+                          onPressed: () => _showGlobal(
+                                  context, widget.database, widget.lang, (pT) {
+                                setState(() {
+                                  selectedPlayer = _convert(pT);
+                                  currentCardIndex = 0;
+                                });
+                              }),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.stars, color: Colors.cyanAccent),
-                              const SizedBox(width: 8),
-                              Text(t("SHOWCASE", widget.lang),
-                                  style: GoogleFonts.russoOne(
-                                      color: Colors.cyanAccent, fontSize: 14)),
-                            ],
-                          )),
-                    ),
-                  ),
-                  // --- VİTRİN TAKIMLARI (SQUAD BUILDER) BUTONU ---
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                            colors: [Color(0xFF1A237E), Color(0xFF0D47A1)]),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent),
-                          onPressed: () => _showSquadBuilder(
-                              context, widget.database, widget.lang),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.view_quilt, color: Colors.white),
-                              const SizedBox(width: 8),
-                              Text(t("SQUAD_BUILDER", widget.lang),
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold)),
-                            ],
-                          )),
-                    ),
-                  ),
-                  Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      child: SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                              onPressed: () => _showEditor(
-                                  context,
-                                  null,
-                                  (newP, oldP) => _save(newP, oldP),
-                                  widget.lang),
-                              icon: const Icon(Icons.person_add,
-                                  color: Colors.black, size: 20),
-                              label: Text(t("NEW_PLAYER", widget.lang),
-                                  style: const TextStyle(
-                                      color: Colors.black,
-                                      fontWeight: FontWeight.bold)),
-                              style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.cyanAccent)))),
-                  Expanded(
-                      child: ListView.builder(
-                          itemCount: sidebarList.length,
-                          itemBuilder: (c, i) {
-                            // Temel kartları listeliyoruz
-                            final p = sidebarList[i];
-                            return ListTile(
-                                onTap: () => setState(() {
-                                      selectedPlayer = p;
-                                      currentCardIndex = 0;
-                                    }),
-                                selected: selectedPlayer?.name == p.name,
-                                selectedTileColor:
-                                    Colors.cyanAccent.withOpacity(0.1),
-                                leading: Text("${p.rating}",
-                                    style: GoogleFonts.russoOne(
-                                        color: _getRatingColor(p.rating),
-                                        fontSize: 18)),
-                                title: Text(p.name,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.public, color: Colors.white),
+                                const SizedBox(width: 8),
+                                Text(t("GLOBAL", widget.lang),
                                     style: const TextStyle(
                                         color: Colors.white,
-                                        fontWeight: FontWeight.bold),
-                                    overflow: TextOverflow.ellipsis));
-                          })),
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 5),
-                    decoration: const BoxDecoration(
-                        border: Border(top: BorderSide(color: Colors.white10))),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        const SizedBox(width: 20),
-                        const Icon(Icons.language,
-                            color: Colors.white54, size: 18),
-                        const SizedBox(width: 10),
-                        DropdownButton<String>(
-                            value: widget.lang,
-                            dropdownColor: const Color(0xFF1E1E24),
-                            underline: const SizedBox(),
-                            icon: const Icon(Icons.arrow_drop_down,
-                                color: Colors.white54),
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold),
-                            onChanged: (v) => widget.onLangChange(v!),
-                            items: const [
-                              DropdownMenuItem(value: "tr", child: Text("TR")),
-                              DropdownMenuItem(value: "en", child: Text("EN")),
-                              DropdownMenuItem(value: "es", child: Text("ES")),
-                            ])
-                      ],
-                    ),
-                  )
-                ])),
-            Expanded(
-                child: Column(children: [
+                                        fontWeight: FontWeight.bold))
+                              ])))),
+              // --- VİTRİN BUTONU ---
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                child: Container(
+                  decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [
+                        Color(0xFF000000),
+                        Color(0xFF311B92)
+                      ]), // TOTS Renkleri
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: Colors.cyanAccent.withOpacity(0.5))),
+                  child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent),
+                      onPressed: () => _showGlobalShowcase(
+                          context, widget.database, widget.lang),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.stars, color: Colors.cyanAccent),
+                          const SizedBox(width: 8),
+                          Text(t("SHOWCASE", widget.lang),
+                              style: GoogleFonts.russoOne(
+                                  color: Colors.cyanAccent, fontSize: 14)),
+                        ],
+                      )),
+                ),
+              ),
+              // --- VİTRİN TAKIMLARI (SQUAD BUILDER) BUTONU ---
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                        colors: [Color(0xFF1A237E), Color(0xFF0D47A1)]),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent),
+                      onPressed: () => _showSquadBuilder(
+                          context, widget.database, widget.lang),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.view_quilt, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Text(t("SQUAD_BUILDER", widget.lang),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      )),
+                ),
+              ),
+              Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                          onPressed: () => _showEditor(context, null,
+                              (newP, oldP) => _save(newP, oldP), widget.lang),
+                          icon: const Icon(Icons.person_add,
+                              color: Colors.black, size: 20),
+                          label: Text(t("NEW_PLAYER", widget.lang),
+                              style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.cyanAccent)))),
+              Expanded(
+                  child: ListView.builder(
+                      itemCount: sidebarList.length,
+                      itemBuilder: (c, i) {
+                        // Temel kartları listeliyoruz
+                        final p = sidebarList[i];
+                        return ListTile(
+                            onTap: () {
+                              if (isMobile) Navigator.pop(context);
+                              setState(() {
+                                selectedPlayer = p;
+                                currentCardIndex = 0;
+                              });
+                            },
+                            selected: selectedPlayer?.name == p.name,
+                            selectedTileColor:
+                                Colors.cyanAccent.withOpacity(0.1),
+                            leading: Text("${p.rating}",
+                                style: GoogleFonts.russoOne(
+                                    color: _getRatingColor(p.rating),
+                                    fontSize: 18)),
+                            title: Text(p.name,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold),
+                                overflow: TextOverflow.ellipsis));
+                      })),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: Colors.white10))),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    const SizedBox(width: 20),
+                    const Icon(Icons.language, color: Colors.white54, size: 18),
+                    const SizedBox(width: 10),
+                    DropdownButton<String>(
+                        value: widget.lang,
+                        dropdownColor: const Color(0xFF1E1E24),
+                        underline: const SizedBox(),
+                        icon: const Icon(Icons.arrow_drop_down,
+                            color: Colors.white54),
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold),
+                        onChanged: (v) => widget.onLangChange(v!),
+                        items: const [
+                          DropdownMenuItem(value: "tr", child: Text("TR")),
+                          DropdownMenuItem(value: "en", child: Text("EN")),
+                          DropdownMenuItem(value: "es", child: Text("ES")),
+                        ])
+                  ],
+                ),
+              )
+            ]);
+
+            Widget mainContent = Column(children: [
               Container(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   width: double.infinity,
                   alignment: Alignment.center,
                   color: Colors.black12,
-                  child: Text(selectedPlayer!.name.toUpperCase(),
-                      style: GoogleFonts.orbitron(
-                          color: Colors.white,
-                          fontSize: 22,
-                          letterSpacing: 5,
-                          fontWeight: FontWeight.bold))),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (isMobile)
+                        Builder(
+                            builder: (c) => IconButton(
+                                icon:
+                                    const Icon(Icons.menu, color: Colors.white),
+                                onPressed: () => Scaffold.of(c).openDrawer())),
+                      Flexible(
+                        child: Text(selectedPlayer!.name.toUpperCase(),
+                            style: GoogleFonts.orbitron(
+                                color: Colors.white,
+                                fontSize: 22,
+                                letterSpacing: 5,
+                                fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  )),
               Expanded(
                   child: Column(children: [
                 Container(
@@ -1654,8 +1659,27 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                       onDelete: (p) => _delete(p))
                 ]))
               ])),
-            ]))
-          ]);
+            ]);
+
+            if (isMobile) {
+              return Scaffold(
+                backgroundColor: Colors.transparent,
+                drawer: Drawer(
+                    backgroundColor: const Color(0xFF1E1E24),
+                    child: SafeArea(child: sidebarContent)),
+                body: mainContent,
+              );
+            }
+
+            return Row(children: [
+              Container(
+                  width: 260,
+                  decoration: const BoxDecoration(
+                      border: Border(right: BorderSide(color: Colors.white10))),
+                  child: sidebarContent),
+              Expanded(child: mainContent)
+            ]);
+          });
         });
   }
 
@@ -1698,6 +1722,39 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
     setState(() {
       selectedPlayer = null;
     });
+  }
+}
+
+class PaleWebView extends StatefulWidget {
+  final String url;
+  const PaleWebView({super.key, required this.url});
+
+  @override
+  State<PaleWebView> createState() => _PaleWebViewState();
+}
+
+class _PaleWebViewState extends State<PaleWebView> {
+  late final WebViewController _controller;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(NavigationDelegate(
+          onPageStarted: (_) => setState(() => _isLoading = true),
+          onPageFinished: (_) => setState(() => _isLoading = false)))
+      ..loadRequest(Uri.parse(widget.url));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(children: [
+      WebViewWidget(controller: _controller),
+      if (_isLoading)
+        const Center(child: CircularProgressIndicator(color: Colors.cyanAccent))
+    ]);
   }
 }
 
@@ -1747,7 +1804,7 @@ class _SubTabTeamsState extends State<_SubTabTeams> {
 
   Widget _buildTeamsBody() {
     return SingleChildScrollView(
-        padding: const EdgeInsets.all(40),
+        padding: const EdgeInsets.all(20),
         child: Center(
             child: Wrap(
                 spacing: 30,
@@ -1939,10 +1996,12 @@ class SubTabCardTypes extends StatelessWidget {
   const SubTabCardTypes({super.key});
   @override
   Widget build(BuildContext context) {
+    double width = MediaQuery.of(context).size.width;
+    int crossCount = (width / 160).floor().clamp(2, 6);
     return GridView.builder(
-        padding: const EdgeInsets.all(40),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5,
+        padding: const EdgeInsets.all(20),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossCount,
             childAspectRatio: 0.65,
             crossAxisSpacing: 20,
             mainAxisSpacing: 20),
@@ -2095,10 +2154,14 @@ class _ViewProfile extends StatelessWidget {
   Widget build(BuildContext context) {
     List<PlayStyle> sortedPs = List.from(player.playstyles)
       ..sort((a, b) => (b.isGold ? 1 : 0).compareTo(a.isGold ? 1 : 0));
-    return ListView(padding: const EdgeInsets.all(35), children: [
-      Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
+    bool isMobile = MediaQuery.of(context).size.width < 800;
+    return ListView(padding: const EdgeInsets.all(20), children: [
+      Flex(
+          direction: isMobile ? Axis.vertical : Axis.horizontal,
+          mainAxisAlignment:
+              isMobile ? MainAxisAlignment.center : MainAxisAlignment.center,
+          crossAxisAlignment:
+              isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
           children: [
             FCAnimatedCard(player: player, animateOnHover: true),
             const SizedBox(width: 50),
@@ -2237,7 +2300,6 @@ class _ViewUltimate extends StatefulWidget {
   final String lang;
 
   const _ViewUltimate({
-    super.key,
     required this.player,
     required this.versions,
     required this.index,
@@ -2435,6 +2497,7 @@ class _ViewUltimateState extends State<_ViewUltimate> {
     if (player.team == "CA RIVER PLATE")
       teamLogo = "assets/takimlar/riverplate.png";
     if (player.team == "It Spor") teamLogo = "assets/takimlar/itspor.png";
+    bool isMobile = MediaQuery.of(context).size.width < 900;
 
     // STİL İSMİNİ ÇEVİR
     String styleDisplay = t(player.style, widget.lang);
@@ -2459,8 +2522,10 @@ class _ViewUltimateState extends State<_ViewUltimate> {
             ),
           ),
           // --- ÜST KISIM ---
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Flex(
+            direction: isMobile ? Axis.vertical : Axis.horizontal,
+            crossAxisAlignment:
+                isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
             children: [
               // KART
               FCAnimatedCard(player: player, animateOnHover: true),
@@ -2600,8 +2665,10 @@ class _ViewUltimateState extends State<_ViewUltimate> {
           const SizedBox(height: 20),
 
           // --- İSTATİSTİKLER VE PERFORMANS (YAN YANA) ---
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Flex(
+            direction: isMobile ? Axis.vertical : Axis.horizontal,
+            crossAxisAlignment:
+                isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
             children: [
               // SOL: İSTATİSTİKLER
               Expanded(
@@ -2799,8 +2866,8 @@ class _ViewUltimateState extends State<_ViewUltimate> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
             children: [
               Text(t("SEASON_PERF", widget.lang),
                   style: GoogleFonts.orbitron(
@@ -2825,7 +2892,9 @@ class _ViewUltimateState extends State<_ViewUltimate> {
             ],
           ),
           const SizedBox(height: 20),
-          Row(
+          Wrap(
+            spacing: 20,
+            runSpacing: 10,
             children: [
               _statCard(
                   t("TOTAL_GOL", widget.lang), "$totalGoals", Colors.orange),
@@ -3416,8 +3485,8 @@ void _showGlobal(BuildContext context, AppDatabase db, String lang,
           builder: (c, setS) => Dialog(
               backgroundColor: const Color(0xFF0D0D12),
               child: Container(
-                  width: 1100,
-                  height: 850,
+                  width: MediaQuery.of(context).size.width * 0.95,
+                  height: MediaQuery.of(context).size.height * 0.9,
                   padding: const EdgeInsets.all(25),
                   child: Column(children: [
                     Row(children: [
@@ -3470,10 +3539,12 @@ void _showGlobal(BuildContext context, AppDatabase db, String lang,
                               if (!sn.hasData)
                                 return const Center(
                                     child: CircularProgressIndicator());
+                              double w = MediaQuery.of(context).size.width;
                               return GridView.builder(
                                   gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                          crossAxisCount: 5,
+                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount:
+                                              (w / 160).floor().clamp(2, 6),
                                           childAspectRatio: 0.65),
                                   itemCount: sn.data!.length,
                                   itemBuilder: (c, i) {
@@ -3509,56 +3580,6 @@ void _showGlobal(BuildContext context, AppDatabase db, String lang,
                   ])))));
 }
 
-Widget _infoBadge(String label, String val, {Color color = Colors.white}) =>
-    Column(children: [
-      Text(label, style: const TextStyle(color: Colors.white38, fontSize: 11)),
-      const SizedBox(height: 4),
-      Text(val,
-          style: TextStyle(
-              color: color, fontWeight: FontWeight.bold, fontSize: 16))
-    ]);
-Widget _statBox(String l, String v, Color c) => Container(
-    padding: const EdgeInsets.all(12),
-    width: 110,
-    decoration: BoxDecoration(
-        color: c.withOpacity(0.1),
-        border: Border.all(color: c.withOpacity(0.3)),
-        borderRadius: BorderRadius.circular(12)),
-    child: Column(children: [
-      Text(v,
-          style:
-              TextStyle(color: c, fontSize: 20, fontWeight: FontWeight.bold)),
-      Text(l, style: TextStyle(color: c.withOpacity(0.7), fontSize: 11))
-    ]));
-
-class _MiniPitchPainter extends CustomPainter {
-  final Offset playerPos;
-  _MiniPitchPainter({required this.playerPos});
-  @override
-  void paint(Canvas c, Size s) {
-    Paint lp = Paint()
-      ..color = Colors.white24
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    c.drawRect(Rect.fromLTWH(0, 0, s.width, s.height), lp);
-    c.drawLine(Offset(0, s.height / 2), Offset(s.width, s.height / 2), lp);
-    c.drawCircle(Offset(s.width / 2, s.height / 2), 15, lp);
-    c.drawRect(
-        Rect.fromLTWH(s.width * 0.25, 0, s.width * 0.5, s.height * 0.15), lp);
-    c.drawRect(
-        Rect.fromLTWH(
-            s.width * 0.25, s.height * 0.85, s.width * 0.5, s.height * 0.15),
-        lp);
-    c.drawCircle(
-        Offset(playerPos.dx * s.width, playerPos.dy * s.height),
-        6,
-        Paint()
-          ..color = Colors.redAccent
-          ..style = PaintingStyle.fill);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
 Color _getRatingColor(int r) =>
@@ -3735,7 +3756,7 @@ void _showGlobalShowcase(
           cardType: row.cardType,
           team: row.team,
           stats: st,
-          role: row.role ?? "Yok",
+          role: row.role,
           skillMoves: sm,
           chemistryStyle: cs,
           style: styleVal,
@@ -3939,13 +3960,15 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
 
   @override
   Widget build(BuildContext context) {
+    bool isMobile = MediaQuery.of(context).size.width < 900;
     return Dialog(
       backgroundColor: const Color(0xFF0D0D12),
       insetPadding: EdgeInsets.zero, // Full screen hissiyatı
       child: SizedBox(
         width: MediaQuery.of(context).size.width, // TAM EKRAN
         height: MediaQuery.of(context).size.height, // TAM EKRAN
-        child: Row(
+        child: Flex(
+          direction: isMobile ? Axis.vertical : Axis.horizontal,
           children: [
             // --- SOL: SAHA VE KADRO ---
             Expanded(
@@ -4083,7 +4106,8 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
             ),
             // --- SAĞ: OYUNCU HAVUZU ---
             Container(
-              width: 350,
+              width: isMobile ? double.infinity : 350,
+              height: isMobile ? 200 : double.infinity,
               color: const Color(0xFF101014),
               padding: const EdgeInsets.all(10),
               child: Column(

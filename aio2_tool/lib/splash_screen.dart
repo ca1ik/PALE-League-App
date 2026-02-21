@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // Ana uygulama ekranınızın olduğu dosyayı buraya import edin.
 // Örneğin: import 'main.dart';
@@ -19,6 +20,9 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
+
+    // iOS ve Android için Status Bar stilini açık renk (beyaz ikonlar) yap
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
 
     // Animasyon kontrolcüsü (2.5 saniyede belirip kaybolacak şekilde ayarlandı)
     _animationController = AnimationController(
@@ -66,14 +70,16 @@ class _SplashScreenState extends State<SplashScreen>
         child: FadeTransition(
           opacity: _opacityAnimation,
           // Görüntüyü yükle ve saydamlığını artır
-          child: Opacity(
-            opacity:
-                0.7, // Saydamlığı artırmak için değeri düşürün (örneğin 0.5)
-            child: Image.asset(
-              'assets/image_4.png', // Görüntü dosyanızın yolu
-              fit: BoxFit.cover, // Ekranı kaplaması için
-              width: double.infinity,
-              height: double.infinity,
+          child: SafeArea(
+            child: Opacity(
+              opacity:
+                  0.7, // Saydamlığı artırmak için değeri düşürün (örneğin 0.5)
+              child: Image.asset(
+                'assets/image_4.png', // Görüntü dosyanızın yolu
+                fit: BoxFit.cover, // Ekranı kaplaması için
+                width: double.infinity,
+                height: double.infinity,
+              ),
             ),
           ),
         ),

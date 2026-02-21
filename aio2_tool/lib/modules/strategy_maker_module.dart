@@ -201,7 +201,7 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
               final s = box.getAt(index);
               return GestureDetector(
                 onTap: () {
-                  _loadState(s!.jsonData);
+                  _loadState(s.jsonData);
                   setState(() => isEditing = true);
                 },
                 child: Container(

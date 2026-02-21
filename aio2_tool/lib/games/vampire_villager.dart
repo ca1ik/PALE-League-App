@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -97,7 +96,6 @@ class _VampireVillagerGameState extends State<VampireVillagerGame> {
     setState(() {
       if (_phase == GamePhase.night) {
         // Gündüze Geçiş (Gece Olaylarını İşle)
-        List<String> deaths = [];
         for (var p in _players) {
           if (!p.isAlive) continue; // Zaten ölü
           // Burada basitlik adına manuel öldürme yapıyoruz

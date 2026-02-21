@@ -116,6 +116,7 @@ class _UltimateBodyState extends State<_UltimateBody> {
           .addPostFrameCallback((_) => _openStarter(context, prov));
     }
 
+    bool isMobile = MediaQuery.of(context).size.width < 900;
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D12),
       appBar: AppBar(
@@ -135,62 +136,67 @@ class _UltimateBodyState extends State<_UltimateBody> {
                     ElevatedButton.styleFrom(backgroundColor: Colors.indigo)),
             const SizedBox(width: 20)
           ]),
-      body: Row(children: [
-        Expanded(
-            flex: 4,
-            child: Container(
-                margin: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: Colors.white12),
-                    image: DecorationImage(
-                        image: AssetImage("assets/pitch_bg.png"),
-                        fit: BoxFit.cover,
-                        opacity: 0.4,
-                        onError: (e, s) {})),
-                child: LayoutBuilder(builder: (c, cons) {
-                  double w = cons.maxWidth, h = cons.maxHeight;
-                  return Stack(children: [
-                    _pos(context, 0, "GK", w * 0.5, h * 0.85),
-                    _pos(context, 1, "DEF", w * 0.25, h * 0.65),
-                    _pos(context, 2, "DEF", w * 0.75, h * 0.65),
-                    _pos(context, 3, "MID", w * 0.4, h * 0.45),
-                    _pos(context, 4, "MID", w * 0.6, h * 0.45),
-                    _pos(context, 5, "FWD", w * 0.3, h * 0.25),
-                    _pos(context, 6, "FWD", w * 0.7, h * 0.25),
-                  ]);
-                }))),
-        Container(
-            width: 380,
-            color: const Color(0xFF15151E),
-            padding: const EdgeInsets.all(10),
-            child: Column(children: [
-              ElevatedButton(
-                  onPressed: () => _vs(context, prov),
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
-                      minimumSize: const Size(double.infinity, 60)),
-                  child: const Text("ONLİNE VS AT",
-                      style: TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold))),
-              const Divider(color: Colors.white24, height: 30),
-              _packs(context, prov),
-              Expanded(
-                  child: GridView.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3, childAspectRatio: 0.65),
-                      itemCount: prov.myClub.length,
-                      itemBuilder: (c, i) => Draggable<Player>(
-                          data: prov.myClub[i],
-                          feedback: SizedBox(
-                              width: 80,
-                              child: FCAnimatedCard(player: prov.myClub[i])),
-                          child: InkWell(
-                              onTap: () => _showFM(context, prov.myClub[i]),
-                              child: FCAnimatedCard(player: prov.myClub[i])))))
-            ]))
-      ]),
+      body: Flex(
+          direction: isMobile ? Axis.vertical : Axis.horizontal,
+          children: [
+            Expanded(
+                flex: 4,
+                child: Container(
+                    margin: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: Colors.white12),
+                        image: DecorationImage(
+                            image: AssetImage("assets/pitch_bg.png"),
+                            fit: BoxFit.cover,
+                            opacity: 0.4,
+                            onError: (e, s) {})),
+                    child: LayoutBuilder(builder: (c, cons) {
+                      double w = cons.maxWidth, h = cons.maxHeight;
+                      return Stack(children: [
+                        _pos(context, 0, "GK", w * 0.5, h * 0.85),
+                        _pos(context, 1, "DEF", w * 0.25, h * 0.65),
+                        _pos(context, 2, "DEF", w * 0.75, h * 0.65),
+                        _pos(context, 3, "MID", w * 0.4, h * 0.45),
+                        _pos(context, 4, "MID", w * 0.6, h * 0.45),
+                        _pos(context, 5, "FWD", w * 0.3, h * 0.25),
+                        _pos(context, 6, "FWD", w * 0.7, h * 0.25),
+                      ]);
+                    }))),
+            Container(
+                width: isMobile ? double.infinity : 380,
+                height: isMobile ? 250 : double.infinity,
+                color: const Color(0xFF15151E),
+                padding: const EdgeInsets.all(10),
+                child: Column(children: [
+                  ElevatedButton(
+                      onPressed: () => _vs(context, prov),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          minimumSize: const Size(double.infinity, 60)),
+                      child: const Text("ONLİNE VS AT",
+                          style: TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold))),
+                  const Divider(color: Colors.white24, height: 30),
+                  _packs(context, prov),
+                  Expanded(
+                      child: GridView.builder(
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 3, childAspectRatio: 0.65),
+                          itemCount: prov.myClub.length,
+                          itemBuilder: (c, i) => Draggable<Player>(
+                              data: prov.myClub[i],
+                              feedback: SizedBox(
+                                  width: 80,
+                                  child:
+                                      FCAnimatedCard(player: prov.myClub[i])),
+                              child: InkWell(
+                                  onTap: () => _showFM(context, prov.myClub[i]),
+                                  child:
+                                      FCAnimatedCard(player: prov.myClub[i])))))
+                ]))
+          ]),
     );
   }
 
