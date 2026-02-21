@@ -250,12 +250,13 @@ class _UltimateBodyState extends State<_UltimateBody> {
             builder: (c) => MatchEngineView(
                 myTeam: myTeam,
                 oppTeam: opp,
+                isPlayerTeamAway: true,
                 onMatchEnd: (w) {
                   Navigator.pop(context);
                   if (w)
-                    _openPack(context, prov, 1, 75);
+                    _openPack(context, prov, 1, 75, rid: 1);
                   else
-                    _openPack(context, prov, 1, 70);
+                    _openPack(context, prov, 1, 70, rid: 2);
                 })));
   }
 
@@ -324,22 +325,49 @@ class _UltimateBodyState extends State<_UltimateBody> {
     var all = raw.map((r) => _convert(r)).toList();
     List<Player> pack = [];
     Random r = Random();
-    void add(int n, int min, int max) {
-      var sub = all.where((p) => p.rating >= min && p.rating < max).toList();
-      for (int i = 0; i < n; i++)
-        if (sub.isNotEmpty) pack.add(sub.removeAt(r.nextInt(sub.length)));
+
+    // Özel kartlar ekle (TOTS, BALLOND'OR, etc)
+    var specialCards = all
+        .where((p) =>
+            p.cardType == "TOTS" ||
+            p.cardType == "BALLOND'OR" ||
+            p.cardType == "MVP" ||
+            p.cardType == "TOTM" ||
+            p.cardType == "STAR")
+        .toList();
+
+    // Özel kartlardan 3 tane al
+    for (int i = 0; i < 3 && specialCards.isNotEmpty; i++) {
+      int idx = r.nextInt(specialCards.length);
+      pack.add(specialCards[idx]);
+      specialCards.removeAt(idx);
     }
 
-    add(7, 70, 75);
-    add(3, 75, 80);
-    add(2, 80, 99);
+    // Kalan 4 kartı normal oyunculardan al
+    void addNormal(int count, int minRating, int maxRating) {
+      var candidates = all
+          .where((p) =>
+              p.rating >= minRating &&
+              p.rating < maxRating &&
+              !pack.contains(p))
+          .toList();
+      for (int i = 0; i < count && candidates.isNotEmpty; i++) {
+        int idx = r.nextInt(candidates.length);
+        pack.add(candidates[idx]);
+        candidates.removeAt(idx);
+      }
+    }
+
+    addNormal(4, 80, 99); // 4 kartı 80+ rating'den al
+
     for (var p in pack) prov.addPlayerToClub(p);
     prov.claimedFirstPack = true;
+
     showDialog(
         context: context,
         builder: (c) => AlertDialog(
             backgroundColor: Colors.black,
-            title: const Text("HOŞ GELDİN! 12 KART KAZANDIN",
+            title: const Text("HOŞGELDIN! 7 SÜRPRIZ KART!",
                 style: TextStyle(color: Colors.amber)),
             content: SizedBox(
                 width: 600,
