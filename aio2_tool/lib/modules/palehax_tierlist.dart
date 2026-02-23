@@ -111,10 +111,9 @@ class _TierListViewState extends State<TierListView> {
                             .map((t) => _convertToPlayer(t))
                             .toList();
                         var players = playerList
-                            .where((p) =>
-                                p.name
-                                    .toLowerCase()
-                                    .contains(searchQuery.toLowerCase()))
+                            .where((p) => p.name
+                                .toLowerCase()
+                                .contains(searchQuery.toLowerCase()))
                             .toList();
                         players.sort((a, b) => b.rating.compareTo(a.rating));
 

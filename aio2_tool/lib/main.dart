@@ -240,20 +240,18 @@ class _MainWindowState extends State<MainWindow> {
       /* 11 */ const ChartsModule(),
       /* 12 */ const TurkeyMapModule(),
       /* 13 */ const SettingsScreen(),
-      /* 14  const PaleWebView( 
-          url: "https://palehaxball.com/", key: ValueKey("ph_home")),*/
-      /* 15 */ const PaleHaxPlayersView(),
-      /* 16 */ const StandingsView(),
-      /* 17 */ const ChallengeHub(),
-      /* 18 */ const SquadBuilderModule(isTOTWMode: true),
-      /* 19 */ TierListView(database: database),
-      /* 20 */ UltimateTeamView(database: database),
-      /* 21 */ const GamesHubView(),
-      /* 22 */ CustomBrowserModule(
+      /* 14 */ const PaleHaxPlayersView(), // Oyuncular
+      /* 15 */ const StandingsView(), // Puan Durumu
+      /* 16 */ const ChallengeHub(), // Challenge
+      /* 17 */ const SquadBuilderModule(isTOTWMode: true), // Kadro Kur
+      /* 18 */ TierListView(database: database), // Tier List
+      /* 19 */ UltimateTeamView(database: database), // Ultimate
+      /* 20 */ const GamesHubView(), // Oyunlar
+      /* 21 */ CustomBrowserModule(
           isFullScreen: _isFullScreenMode,
           onToggleFullScreen:
               _toggleFullScreen // Tarayıcıdan gelen sinyali bağladık
-          ),
+          ), // FPS Tarayıcı
     ];
 
     Widget activeModule;
