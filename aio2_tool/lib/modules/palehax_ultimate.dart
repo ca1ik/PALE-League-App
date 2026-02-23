@@ -116,6 +116,7 @@ class _UltimateBodyState extends State<_UltimateBody> {
           .addPostFrameCallback((_) => _openStarter(context, prov));
     }
 
+    bool isMobile = MediaQuery.of(context).size.width < 900;
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D12),
       appBar: AppBar(
@@ -135,62 +136,67 @@ class _UltimateBodyState extends State<_UltimateBody> {
                     ElevatedButton.styleFrom(backgroundColor: Colors.indigo)),
             const SizedBox(width: 20)
           ]),
-      body: Row(children: [
-        Expanded(
-            flex: 4,
-            child: Container(
-                margin: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: Colors.white12),
-                    image: DecorationImage(
-                        image: AssetImage("assets/pitch_bg.png"),
-                        fit: BoxFit.cover,
-                        opacity: 0.4,
-                        onError: (e, s) {})),
-                child: LayoutBuilder(builder: (c, cons) {
-                  double w = cons.maxWidth, h = cons.maxHeight;
-                  return Stack(children: [
-                    _pos(context, 0, "GK", w * 0.5, h * 0.85),
-                    _pos(context, 1, "DEF", w * 0.25, h * 0.65),
-                    _pos(context, 2, "DEF", w * 0.75, h * 0.65),
-                    _pos(context, 3, "MID", w * 0.4, h * 0.45),
-                    _pos(context, 4, "MID", w * 0.6, h * 0.45),
-                    _pos(context, 5, "FWD", w * 0.3, h * 0.25),
-                    _pos(context, 6, "FWD", w * 0.7, h * 0.25),
-                  ]);
-                }))),
-        Container(
-            width: 380,
-            color: const Color(0xFF15151E),
-            padding: const EdgeInsets.all(10),
-            child: Column(children: [
-              ElevatedButton(
-                  onPressed: () => _vs(context, prov),
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
-                      minimumSize: const Size(double.infinity, 60)),
-                  child: const Text("ONLİNE VS AT",
-                      style: TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold))),
-              const Divider(color: Colors.white24, height: 30),
-              _packs(context, prov),
-              Expanded(
-                  child: GridView.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3, childAspectRatio: 0.65),
-                      itemCount: prov.myClub.length,
-                      itemBuilder: (c, i) => Draggable<Player>(
-                          data: prov.myClub[i],
-                          feedback: SizedBox(
-                              width: 80,
-                              child: FCAnimatedCard(player: prov.myClub[i])),
-                          child: InkWell(
-                              onTap: () => _showFM(context, prov.myClub[i]),
-                              child: FCAnimatedCard(player: prov.myClub[i])))))
-            ]))
-      ]),
+      body: Flex(
+          direction: isMobile ? Axis.vertical : Axis.horizontal,
+          children: [
+            Expanded(
+                flex: 4,
+                child: Container(
+                    margin: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: Colors.white12),
+                        image: DecorationImage(
+                            image: AssetImage("assets/pitch_bg.png"),
+                            fit: BoxFit.cover,
+                            opacity: 0.4,
+                            onError: (e, s) {})),
+                    child: LayoutBuilder(builder: (c, cons) {
+                      double w = cons.maxWidth, h = cons.maxHeight;
+                      return Stack(children: [
+                        _pos(context, 0, "GK", w * 0.5, h * 0.85),
+                        _pos(context, 1, "DEF", w * 0.25, h * 0.65),
+                        _pos(context, 2, "DEF", w * 0.75, h * 0.65),
+                        _pos(context, 3, "MID", w * 0.4, h * 0.45),
+                        _pos(context, 4, "MID", w * 0.6, h * 0.45),
+                        _pos(context, 5, "FWD", w * 0.3, h * 0.25),
+                        _pos(context, 6, "FWD", w * 0.7, h * 0.25),
+                      ]);
+                    }))),
+            Container(
+                width: isMobile ? double.infinity : 380,
+                height: isMobile ? 250 : double.infinity,
+                color: const Color(0xFF15151E),
+                padding: const EdgeInsets.all(10),
+                child: Column(children: [
+                  ElevatedButton(
+                      onPressed: () => _vs(context, prov),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          minimumSize: const Size(double.infinity, 60)),
+                      child: const Text("ONLİNE VS AT",
+                          style: TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold))),
+                  const Divider(color: Colors.white24, height: 30),
+                  _packs(context, prov),
+                  Expanded(
+                      child: GridView.builder(
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 3, childAspectRatio: 0.65),
+                          itemCount: prov.myClub.length,
+                          itemBuilder: (c, i) => Draggable<Player>(
+                              data: prov.myClub[i],
+                              feedback: SizedBox(
+                                  width: 80,
+                                  child:
+                                      FCAnimatedCard(player: prov.myClub[i])),
+                              child: InkWell(
+                                  onTap: () => _showFM(context, prov.myClub[i]),
+                                  child:
+                                      FCAnimatedCard(player: prov.myClub[i])))))
+                ]))
+          ]),
     );
   }
 
@@ -250,12 +256,13 @@ class _UltimateBodyState extends State<_UltimateBody> {
             builder: (c) => MatchEngineView(
                 myTeam: myTeam,
                 oppTeam: opp,
+                isPlayerTeamAway: true,
                 onMatchEnd: (w) {
                   Navigator.pop(context);
                   if (w)
-                    _openPack(context, prov, 1, 75);
+                    _openPack(context, prov, 1, 75, rid: 1);
                   else
-                    _openPack(context, prov, 1, 70);
+                    _openPack(context, prov, 1, 70, rid: 2);
                 })));
   }
 
@@ -324,22 +331,49 @@ class _UltimateBodyState extends State<_UltimateBody> {
     var all = raw.map((r) => _convert(r)).toList();
     List<Player> pack = [];
     Random r = Random();
-    void add(int n, int min, int max) {
-      var sub = all.where((p) => p.rating >= min && p.rating < max).toList();
-      for (int i = 0; i < n; i++)
-        if (sub.isNotEmpty) pack.add(sub.removeAt(r.nextInt(sub.length)));
+
+    // Özel kartlar ekle (TOTS, BALLOND'OR, etc)
+    var specialCards = all
+        .where((p) =>
+            p.cardType == "TOTS" ||
+            p.cardType == "BALLOND'OR" ||
+            p.cardType == "MVP" ||
+            p.cardType == "TOTM" ||
+            p.cardType == "STAR")
+        .toList();
+
+    // Özel kartlardan 3 tane al
+    for (int i = 0; i < 3 && specialCards.isNotEmpty; i++) {
+      int idx = r.nextInt(specialCards.length);
+      pack.add(specialCards[idx]);
+      specialCards.removeAt(idx);
     }
 
-    add(7, 70, 75);
-    add(3, 75, 80);
-    add(2, 80, 99);
+    // Kalan 4 kartı normal oyunculardan al
+    void addNormal(int count, int minRating, int maxRating) {
+      var candidates = all
+          .where((p) =>
+              p.rating >= minRating &&
+              p.rating < maxRating &&
+              !pack.contains(p))
+          .toList();
+      for (int i = 0; i < count && candidates.isNotEmpty; i++) {
+        int idx = r.nextInt(candidates.length);
+        pack.add(candidates[idx]);
+        candidates.removeAt(idx);
+      }
+    }
+
+    addNormal(4, 80, 99); // 4 kartı 80+ rating'den al
+
     for (var p in pack) prov.addPlayerToClub(p);
     prov.claimedFirstPack = true;
+
     showDialog(
         context: context,
         builder: (c) => AlertDialog(
             backgroundColor: Colors.black,
-            title: const Text("HOŞ GELDİN! 12 KART KAZANDIN",
+            title: const Text("HOŞGELDIN! 7 SÜRPRIZ KART!",
                 style: TextStyle(color: Colors.amber)),
             content: SizedBox(
                 width: 600,

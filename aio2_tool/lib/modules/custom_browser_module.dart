@@ -1,7 +1,5 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:webview_windows/webview_windows.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 class CustomBrowserModule extends StatefulWidget {
   final bool isFullScreen;
@@ -15,78 +13,39 @@ class CustomBrowserModule extends StatefulWidget {
 }
 
 class _CustomBrowserModuleState extends State<CustomBrowserModule> {
-  final _controller = WebviewController();
-  final _textController = TextEditingController();
-  bool _isInitialized = false;
+  late final WebViewController _controller;
+  final TextEditingController _textController = TextEditingController();
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _initWebview();
-  }
+    _textController.text = 'https://www.haxball.com';
 
-  // --- STABİLİTE GÜNCELLEMESİ ---
-  // didUpdateWidget ile yeniden çizme zorlamıyoruz, main.dart'taki yapı
-  // webview'ı hayatta tutuyor. Sadece bildirim ve Javascript tetikliyoruz.
-  @override
-  void didUpdateWidget(CustomBrowserModule oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isFullScreen != oldWidget.isFullScreen) {
-      // Ekran boyutu değişti, webview'a haber verelim (isteğe bağlı)
-      if (_isInitialized) {
-        _controller.executeScript("window.dispatchEvent(new Event('resize'));");
-      }
-    }
-  }
-
-  Future<void> _initWebview() async {
-    try {
-      await _controller.initialize();
-      await _controller.setBackgroundColor(Colors.transparent);
-      await _controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
-
-      // Web'den gelen mesajları dinle (F11 için)
-      _controller.webMessage.listen((event) {
-        if (event == 'toggle_fullscreen') {
-          widget.onToggleFullScreen();
-        }
-      });
-
-      _controller.loadingState.listen((state) {
-        if (state == LoadingState.navigationCompleted) {
-          _injectHaxballHacks();
-          _injectKeyListener();
-        }
-      });
-
-      await _controller.loadUrl('https://www.haxball.com');
-      _textController.text = 'https://www.haxball.com';
-
-      if (!mounted) return;
-      setState(() {
-        _isInitialized = true;
-      });
-    } catch (e) {
-      debugPrint("Webview Başlatma Hatası: $e");
-    }
-  }
-
-  // F11 Tuşunu Dinleyen JS Kodu (Tarayıcı içindeyken)
-  void _injectKeyListener() {
-    const script = '''
-      window.addEventListener('keydown', function(e) {
-        if (e.key === 'F11') {
-          e.preventDefault(); // Tarayıcının varsayılan tam ekranını engelle
-          e.stopPropagation();
-          window.chrome.webview.postMessage('toggle_fullscreen'); // Flutter'a sinyal yolla
-        }
-      });
-    ''';
-    _controller.executeScript(script);
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0x00000000))
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (String url) {
+            if (mounted) setState(() => _isLoading = true);
+          },
+          onPageFinished: (String url) {
+            if (mounted) setState(() => _isLoading = false);
+            _injectHaxballHacks();
+          },
+          onWebResourceError: (WebResourceError error) {
+            debugPrint("Webview Hatası: ${error.description}");
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse('https://www.haxball.com'));
   }
 
   // Siyah Barı Silen Javascript Kodu
   void _injectHaxballHacks() {
+    // F11 ve KeyListener mobilde gerekli değil veya farklı çalışır.
+    // Sadece reklam/header temizliği yapıyoruz.
     const script = '''
       function removeHeader() {
         var headers = document.getElementsByClassName('header');
@@ -97,17 +56,12 @@ class _CustomBrowserModuleState extends State<CustomBrowserModule> {
         for(var i=0; i<ads.length; i++) { 
           ads[i].style.display='none'; 
         }
-        // Oyunu tam ortaya odakla
-        var game = document.getElementById('roomlink');
-        if(game) game.focus();
       }
       // Garanti olsun diye birkaç kez çalıştır
       removeHeader();
-      setTimeout(removeHeader, 500);
-      setTimeout(removeHeader, 1500);
-      setTimeout(removeHeader, 3000);
+      setTimeout(removeHeader, 1000);
     ''';
-    _controller.executeScript(script);
+    _controller.runJavaScript(script);
   }
 
   void _loadUrl() {
@@ -115,13 +69,7 @@ class _CustomBrowserModuleState extends State<CustomBrowserModule> {
     if (!url.startsWith('http')) {
       url = 'https://$url';
     }
-    _controller.loadUrl(url);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+    _controller.loadRequest(Uri.parse(url));
   }
 
   @override
@@ -177,10 +125,15 @@ class _CustomBrowserModuleState extends State<CustomBrowserModule> {
 
           // TARAYICI ALANI
           Expanded(
-            child: _isInitialized
-                ? Webview(_controller)
-                : const Center(
-                    child: CircularProgressIndicator(color: Colors.cyanAccent)),
+            child: Stack(
+              children: [
+                WebViewWidget(controller: _controller),
+                if (_isLoading)
+                  const Center(
+                      child:
+                          CircularProgressIndicator(color: Colors.cyanAccent)),
+              ],
+            ),
           ),
         ],
       ),

@@ -4,462 +4,672 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../data/player_data.dart';
 
-// --- FİZİK VEKTÖRÜ ---
-class Vector2 {
+// --- LOKASYON ---
+class Pos {
   double x, y;
-  Vector2(this.x, this.y);
-  void add(Vector2 v) {
-    x += v.x;
-    y += v.y;
-  }
-
-  void scale(double s) {
-    x *= s;
-    y *= s;
-  }
-
-  double dist(Vector2 v) => sqrt(pow(x - v.x, 2) + pow(y - v.y, 2));
+  Pos(this.x, this.y);
+  double dist(Pos p) => sqrt(pow(x - p.x, 2) + pow(y - p.y, 2));
+  @override
+  String toString() => "($x, $y)";
 }
 
-// --- SİMÜLASYON OYUNCUSU ---
+// --- OYUNCU SİMÜLASYONU ---
 class SimPlayer {
   final Player data;
-  Vector2 pos, vel, target;
-  bool isHome;
-  String role;
-  SimPlayer? markTarget;
-  Map<String, int> fm;
-  int cooldown = 0;
-  bool hasBall = false;
+  Pos pos, moveTarget;
+  bool isHome; // Ev sahibi = mavi, rakip = kırmızı
+  String role; // GK, DEF, MID, FWD
+  Map<String, int> stats;
 
-  SimPlayer(this.data, double x, double y, this.isHome, this.role)
-      : pos = Vector2(x, y),
-        vel = Vector2(0, 0),
-        target = Vector2(x, y),
-        fm = data.getFMStats();
+  SimPlayer({
+    required this.data,
+    required this.pos,
+    required this.isHome,
+    required this.role,
+  })  : moveTarget = Pos(pos.x, pos.y),
+        stats = data.getFMStats();
+
+  bool get hasSpace {
+    // Açık alana konumlanmış mı?
+    return (isHome && pos.x > 0.6) || (!isHome && pos.x < 0.4);
+  }
 }
 
+// --- TOP ---
 class Ball {
-  Vector2 pos, vel;
-  SimPlayer? owner;
-  Ball()
-      : pos = Vector2(0.5, 0.5),
-        vel = Vector2(0, 0);
+  Pos pos;
+  SimPlayer? owner; // Topa kimin sahip olduğu
+  int passTicksRemaining = 0; // Pas havada ise kaç tick daha
+
+  Ball() : pos = Pos(0.5, 0.5);
 }
 
+// --- MAÇLAMA ENGINE'İ ---
 class MatchEngineView extends StatefulWidget {
   final List<Player> myTeam, oppTeam;
   final Function(bool isWin) onMatchEnd;
-  const MatchEngineView(
-      {super.key,
-      required this.myTeam,
-      required this.oppTeam,
-      required this.onMatchEnd});
+  final bool isPlayerTeamAway; // Oyuncu kırmızı takım mı?
+
+  const MatchEngineView({
+    super.key,
+    required this.myTeam,
+    required this.oppTeam,
+    required this.onMatchEnd,
+    this.isPlayerTeamAway = true,
+  });
+
   @override
   State<MatchEngineView> createState() => _MatchEngineViewState();
 }
 
 class _MatchEngineViewState extends State<MatchEngineView> {
-  final int fps = 60;
-  final int matchMinutes = 90;
-  bool isStarted = false, isGoal = false;
-  int homeScore = 0, awayScore = 0, tick = 0;
-  List<SimPlayer> homeSquad = [], awaySquad = [];
-  Ball ball = Ball();
-  Timer? _timer;
+  late Ball ball;
+  late List<SimPlayer> homeTeam, awayTeam;
+  int homeScore = 0, awayScore = 0;
+  int matchMinute = 0;
+  int tick = 0; // 60 tick = 1 saniye
+  bool isStarted = false;
+  bool isGoal = false;
+  Timer? gameTimer;
   List<String> logs = [];
-  final Random _rng = Random();
+  final Random rng = Random();
 
   @override
   void initState() {
     super.initState();
-    _init();
+    _initGame();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    gameTimer?.cancel();
     super.dispose();
   }
 
-  void _init() {
-    _create(widget.myTeam, homeSquad, true);
-    _create(widget.oppTeam, awaySquad, false);
-    _tactics();
-    _resetPositions(true);
+  void _initGame() {
+    ball = Ball();
+
+    // Takımları oluştur
+    homeTeam = [];
+    awayTeam = [];
+
+    if (widget.isPlayerTeamAway) {
+      _createTeam(widget.oppTeam, homeTeam, true);
+      _createTeam(widget.myTeam, awayTeam, false);
+    } else {
+      _createTeam(widget.myTeam, homeTeam, true);
+      _createTeam(widget.oppTeam, awayTeam, false);
+    }
+
+    // Başlangıç pozisyonları
+    _resetPositions();
   }
 
-  void _create(List<Player> src, List<SimPlayer> trg, bool home) {
-    trg.clear();
-    var sorted = List<Player>.from(src)
+  void _createTeam(List<Player> players, List<SimPlayer> target, bool isHome) {
+    target.clear();
+
+    var sorted = List<Player>.from(players)
       ..sort((a, b) {
-        int score(String p) => p.contains("GK")
-            ? 0
-            : p.contains("DEF")
-                ? 1
-                : p.contains("MID")
-                    ? 2
-                    : 3;
-        return score(a.position).compareTo(score(b.position));
+        int scoreRole(String pos) {
+          if (pos.contains("GK")) return 0;
+          if (pos.contains("DEF")) return 1;
+          if (pos.contains("MID")) return 2;
+          return 3;
+        }
+
+        return scoreRole(a.position).compareTo(scoreRole(b.position));
       });
 
     for (int i = 0; i < min(sorted.length, 7); i++) {
-      String r = i == 0
+      String role = i == 0
           ? "GK"
           : i < 3
               ? "DEF"
               : i < 5
                   ? "MID"
                   : "FWD";
-      double x = home ? 0.1 : 0.9, y = 0.5;
-      if (r == "GK") {
-        x = home ? 0.02 : 0.98;
-      } else if (r == "DEF") {
-        x = home ? 0.25 : 0.75;
-        y = i % 2 == 0 ? 0.3 : 0.7;
-      } else if (r == "MID") {
-        x = home ? 0.5 : 0.5;
-        y = i % 2 == 0 ? 0.4 : 0.6;
+
+      double x = isHome ? 0.15 : 0.85;
+      double y = 0.5 + (i - 3) * 0.2;
+
+      if (role == "GK") {
+        x = isHome ? 0.02 : 0.98;
+      } else if (role == "DEF") {
+        x = isHome ? 0.25 : 0.75;
+      } else if (role == "MID") {
+        x = isHome ? 0.5 : 0.5;
       } else {
-        x = home ? 0.75 : 0.25;
-        y = 0.5;
+        x = isHome ? 0.75 : 0.25;
       }
-      trg.add(SimPlayer(sorted[i], x, y, home, r));
+
+      target.add(SimPlayer(
+        data: sorted[i],
+        pos: Pos(x, y.clamp(0.05, 0.95)),
+        isHome: isHome,
+        role: role,
+      ));
     }
   }
 
-  void _tactics() {
-    var hDefs = homeSquad.where((p) => p.role == "DEF").toList();
-    var aFwds = awaySquad.where((p) => p.role == "FWD").toList();
-    for (int i = 0; i < min(hDefs.length, aFwds.length); i++)
-      hDefs[i].markTarget = aFwds[i];
-    var aDefs = awaySquad.where((p) => p.role == "DEF").toList();
-    var hFwds = homeSquad.where((p) => p.role == "FWD").toList();
-    for (int i = 0; i < min(aDefs.length, hFwds.length); i++)
-      aDefs[i].markTarget = hFwds[i];
+  void _resetPositions() {
+    if (widget.isPlayerTeamAway) {
+      ball.owner = awayTeam.where((p) => p.role == "FWD").firstOrNull;
+      if (ball.owner == null) ball.owner = awayTeam.last;
+    } else {
+      ball.owner = homeTeam.where((p) => p.role == "FWD").firstOrNull;
+      if (ball.owner == null) ball.owner = homeTeam.last;
+    }
+    ball.pos = Pos(ball.owner!.pos.x, ball.owner!.pos.y);
+    _addLog("🎾 ${ball.owner?.data.name} topla başladı", Colors.green);
   }
 
-  void _start() {
+  void _startMatch() {
     if (isStarted) return;
-    setState(() {
-      isStarted = true;
-      _addLog("MAÇ BAŞLADI!", Colors.white);
+    isStarted = true;
+    gameTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      _update();
     });
-    _timer = Timer.periodic(const Duration(milliseconds: 16), _loop);
   }
 
-  void _loop(Timer t) {
-    if (!mounted) {
-      t.cancel();
+  void _update() {
+    if (!mounted || tick >= 90 * 60 * 60) {
+      gameTimer?.cancel();
+      _endMatch();
       return;
     }
-    if (tick >= 60 * matchMinutes) {
-      t.cancel();
-      _finish();
-      return;
-    }
+
+    tick++;
+    if (tick % 60 == 0) matchMinute = tick ~/ 60;
+
     if (!isGoal) {
-      _physics();
-      _ai();
-      tick++;
+      _updateLogic();
     }
+
     if (tick % 2 == 0) setState(() {});
   }
 
-  void _finish() {
-    _timer?.cancel();
-    _addLog("BİTTİ: $homeScore - $awayScore", Colors.amber);
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) widget.onMatchEnd(homeScore > awayScore);
-    });
-  }
+  void _updateLogic() {
+    var allPlayers = [...homeTeam, ...awayTeam];
 
-  void _physics() {
+    // --- TOP SAHIP İSE ---
     if (ball.owner != null) {
-      ball.pos.x = ball.owner!.pos.x + (ball.owner!.isHome ? 0.015 : -0.015);
-      ball.pos.y = ball.owner!.pos.y;
-      ball.vel.x = 0;
-      ball.vel.y = 0;
-    } else {
-      ball.pos.add(ball.vel);
-      ball.vel.scale(0.985);
-      if (ball.pos.y <= 0.02 || ball.pos.y >= 0.98) ball.vel.y *= -0.9;
-      bool gY = ball.pos.y > 0.36 && ball.pos.y < 0.64;
-      if (!gY && (ball.pos.x <= 0.01 || ball.pos.x >= 0.99)) ball.vel.x *= -0.9;
-      if (ball.pos.x < -0.05 && gY) _triggerGoal(false);
-      if (ball.pos.x > 1.05 && gY) _triggerGoal(true);
-    }
-    for (var p in [...homeSquad, ...awaySquad]) {
-      double dx = p.target.x - p.pos.x, dy = p.target.y - p.pos.y;
-      double dist = sqrt(dx * dx + dy * dy);
-      if (dist > 0.002) {
-        double spd = 0.003 + ((p.fm['Hız'] ?? 10) * 0.00015);
-        if (p == ball.owner) spd *= 0.85;
-        p.pos.x += (dx / dist) * spd;
-        p.pos.y += (dy / dist) * spd;
-      }
-      p.pos.x = p.pos.x.clamp(0.01, 0.99);
-      p.pos.y = p.pos.y.clamp(0.01, 0.99);
-    }
-  }
+      var owner = ball.owner!;
+      var opponents = owner.isHome ? awayTeam : homeTeam;
 
-  void _ai() {
-    var all = [...homeSquad, ...awaySquad];
-    if (ball.owner == null) {
-      SimPlayer? near;
-      double minDist = 100;
-      for (var p in all) {
-        double d = p.pos.dist(ball.pos);
-        if (d < minDist) {
-          minDist = d;
-          near = p;
+      // Rakip alanına git
+      owner.moveTarget.x = owner.isHome ? 0.95 : 0.05;
+      owner.moveTarget.y = 0.5 + (rng.nextDouble() - 0.5) * 0.3;
+
+      // Yakındaki rakipler?
+      var closeOpponents =
+          opponents.where((o) => o.pos.dist(owner.pos) < 0.15).toList();
+
+      // Şut kararı
+      if ((owner.isHome && owner.pos.x > 0.8) ||
+          (!owner.isHome && owner.pos.x < 0.2)) {
+        if (rng.nextInt(100) <
+            30 + (owner.stats['Şut'] ?? 10) - (closeOpponents.length * 10)) {
+          _shoot(owner);
+          return;
         }
       }
-      if (near != null) {
-        near.target.x = ball.pos.x;
-        near.target.y = ball.pos.y;
-        if (minDist < 0.025) ball.owner = near;
+
+      // Pas kararı
+      if (closeOpponents.isNotEmpty || rng.nextInt(100) < 60) {
+        _pass(owner);
       }
     }
-    for (var p in all) {
-      if (p == ball.owner) {
-        p.target.x = p.isHome ? 1.0 : 0.0;
-        p.target.y = 0.5;
-        int drib = p.fm['Dripling'] ?? 10;
-        if (drib > 15 && (p.pos.y < 0.1 || p.pos.y > 0.9))
-          p.target.y = p.pos.y < 0.5 ? 0.01 : 0.99;
-        if (tick % 20 == 0) _decide(p);
+
+    // --- TOP SAHİB DEĞİLSE ---
+    else if (ball.passTicksRemaining > 0) {
+      ball.passTicksRemaining--;
+
+      // Pas biterse birini aç
+      if (ball.passTicksRemaining <= 0) {
+        SimPlayer? receiver = _findNearestPlayer(ball.pos);
+        if (receiver != null) {
+          ball.owner = receiver;
+          _addLog(
+            "⚽ ${receiver.data.name} topladı",
+            receiver.isHome ? Colors.cyan : Colors.red,
+          );
+        }
+      }
+    }
+
+    // --- OYUNCU HAREKETI ---
+    for (var p in allPlayers) {
+      if (p == ball.owner) continue; // Sahip harita çizer
+
+      // Savunma pozisyonu
+      if (p.role == "GK") {
+        p.moveTarget.x = p.isHome ? 0.02 : 0.98;
+        p.moveTarget.y = 0.5;
       } else if (ball.owner != null && ball.owner!.isHome != p.isHome) {
-        if (p.role == "GK") {
-          p.target.x = p.isHome ? 0.02 : 0.98;
-          p.target.y = ball.pos.y.clamp(0.4, 0.6);
-        } else if (p.markTarget != null) {
-          p.target.x = p.markTarget!.pos.x + (p.isHome ? -0.05 : 0.05);
-          p.target.y = p.markTarget!.pos.y;
-        } else {
-          p.target.x = ball.pos.x + (p.isHome ? -0.2 : 0.2);
-          p.target.y = ball.pos.y;
-        }
+        // Rakip takım - savunma
+        var ballOwner = ball.owner!;
+        p.moveTarget.x = ballOwner.pos.x + (p.isHome ? -0.2 : 0.2);
+        p.moveTarget.y = ballOwner.pos.y + (rng.nextDouble() - 0.5) * 0.2;
 
-        if (p.pos.dist(ball.pos) < 0.025) {
-          int def = p.fm['Defans'] ?? 10;
-          int dri = ball.owner!.fm['Dripling'] ?? 10;
-          if ((def + _rng.nextInt(10)) > (dri + _rng.nextInt(5))) {
+        // Top kaputma şansı
+        if (p.pos.dist(ballOwner.pos) < 0.04) {
+          int def = p.stats['Defans'] ?? 10;
+          int dri = ballOwner.stats['Dripling'] ?? 10;
+          if (rng.nextInt(100) < 40 + (def - dri)) {
             ball.owner = p;
-            _addLog("⚔️ ${p.data.name} topu kaptı!", Colors.orange);
+            _addLog(
+              "⚔️ ${p.data.name} topladı!",
+              Colors.orange,
+            );
+            return;
           }
         }
-      } else {
-        int pos = p.fm['Pozisyon'] ?? 10;
-        if (pos > 10) {
-          p.target.x = p.isHome ? ball.pos.x + 0.15 : ball.pos.x - 0.15;
-          if ((p.pos.y - ball.pos.y).abs() < 0.1)
-            p.target.y = ball.pos.y + (ball.pos.y > 0.5 ? -0.2 : 0.2);
+      } else if (ball.owner != null && ball.owner!.isHome == p.isHome) {
+        // Kendi takım - destek
+        if (p.role == "FWD") {
+          p.moveTarget.x = ball.owner!.pos.x + (p.isHome ? 0.2 : -0.2);
+          p.moveTarget.y = ball.owner!.pos.y + (rng.nextDouble() - 0.5) * 0.3;
+        } else {
+          p.moveTarget.x = ball.owner!.pos.x + (p.isHome ? -0.15 : 0.15);
+          p.moveTarget.y = ball.owner!.pos.y + (rng.nextDouble() - 0.5) * 0.15;
         }
       }
+
+      // Hareketi uygula
+      _movePlayer(p);
     }
   }
 
-  void _decide(SimPlayer p) {
-    bool range = p.isHome ? p.pos.x > 0.7 : p.pos.x < 0.3;
-    int sho = p.fm['Şut'] ?? 10;
-    if (range && _rng.nextInt(20) < sho)
-      _shoot(p);
-    else
-      _pass(p);
-  }
-
-  void _pass(SimPlayer p) {
-    var mates = p.isHome ? homeSquad : awaySquad;
-    var opts = mates
-        .where(
-            (m) => m != p && (p.isHome ? m.pos.x > p.pos.x : m.pos.x < p.pos.x))
+  void _pass(SimPlayer passer) {
+    var teammates = passer.isHome ? homeTeam : awayTeam;
+    var options = teammates
+        .where((t) =>
+            t != passer &&
+            ((passer.isHome && t.pos.x > passer.pos.x) ||
+                (!passer.isHome && t.pos.x < passer.pos.x)))
         .toList();
-    if (opts.isEmpty) return;
-    var t = opts[_rng.nextInt(opts.length)];
-    double err = (20 - (p.fm['Pas'] ?? 10)) * 0.015;
-    double angle = atan2(t.pos.y - p.pos.y, t.pos.x - p.pos.x) +
-        (_rng.nextDouble() - 0.5) * err;
-    double pwr = 0.035 + ((p.fm['Fizik'] ?? 10) * 0.0005);
+
+    if (options.isEmpty) return;
+
+    // Best target seç
+    SimPlayer bestTarget = options[0];
+    double bestScore = -1000;
+
+    for (var target in options) {
+      double score = 100;
+
+      // Açık alana konumlanmışsa bonus
+      if (target.hasSpace) score += 50;
+
+      // Forvetle bonus
+      if (target.role == "FWD") score += 30;
+
+      // Uzak paslar riskli
+      double dist = passer.pos.dist(target.pos);
+      if (dist > 0.6) score -= 50;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestTarget = target;
+      }
+    }
+
+    // Pas hatasını hesapla
+    int passSkill = passer.stats['Pas'] ?? 10;
+    int errorChance = max(5, 30 - passSkill);
+
+    if (rng.nextInt(100) < errorChance) {
+      // Pas hatası
+      var opponents = passer.isHome ? awayTeam : homeTeam;
+      var interceptor = opponents.fold<SimPlayer?>(null, (best, o) {
+        if (best == null) return o;
+        return o.pos.dist(passer.pos) < best.pos.dist(passer.pos) ? o : best;
+      });
+
+      if (interceptor != null && rng.nextInt(100) < 50) {
+        ball.owner = interceptor;
+        _addLog(
+          "❌ Pas hatası! ${interceptor.data.name} kapladı",
+          Colors.red,
+        );
+        return;
+      }
+    }
+
+    // Pas başarılı
     ball.owner = null;
-    ball.vel.x = cos(angle) * pwr;
-    ball.vel.y = sin(angle) * pwr;
+    ball.passTicksRemaining =
+        10 + (bestTarget.pos.dist(passer.pos) * 50).toInt();
+    ball.pos = Pos(bestTarget.pos.x, bestTarget.pos.y);
+
+    _addLog(
+      "✓ ${passer.data.name} → ${bestTarget.data.name}",
+      Colors.blue,
+    );
   }
 
-  void _shoot(SimPlayer p) {
+  void _shoot(SimPlayer shooter) {
+    int shootSkill = shooter.stats['Şut'] ?? 10;
+    int accuracy = 40 + shootSkill;
+
     ball.owner = null;
-    double gx = p.isHome ? 1.05 : -0.05, gy = 0.5;
-    SimPlayer? gk = p.isHome
-        ? (awaySquad.isNotEmpty ? awaySquad[0] : null)
-        : (homeSquad.isNotEmpty ? homeSquad[0] : null);
-    int ref = gk?.fm['Refleks'] ?? 10;
-    if (_rng.nextInt(25) < ref && gk != null) {
-      _addLog("🧤 ${gk.data.name} kurtardı!", Colors.cyanAccent);
-      ball.vel.x = (p.isHome ? -1 : 1) * 0.02;
-      ball.vel.y = (_rng.nextDouble() - 0.5) * 0.05;
+    ball.passTicksRemaining = 0;
+
+    var gk = shooter.isHome ? awayTeam[0] : homeTeam[0];
+    int reflexes = gk.stats['Refleks'] ?? 10;
+
+    bool isGoalShotted = rng.nextInt(100) < accuracy;
+    bool gkSaved = false;
+
+    if (isGoalShotted) {
+      gkSaved = rng.nextInt(100) < (30 + reflexes);
+    }
+
+    if (!isGoalShotted || gkSaved) {
+      // İskaya veya kurtarıldı
+      _addLog(
+        gkSaved
+            ? "🧤 ${gk.data.name} kurtardı!"
+            : "❌ ${shooter.data.name} ıskayı çekti!",
+        gkSaved ? Colors.cyanAccent : Colors.redAccent,
+      );
+      ball.pos = Pos(shooter.isHome ? 0.95 : 0.05, 0.5);
     } else {
-      _addLog("🚀 ${p.data.name} vurdu!", Colors.white);
-      double angle = atan2(gy - p.pos.y, gx - p.pos.x);
-      double pwr = 0.06;
-      ball.vel.x = cos(angle) * pwr;
-      ball.vel.y = sin(angle) * pwr;
+      // GOL!
+      _triggerGoal(shooter.isHome);
     }
   }
 
-  void _triggerGoal(bool home) {
+  void _triggerGoal(bool homeTeamScored) {
+    isGoal = true;
     setState(() {
-      isGoal = true;
-      if (home) {
+      if (homeTeamScored) {
         homeScore++;
-        _addLog("GOOOL! EV SAHİBİ!", Colors.green);
+        _addLog("⚽🔥 GOOOL! EV SAHİBİ!", Colors.green);
       } else {
         awayScore++;
-        _addLog("GOOOL! DEPLASMAN!", Colors.redAccent);
+        _addLog("⚽🔥 GOOOL! DEPLASMAN!", Colors.amber);
       }
-      ball.vel.x = 0;
-      ball.vel.y = 0;
     });
+
     Future.delayed(const Duration(seconds: 2), () {
-      if (mounted)
+      if (mounted) {
         setState(() {
           isGoal = false;
-          _resetPositions(!home);
+          _resetPositions();
         });
+      }
     });
   }
 
-  void _resetPositions(bool homeStarts) {
-    ball.pos = Vector2(0.5, 0.5);
-    ball.vel = Vector2(0, 0);
-    _create(widget.myTeam, homeSquad, true);
-    _create(widget.oppTeam, awaySquad, false);
-    _tactics();
-    ball.owner = homeStarts
-        ? (homeSquad.isNotEmpty ? homeSquad.last : null)
-        : (awaySquad.isNotEmpty ? awaySquad.last : null);
+  SimPlayer? _findNearestPlayer(Pos toPos) {
+    var allPlayers = [...homeTeam, ...awayTeam];
+    SimPlayer? nearest;
+    double minDist = 1000;
+
+    for (var p in allPlayers) {
+      double d = p.pos.dist(toPos);
+      if (d < minDist) {
+        minDist = d;
+        nearest = p;
+      }
+    }
+
+    return nearest;
   }
 
-  void _addLog(String m, Color c) {
-    logs.insert(0, "${(tick / 60).toInt()}' $m");
-    if (logs.length > 20) logs.removeLast();
+  void _movePlayer(SimPlayer player) {
+    double dx = player.moveTarget.x - player.pos.x;
+    double dy = player.moveTarget.y - player.pos.y;
+    double dist = sqrt(dx * dx + dy * dy);
+
+    if (dist > 0.003) {
+      double speed = 0.004 + ((player.stats['Hız'] ?? 11) * 0.00012);
+      player.pos.x += (dx / dist) * speed;
+      player.pos.y += (dy / dist) * speed;
+    }
+
+    // Sınırlar
+    player.pos.x = player.pos.x.clamp(0.01, 0.99);
+    player.pos.y = player.pos.y.clamp(0.01, 0.99);
+  }
+
+  void _endMatch() {
+    if (mounted) {
+      gameTimer?.cancel();
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          widget.onMatchEnd(homeScore > awayScore);
+        }
+      });
+    }
+  }
+
+  void _addLog(String message, Color color) {
+    logs.insert(0, "$matchMinute' $message");
+    if (logs.length > 15) logs.removeLast();
   }
 
   @override
   Widget build(BuildContext context) {
+    var playerColor = widget.isPlayerTeamAway ? Colors.red : Colors.cyan;
+    var playerScore = widget.isPlayerTeamAway ? awayScore : homeScore;
+    var oppScore = widget.isPlayerTeamAway ? homeScore : awayScore;
+
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Column(children: [
-        Container(
+      body: Column(
+        children: [
+          // Skor
+          Container(
             height: 80,
             color: Colors.grey[900],
             child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  Text("$homeScore",
-                      style: GoogleFonts.russoOne(
-                          fontSize: 50, color: Colors.cyan)),
-                  Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text("${(tick / 60).toInt()}'",
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 24)),
-                        if (!isStarted)
-                          ElevatedButton(
-                              onPressed: _start,
-                              style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green),
-                              child: const Text("BAŞLAT")),
-                      ]),
-                  Text("$awayScore",
-                      style: GoogleFonts.russoOne(
-                          fontSize: 50, color: Colors.red)),
-                ])),
-        Expanded(
-            flex: 5,
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                Text(
+                  playerScore.toString(),
+                  style: GoogleFonts.russoOne(
+                    fontSize: 60,
+                    color: playerColor,
+                  ),
+                ),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "${matchMinute.toStringAsFixed(0)}'",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (!isStarted)
+                      ElevatedButton(
+                        onPressed: _startMatch,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                        ),
+                        child: const Text("BAŞLAT"),
+                      ),
+                  ],
+                ),
+                Text(
+                  oppScore.toString(),
+                  style: GoogleFonts.russoOne(
+                    fontSize: 60,
+                    color: widget.isPlayerTeamAway ? Colors.cyan : Colors.red,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Sahası
+          Expanded(
+            flex: 4,
             child: Container(
               margin: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                  border: Border.all(color: Colors.white30, width: 4),
-                  // ASSET HATA KORUMASI:
-                  image: DecorationImage(
-                      image: AssetImage("assets/pitch_bg.png"),
-                      fit: BoxFit.cover,
-                      onError: (e, s) {}),
-                  color: Colors.green[900]),
-              child: Stack(children: [
-                Align(
+                border: Border.all(color: Colors.white30, width: 4),
+                color: Colors.green[900],
+              ),
+              child: Stack(
+                children: [
+                  // Goller
+                  Align(
                     alignment: Alignment.centerLeft,
                     child: Container(
-                        width: 30,
-                        height: 160,
-                        decoration: BoxDecoration(
-                            border: Border.all(color: Colors.white, width: 3),
-                            color: Colors.white12))),
-                Align(
+                      width: 25,
+                      height: 130,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white, width: 2),
+                        color: Colors.white10,
+                      ),
+                    ),
+                  ),
+                  Align(
                     alignment: Alignment.centerRight,
                     child: Container(
-                        width: 30,
-                        height: 160,
-                        decoration: BoxDecoration(
-                            border: Border.all(color: Colors.white, width: 3),
-                            color: Colors.white12))),
-                ...homeSquad.map((p) => _dot(p, Colors.cyan)),
-                ...awaySquad.map((p) => _dot(p, Colors.red)),
-                AnimatedAlign(
-                    duration: const Duration(milliseconds: 16),
-                    alignment:
-                        Alignment(ball.pos.x * 2 - 1, ball.pos.y * 2 - 1),
-                    child: Container(
-                        width: 14,
-                        height: 14,
+                      width: 25,
+                      height: 130,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white, width: 2),
+                        color: Colors.white10,
+                      ),
+                    ),
+                  ),
+                  // Oyuncular
+                  ...homeTeam.map((p) => _playerWidget(p, Colors.cyan)),
+                  ...awayTeam.map((p) => _playerWidget(p, Colors.red)),
+                  // Top
+                  if (ball.owner != null)
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 16),
+                      left: ball.owner!.pos.x *
+                              (MediaQuery.of(context).size.width - 40) -
+                          7,
+                      top: ball.owner!.pos.y * 400 - 7,
+                      child: Container(
+                        width: 12,
+                        height: 12,
                         decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(color: Colors.black, blurRadius: 5)
-                            ]))),
-                if (isGoal)
-                  Center(
-                      child: Text("GOL!",
-                          style: GoogleFonts.russoOne(
-                              fontSize: 100,
-                              color: Colors.white,
-                              shadows: [
-                                const Shadow(
-                                    blurRadius: 20, color: Colors.green)
-                              ])))
-              ]),
-            )),
-        Expanded(
-            flex: 2,
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black,
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 16),
+                      left: ball.pos.x *
+                              (MediaQuery.of(context).size.width - 40) -
+                          7,
+                      top: ball.pos.y * 400 - 7,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: const BoxDecoration(
+                          color: Colors.yellowAccent,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black,
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  // Gol animasyonu
+                  if (isGoal)
+                    Center(
+                      child: Text(
+                        "GOOOOOOOL!",
+                        style: GoogleFonts.russoOne(
+                          fontSize: 80,
+                          color: Colors.white,
+                          shadows: const [
+                            Shadow(
+                              blurRadius: 20,
+                              color: Colors.green,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Loglar
+          Expanded(
+            flex: 1,
             child: Container(
-                color: Colors.black,
-                child: ListView(
-                    children: logs
-                        .map((e) => Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 2),
-                            child: Text(e,
-                                style: const TextStyle(
-                                    color: Colors.greenAccent))))
-                        .toList())))
-      ]),
+              color: Colors.black,
+              child: ListView(
+                children: logs
+                    .map(
+                      (log) => Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 2,
+                        ),
+                        child: Text(
+                          log,
+                          style: const TextStyle(
+                            color: Colors.greenAccent,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _dot(SimPlayer p, Color c) => AnimatedAlign(
-      duration: const Duration(milliseconds: 16),
-      alignment: Alignment(p.pos.x * 2 - 1, p.pos.y * 2 - 1),
+  Widget _playerWidget(SimPlayer player, Color color) {
+    return Positioned(
+      left: player.pos.x * (MediaQuery.of(context).size.width - 40) - 12,
+      top: player.pos.y * 400 - 12,
       child: Container(
-          width: 24,
-          height: 24,
-          decoration: BoxDecoration(
-              color: c,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2)),
-          child: Center(
-              child: Text(p.role[0],
-                  style: const TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.bold)))));
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.5),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            player.role[0],
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
