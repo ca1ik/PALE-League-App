@@ -3844,15 +3844,15 @@ class _ShowcaseDialogState extends State<_ShowcaseDialog>
                     child: Column(
                       children: widget.groupedPlayers.entries.map((entry) {
                         Color typeColor = _getCardTypeColor(entry.key);
+
+                        // Diğer kart türleri için normal görünüm
                         return Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.center, // ORTALA
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 20),
                               child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.center, // ORTALA
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   ShaderMask(
                                     shaderCallback: (bounds) => LinearGradient(
@@ -3870,8 +3870,7 @@ class _ShowcaseDialogState extends State<_ShowcaseDialog>
                             Wrap(
                               spacing: 30,
                               runSpacing: 30,
-                              alignment:
-                                  WrapAlignment.center, // KARTLARI ORTALA
+                              alignment: WrapAlignment.center,
                               children: entry.value
                                   .map((p) => Transform.scale(
                                       scale: 1.1,
@@ -3879,7 +3878,7 @@ class _ShowcaseDialogState extends State<_ShowcaseDialog>
                                           player: p, animateOnHover: true)))
                                   .toList(),
                             ),
-                            const SizedBox(height: 60), // BOŞLUK ARTTIRILDI
+                            const SizedBox(height: 60),
                             Divider(color: Colors.white.withOpacity(0.1)),
                           ],
                         );
@@ -3896,6 +3895,282 @@ class _ShowcaseDialogState extends State<_ShowcaseDialog>
                     onPressed: () => Navigator.pop(context),
                     child: Text(t("CLOSE", widget.lang),
                         style: TextStyle(color: Colors.white)))
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showMVPMap(BuildContext context, List<Player> mvpPlayers) {
+    showDialog(
+      context: context,
+      builder: (c) => _MVPMapDialog(mvpPlayers: mvpPlayers),
+    );
+  }
+}
+
+class _MVPMapDialog extends StatefulWidget {
+  final List<Player> mvpPlayers;
+  const _MVPMapDialog({required this.mvpPlayers});
+
+  @override
+  State<_MVPMapDialog> createState() => _MVPMapDialogState();
+}
+
+class _MVPMapDialogState extends State<_MVPMapDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 8),
+      vsync: this,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(10),
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            padding: const EdgeInsets.all(30),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color.lerp(Colors.red.shade900, Colors.red.shade800,
+                      _controller.value)!,
+                  Color.lerp(Colors.red.shade800, Colors.red.shade700,
+                      _controller.value)!,
+                  Color.lerp(Colors.red.shade700, Colors.redAccent.shade700,
+                      _controller.value)!,
+                ],
+              ),
+              border: Border.all(color: Colors.redAccent, width: 2),
+            ),
+            child: Column(
+              children: [
+                // MVP HARITA BAŞLIĞI
+                ShaderMask(
+                  shaderCallback: (bounds) => LinearGradient(
+                    colors: [Colors.redAccent, Colors.white],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ).createShader(bounds),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text("MVP MAP",
+                        style: GoogleFonts.russoOne(
+                            color: Colors.white,
+                            fontSize: 50,
+                            letterSpacing: 10)),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        // MVP Lokasyon Görselleştirmesi
+                        Container(
+                          width: double.infinity,
+                          constraints: BoxConstraints(
+                            minHeight: MediaQuery.of(context).size.height * 0.5,
+                          ),
+                          padding: const EdgeInsets.all(30),
+                          margin: const EdgeInsets.symmetric(vertical: 20),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.red.shade900,
+                                Colors.red.shade800,
+                                Colors.redAccent.shade700,
+                              ],
+                            ),
+                            border: Border.all(
+                                color: Colors.redAccent.withOpacity(0.5),
+                                width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.red.withOpacity(0.5),
+                                blurRadius: 30,
+                                spreadRadius: 10,
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            children: [
+                              // Dekoratif Arka Plan Desen
+                              Positioned(
+                                top: -100,
+                                right: -100,
+                                child: Container(
+                                  width: 300,
+                                  height: 300,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white.withOpacity(0.03),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                bottom: -50,
+                                left: -50,
+                                child: Container(
+                                  width: 200,
+                                  height: 200,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.redAccent.withOpacity(0.05),
+                                  ),
+                                ),
+                              ),
+                              // İçerik
+                              Column(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  // Başlık
+                                  Text(
+                                    "MVP OYUNCUSU KONUMLARI",
+                                    style: GoogleFonts.orbitron(
+                                      color: Colors.white,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  // Grid Layout - MVP Oyunculuları
+                                  Center(
+                                    child: Wrap(
+                                      alignment: WrapAlignment.center,
+                                      spacing: 20,
+                                      runSpacing: 20,
+                                      children: widget.mvpPlayers
+                                          .map((player) => Container(
+                                                padding:
+                                                    const EdgeInsets.all(15),
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  gradient: LinearGradient(
+                                                    colors: [
+                                                      Colors.white
+                                                          .withOpacity(0.1),
+                                                      Colors.redAccent
+                                                          .withOpacity(0.1)
+                                                    ],
+                                                  ),
+                                                  border: Border.all(
+                                                    color: Colors.redAccent
+                                                        .withOpacity(0.5),
+                                                  ),
+                                                ),
+                                                child: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      player.name,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 5),
+                                                    Container(
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 4),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.redAccent,
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(8),
+                                                      ),
+                                                      child: Text(
+                                                        player.position,
+                                                        style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 10,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 5),
+                                                    Text(
+                                                      "⭐ ${player.rating}",
+                                                      style: const TextStyle(
+                                                        color: Colors.white70,
+                                                        fontSize: 11,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ))
+                                          .toList(),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  // İstatistik
+                                  Text(
+                                    "Toplam MVP Oyuncu: ${widget.mvpPlayers.length}",
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 40, vertical: 20),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    "KAPAT",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -3926,6 +4201,9 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
   late TextEditingController _teamNameController;
   bool isVertical = true;
   String searchQuery = "";
+
+  // Harita stili: 0 = Mavi, 1 = Kırmızı, 2 = Turkuaz, 3 = Pembe (BAD)
+  int _mapStyle = 0;
 
   // 7 Pozisyon: 0:GK, 1:LCB, 2:RCB, 3:CAM, 4:LW, 5:RW, 6:ST
   List<Player?> squad = List.filled(7, null);
@@ -3986,6 +4264,33 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
                                   setState(() => isVertical = !isVertical),
                             ),
                             const SizedBox(width: 10),
+                            // Harita Değiştirme Butonu
+                            ElevatedButton.icon(
+                              onPressed: () => setState(
+                                  () => _mapStyle = (_mapStyle + 1) % 4),
+                              icon: const Icon(Icons.map, color: Colors.white),
+                              label: Text(
+                                  _mapStyle == 0
+                                      ? "KIRMIZI HARİTA"
+                                      : (_mapStyle == 1
+                                          ? "TURKUAZ HARİTA"
+                                          : (_mapStyle == 2
+                                              ? "PEMBE HARİTA"
+                                              : "MAVİ HARİTA")),
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _mapStyle == 0
+                                    ? Colors.red.shade700
+                                    : (_mapStyle == 1
+                                        ? Colors.cyan
+                                        : (_mapStyle == 2
+                                            ? Colors.pinkAccent
+                                            : Colors.blueAccent)),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
                             ElevatedButton.icon(
                               onPressed: _capture,
                               icon: const Icon(Icons.download,
@@ -4016,17 +4321,42 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
                         width: double.infinity,
                         height: double.infinity,
                         decoration: BoxDecoration(
-                            gradient: const LinearGradient(
+                            gradient: LinearGradient(
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFF050505),
-                                  Color(0xFF101025),
-                                  Color(0xFF050505)
-                                ]),
+                                colors: _mapStyle == 1
+                                    ? [
+                                        const Color(0xFF2B0505),
+                                        const Color(0xFF500A0A),
+                                        const Color(0xFF2B0505)
+                                      ]
+                                    : (_mapStyle == 2
+                                        ? [
+                                            const Color(0xFF000914),
+                                            const Color(0xFF002A40),
+                                            const Color(0xFF000914)
+                                          ]
+                                        : (_mapStyle == 3
+                                            ? [
+                                                const Color(0xFF2A0515),
+                                                const Color(0xFF500A25),
+                                                const Color(0xFF2A0515)
+                                              ]
+                                            : [
+                                                const Color(0xFF050505),
+                                                const Color(0xFF101025),
+                                                const Color(0xFF050505)
+                                              ]))),
                             // Kenarlık inceltildi, radius kaldırıldı (Tam otursun diye)
-                            border:
-                                Border.all(color: Colors.white12, width: 2)),
+                            border: Border.all(
+                                color: _mapStyle == 1
+                                    ? Colors.redAccent.withOpacity(0.3)
+                                    : (_mapStyle == 2
+                                        ? Colors.cyan.withOpacity(0.4)
+                                        : (_mapStyle == 3
+                                            ? Colors.pinkAccent.withOpacity(0.4)
+                                            : Colors.white12)),
+                                width: 2)),
                         child: Stack(
                           children: [
                             // Saha Çizgileri
@@ -4221,10 +4551,20 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
                       // KART
                       Expanded(
                         child: GestureDetector(
-                            onTap: () => setState(
-                                () => squad[index] = null), // Tıklayınca sil
-                            child: FCAnimatedCard(
-                                player: p, animateOnHover: true)),
+                            onTap: () => setState(() => squad[index] = null),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                FCAnimatedCard(player: p, animateOnHover: true),
+                                if (_mapStyle == 3)
+                                  Positioned.fill(
+                                      child: Center(
+                                          child: Icon(Icons.close,
+                                              size: 120,
+                                              color: Colors.pinkAccent
+                                                  .withOpacity(0.15))))
+                              ],
+                            )),
                       ),
                     ],
                   )
