@@ -239,23 +239,22 @@ class _ClassicSidebarState extends State<_ClassicSidebar> {
                   AnimatedCrossFade(
                       firstChild: Container(),
                       secondChild: Column(children: [
-                        _item(14, Icons.home, "Anasayfa", isDark, isRgb: true),
-                        _item(15, Icons.groups, "Oyuncular", isDark,
+                        _item(14, Icons.groups, "Oyuncular", isDark,
                             isRgb: true),
-                        _item(16, Icons.table_chart_rounded, "Puan Durumu",
+                        _item(15, Icons.table_chart_rounded, "Puan Durumu",
                             isDark,
                             isRgb: true),
-                        _item(17, Icons.emoji_events, "Challenge", isDark,
+                        _item(16, Icons.emoji_events, "Challenge", isDark,
                             isRgb: true),
-                        _item(18, Icons.construction, "Kadro Kur", isDark,
+                        _item(17, Icons.construction, "Kadro Kur", isDark,
                             isRgb: true),
-                        _item(19, Icons.list_alt, "Tier List", isDark,
+                        _item(18, Icons.list_alt, "Tier List", isDark,
                             isRgb: true),
-                        _item(20, Icons.sports_soccer, "Ultimate", isDark,
+                        _item(19, Icons.sports_soccer, "Ultimate", isDark,
                             isRgb: true),
-                        _item(21, Icons.games, "Oyunlar", isDark, isRgb: true),
+                        _item(20, Icons.games, "Oyunlar", isDark, isRgb: true),
                         // FPS TARAYICI BURADA (En Altta)
-                        _item(22, Icons.rocket_launch, "FPS Tarayıcı", isDark,
+                        _item(21, Icons.rocket_launch, "FPS Tarayıcı", isDark,
                             isRgb: true),
                       ]),
                       crossFadeState: _isPaleHaxExpanded
@@ -431,25 +430,23 @@ class _ModernSidebarState extends State<_ModernSidebar> {
                         secondChild: Padding(
                             padding: const EdgeInsets.only(left: 10),
                             child: Column(children: [
-                              _modernItem(
-                                  context, Icons.home, "Anasayfa", 14, isDark),
                               _modernItem(context, Icons.groups, "Oyuncular",
-                                  15, isDark),
+                                  14, isDark),
                               _modernItem(context, Icons.table_chart_rounded,
-                                  "Puan Durumu", 16, isDark),
+                                  "Puan Durumu", 15, isDark),
                               _modernItem(context, Icons.emoji_events,
-                                  "Challenge", 17, isDark),
+                                  "Challenge", 16, isDark),
                               _modernItem(context, Icons.construction,
-                                  "Kadro Kur", 18, isDark),
+                                  "Kadro Kur", 17, isDark),
                               _modernItem(context, Icons.list_alt, "Tier List",
-                                  19, isDark),
+                                  18, isDark),
                               _modernItem(context, Icons.sports_soccer,
-                                  "Ultimate", 20, isDark),
+                                  "Ultimate", 19, isDark),
                               _modernItem(
-                                  context, Icons.games, "Oyunlar", 21, isDark),
+                                  context, Icons.games, "Oyunlar", 20, isDark),
                               // FPS TARAYICI BURADA (En Altta)
                               _modernItem(context, Icons.rocket_launch,
-                                  "FPS Tarayıcı", 22, isDark),
+                                  "FPS Tarayıcı", 21, isDark),
                             ])),
                         crossFadeState: _isPaleHaxExpanded
                             ? CrossFadeState.showSecond

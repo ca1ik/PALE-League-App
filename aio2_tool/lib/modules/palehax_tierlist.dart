@@ -114,8 +114,7 @@ class _TierListViewState extends State<TierListView> {
                             .where((p) =>
                                 p.name
                                     .toLowerCase()
-                                    .contains(searchQuery.toLowerCase()) &&
-                                p.cardType == "Temel")
+                                    .contains(searchQuery.toLowerCase()))
                             .toList();
                         players.sort((a, b) => b.rating.compareTo(a.rating));
 
