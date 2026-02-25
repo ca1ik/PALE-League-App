@@ -5,6 +5,13 @@ import '../widgets/premium_cards/future_stars_card.dart';
 import '../widgets/premium_cards/fantasy_card.dart';
 import '../widgets/premium_cards/winter_card.dart';
 import '../widgets/premium_cards/heroes_card.dart';
+import '../widgets/premium_cards/thunderstruck_card.dart';
+import '../widgets/premium_cards/toty_card.dart';
+import '../widgets/premium_cards/evolution_card.dart';
+import '../widgets/premium_cards/team_turkey_card.dart';
+import '../widgets/premium_cards/dreamchasers_card.dart';
+import '../widgets/premium_cards/trickster_card.dart';
+import '../widgets/premium_cards/birthday_card.dart';
 import '../data/card_types.dart';
 
 /// Dialog for creating new card with type selection
@@ -217,34 +224,64 @@ class _CreateCardDialogState extends State<CreateCardDialog> {
     switch (cardInfo.type) {
       case CardType.ramadan:
         return RamadanCard(
-          icon: cardInfo.icon,
-          title: cardInfo.turkishName.split(' ')[0],
-          size: double.infinity,
-        );
+            icon: cardInfo.icon,
+            title: cardInfo.turkishName.split(' ')[0],
+            size: double.infinity);
       case CardType.futureStars:
         return FutureStarsCard(
-          icon: cardInfo.icon,
-          title: cardInfo.turkishName.split(' ')[0],
-          size: double.infinity,
-        );
+            icon: cardInfo.icon,
+            title: cardInfo.turkishName.split(' ')[0],
+            size: double.infinity);
       case CardType.fantasy:
         return FantasyCard(
-          icon: cardInfo.icon,
-          title: cardInfo.turkishName.split(' ')[0],
-          size: double.infinity,
-        );
+            icon: cardInfo.icon,
+            title: cardInfo.turkishName.split(' ')[0],
+            size: double.infinity);
       case CardType.winter:
         return WinterCard(
-          icon: cardInfo.icon,
-          title: cardInfo.turkishName.split(' ')[0],
-          size: double.infinity,
-        );
+            icon: cardInfo.icon,
+            title: cardInfo.turkishName.split(' ')[0],
+            size: double.infinity);
       case CardType.heroes:
         return HeroesCard(
-          icon: cardInfo.icon,
-          title: cardInfo.turkishName.split(' ')[0],
-          size: double.infinity,
-        );
+            icon: cardInfo.icon,
+            title: cardInfo.turkishName.split(' ')[0],
+            size: double.infinity);
+      case CardType.thunderstruck:
+        return ThunderstruckCard(
+            icon: cardInfo.icon,
+            title: cardInfo.turkishName.split(' ')[0],
+            size: double.infinity);
+      case CardType.toty:
+        return TOTYCard(
+            icon: cardInfo.icon,
+            title: cardInfo.turkishName.split(' ')[0],
+            size: double.infinity);
+      case CardType.evolution:
+        return EvolutionCard(
+            icon: cardInfo.icon,
+            title: cardInfo.turkishName.split(' ')[0],
+            size: double.infinity);
+      case CardType.teamTurkey:
+        return TeamTurkeyCard(
+            icon: cardInfo.icon,
+            title: cardInfo.turkishName.split(' ')[0],
+            size: double.infinity);
+      case CardType.dreamchasers:
+        return DreamchasersCard(
+            icon: cardInfo.icon,
+            title: cardInfo.turkishName.split(' ')[0],
+            size: double.infinity);
+      case CardType.trickster:
+        return TricksterCard(
+            icon: cardInfo.icon,
+            title: cardInfo.turkishName.split(' ')[0],
+            size: double.infinity);
+      case CardType.birthday:
+        return BirthdayCard(
+            icon: cardInfo.icon,
+            title: cardInfo.turkishName.split(' ')[0],
+            size: double.infinity);
       default:
         return IconCard(
           icon: cardInfo.icon,

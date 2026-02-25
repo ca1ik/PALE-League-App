@@ -511,6 +511,42 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         return const Color(0xFF00FF7F);
       case "HEROES":
         return const Color(0xFFFF0000);
+      case "THUNDERSTRUCK":
+        return const Color(0xFFFFD700);
+      case "PCL PRO":
+        return const Color(0xFF1E3A8A);
+      case "EVOLUTION":
+        return const Color(0xFF10B981);
+      case "TOTY":
+        return const Color(0xFFFFD700);
+      case "END OF AN ERA":
+        return const Color(0xFF9CA3AF);
+      case "STAFF":
+        return const Color(0xFF1E40AF);
+      case "PCL CHAMPION":
+        return const Color(0xFFDC2626);
+      case "PEL CHAMPION":
+        return const Color(0xFF3B82F6);
+      case "PECL CHAMPION":
+        return const Color(0xFFF97316);
+      case "FUNCUP CHAMPION":
+        return const Color(0xFFEC4899);
+      case "DRAFT CHAMPION":
+        return const Color(0xFF059669);
+      case "CLASSIC VII":
+        return const Color(0xFF92400E);
+      case "TRICKSTER":
+        return const Color(0xFFD946EF);
+      case "FM PRO":
+        return const Color(0xFF047857);
+      case "DREAMCHASERS":
+        return const Color(0xFF6366F1);
+      case "AWARD WINNERS":
+        return const Color(0xFFFBBF24);
+      case "TEAM TURKEY":
+        return const Color(0xFFDC2626);
+      case "BIRTHDAY":
+        return const Color(0xFFFBBF24);
       default:
         return Colors.white24;
     }

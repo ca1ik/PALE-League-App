@@ -322,9 +322,36 @@ class Player extends HiveObject {
       position.contains("GK") ? 1 : (position.contains("ST") ? 9 : 10);
 
   int getCardTierStars() {
-    if (["TOTS", "BALLOND'OR", "ICON", "HEROES"].contains(cardType)) return 5;
-    if (["STAR", "MVP", "FANTASY", "FUTURE STARS"].contains(cardType)) return 4;
-    if (["RAMADAN", "WINTER"].contains(cardType)) return 3;
+    if (["TOTS", "BALLOND'OR", "ICON", "HEROES", "TOTY", "AWARD WINNERS"]
+        .contains(cardType)) return 5;
+    if ([
+      "STAR",
+      "MVP",
+      "FANTASY",
+      "FUTURE STARS",
+      "THUNDERSTRUCK",
+      "DREAMCHASERS",
+      "PCL CHAMPION",
+      "PEL CHAMPION"
+    ].contains(cardType)) return 4;
+    if ([
+      "RAMADAN",
+      "WINTER",
+      "EVOLUTION",
+      "TEAM TURKEY",
+      "TRICKSTER",
+      "BIRTHDAY",
+      "PECL CHAMPION",
+      "FUNCUP CHAMPION"
+    ].contains(cardType)) return 3;
+    if ([
+      "PCL PRO",
+      "STAFF",
+      "FM PRO",
+      "DRAFT CHAMPION",
+      "CLASSIC VII",
+      "END OF AN ERA"
+    ].contains(cardType)) return 2;
     return 1;
   }
 
@@ -416,6 +443,24 @@ final List<String> globalCardTypes = [
   "FANTASY",
   "WINTER",
   "HEROES",
+  "THUNDERSTRUCK",
+  "PCL PRO",
+  "EVOLUTION",
+  "TOTY",
+  "END OF AN ERA",
+  "STAFF",
+  "PCL CHAMPION",
+  "PEL CHAMPION",
+  "PECL CHAMPION",
+  "FUNCUP CHAMPION",
+  "DRAFT CHAMPION",
+  "CLASSIC VII",
+  "TRICKSTER",
+  "FM PRO",
+  "DREAMCHASERS",
+  "AWARD WINNERS",
+  "TEAM TURKEY",
+  "BIRTHDAY",
 ];
 // Global chemistry styles available for quick selection in editor
 final List<String> globalChemistryStyles = [
