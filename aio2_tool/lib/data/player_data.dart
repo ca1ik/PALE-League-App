@@ -322,8 +322,9 @@ class Player extends HiveObject {
       position.contains("GK") ? 1 : (position.contains("ST") ? 9 : 10);
 
   int getCardTierStars() {
-    if (["TOTS", "BALLOND'OR"].contains(cardType)) return 5;
-    if (["STAR", "MVP"].contains(cardType)) return 4;
+    if (["TOTS", "BALLOND'OR", "ICON", "HEROES"].contains(cardType)) return 5;
+    if (["STAR", "MVP", "FANTASY", "FUTURE STARS"].contains(cardType)) return 4;
+    if (["RAMADAN", "WINTER"].contains(cardType)) return 3;
     return 1;
   }
 
@@ -408,7 +409,13 @@ final List<String> globalCardTypes = [
   "MVP",
   "STAR",
   "BALLOND'OR",
-  "BAD"
+  "BAD",
+  "ICON",
+  "RAMADAN",
+  "FUTURE STARS",
+  "FANTASY",
+  "WINTER",
+  "HEROES",
 ];
 // Global chemistry styles available for quick selection in editor
 final List<String> globalChemistryStyles = [

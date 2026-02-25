@@ -161,7 +161,13 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                 !isBad &&
                                 (type == "TOTS" ||
                                     type == "BALLOND'OR" ||
-                                    type == "STAR"))
+                                    type == "STAR" ||
+                                    type == "ICON" ||
+                                    type == "RAMADAN" ||
+                                    type == "FUTURE STARS" ||
+                                    type == "FANTASY" ||
+                                    type == "WINTER" ||
+                                    type == "HEROES"))
                               Positioned.fill(
                                   child: ShaderMask(
                                       shaderCallback: (bounds) => SweepGradient(
@@ -493,6 +499,18 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         return Colors.cyanAccent;
       case "STAR":
         return Colors.cyan;
+      case "ICON":
+        return const Color(0xFFFFD700);
+      case "RAMADAN":
+        return const Color(0xFF8B00FF);
+      case "FUTURE STARS":
+        return const Color(0xFF00FFFF);
+      case "FANTASY":
+        return const Color(0xFFFF00FF);
+      case "WINTER":
+        return const Color(0xFF00FF7F);
+      case "HEROES":
+        return const Color(0xFFFF0000);
       default:
         return Colors.white24;
     }
@@ -521,6 +539,18 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         return Colors.cyan;
       case "BALLOND'OR":
         return Colors.amber;
+      case "ICON":
+        return const Color(0xFFFFD700);
+      case "RAMADAN":
+        return const Color(0xFFFFD700);
+      case "FUTURE STARS":
+        return const Color(0xFF00FFFF);
+      case "FANTASY":
+        return const Color(0xFFFF69B4);
+      case "WINTER":
+        return const Color(0xFF00FF7F);
+      case "HEROES":
+        return const Color(0xFFFFD700);
       default:
         return Colors.white;
     }
@@ -548,6 +578,24 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
       case "STAR":
         return const LinearGradient(
             colors: [Color(0xFF000046), Color(0xFF1CB5E0)]);
+      case "ICON":
+        return const LinearGradient(
+            colors: [Color(0xFF2C2C2C), Color(0xFFA47F35), Color(0xFFFFD700)]);
+      case "RAMADAN":
+        return const LinearGradient(
+            colors: [Color(0xFF1A0033), Color(0xFF2E001F), Color(0xFF8B00FF)]);
+      case "FUTURE STARS":
+        return const LinearGradient(
+            colors: [Color(0xFF001a33), Color(0xFF003366), Color(0xFF00FFFF)]);
+      case "FANTASY":
+        return const LinearGradient(
+            colors: [Color(0xFF0D001A), Color(0xFF2D0A3D), Color(0xFFFF00FF)]);
+      case "WINTER":
+        return const LinearGradient(
+            colors: [Color(0xFF001a1a), Color(0xFF003333), Color(0xFF00FF7F)]);
+      case "HEROES":
+        return const LinearGradient(
+            colors: [Color(0xFF000000), Color(0xFF330000), Color(0xFFFF0000)]);
       default:
         return const LinearGradient(
             colors: [Color(0xFF232526), Color(0xFF414345)]);
@@ -558,6 +606,29 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     if (t == "BALLOND'OR") return [Colors.amber, Colors.white, Colors.amber];
     if (t == "TOTS") return [Colors.blue, Colors.cyanAccent, Colors.blue];
     if (t == "STAR") return [Colors.cyan, Colors.white, Colors.cyan];
+    if (t == "ICON") return [Colors.amber, Colors.white, Colors.amber];
+    if (t == "RAMADAN")
+      return [
+        const Color(0xFF8B00FF),
+        const Color(0xFFFFD700),
+        const Color(0xFF8B00FF)
+      ];
+    if (t == "FUTURE STARS")
+      return [const Color(0xFF00FFFF), Colors.white, const Color(0xFF00FFFF)];
+    if (t == "FANTASY")
+      return [
+        const Color(0xFFFF00FF),
+        const Color(0xFFFF69B4),
+        const Color(0xFFFF00FF)
+      ];
+    if (t == "WINTER")
+      return [const Color(0xFF00FF7F), Colors.white, const Color(0xFF00FF7F)];
+    if (t == "HEROES")
+      return [
+        const Color(0xFFFF0000),
+        const Color(0xFFFFD700),
+        const Color(0xFFFF0000)
+      ];
     return [Colors.white, Colors.grey, Colors.white];
   }
 }

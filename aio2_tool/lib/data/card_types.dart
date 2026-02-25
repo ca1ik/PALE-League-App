@@ -11,6 +11,11 @@ enum CardType {
   wild,
   special,
   icon,
+  ramadan,
+  futureStars,
+  fantasy,
+  winter,
+  heroes,
 }
 
 /// Card metadata and styling
@@ -109,6 +114,47 @@ class CardTypeRegistry {
       color: Colors.amber.shade700,
       description: 'ICON kartı - Özel arka plan görseli ile',
       backgroundImagePath: 'assets/cards/icon.png',
+    ),
+    CardType.ramadan: CardTypeInfo(
+      type: CardType.ramadan,
+      name: 'RAMADAN',
+      turkishName: 'Ramazan',
+      icon: Icons.nightlight_round,
+      color: const Color(0xFF8B00FF),
+      description:
+          'Ramazan özel kartı - Ay-yıldız motifleri ve mistik efektler',
+    ),
+    CardType.futureStars: CardTypeInfo(
+      type: CardType.futureStars,
+      name: 'FUTURE STARS',
+      turkishName: 'Gelecek Yıldızları',
+      icon: Icons.auto_awesome,
+      color: const Color(0xFF00FFFF),
+      description: 'Gelecek Yıldızları - Neon hologram ve dijital efektler',
+    ),
+    CardType.fantasy: CardTypeInfo(
+      type: CardType.fantasy,
+      name: 'FANTASY',
+      turkishName: 'Fantezi',
+      icon: Icons.auto_fix_high,
+      color: const Color(0xFFFF00FF),
+      description: 'Fantasy kartı - Mistik aura ve sihirli partiküller',
+    ),
+    CardType.winter: CardTypeInfo(
+      type: CardType.winter,
+      name: 'WINTER',
+      turkishName: 'Kış',
+      icon: Icons.ac_unit,
+      color: const Color(0xFF00FF7F),
+      description: 'Winter kartı - Buzul kristalleri ve kar taneleri',
+    ),
+    CardType.heroes: CardTypeInfo(
+      type: CardType.heroes,
+      name: 'HEROES',
+      turkishName: 'Kahramanlar',
+      icon: Icons.local_fire_department,
+      color: const Color(0xFFFF0000),
+      description: 'Heroes kartı - Ateş patlaması ve alev efektleri',
     ),
   };
 

@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import '../widgets/icon_card.dart';
+import '../widgets/premium_cards/ramadan_card.dart';
+import '../widgets/premium_cards/future_stars_card.dart';
+import '../widgets/premium_cards/fantasy_card.dart';
+import '../widgets/premium_cards/winter_card.dart';
+import '../widgets/premium_cards/heroes_card.dart';
 import '../data/card_types.dart';
 
 /// Dialog for creating new card with type selection
@@ -91,12 +96,7 @@ class _CreateCardDialogState extends State<CreateCardDialog> {
                     },
                     child: Stack(
                       children: [
-                        IconCard(
-                          icon: cardInfo.icon,
-                          title: cardInfo.turkishName.split(' ')[0],
-                          iconColor: cardInfo.color,
-                          size: double.infinity,
-                        ),
+                        _buildCardPreview(cardInfo),
                         if (isSelected)
                           Positioned.fill(
                             child: Container(
@@ -211,6 +211,49 @@ class _CreateCardDialogState extends State<CreateCardDialog> {
         ),
       ),
     );
+  }
+
+  Widget _buildCardPreview(CardTypeInfo cardInfo) {
+    switch (cardInfo.type) {
+      case CardType.ramadan:
+        return RamadanCard(
+          icon: cardInfo.icon,
+          title: cardInfo.turkishName.split(' ')[0],
+          size: double.infinity,
+        );
+      case CardType.futureStars:
+        return FutureStarsCard(
+          icon: cardInfo.icon,
+          title: cardInfo.turkishName.split(' ')[0],
+          size: double.infinity,
+        );
+      case CardType.fantasy:
+        return FantasyCard(
+          icon: cardInfo.icon,
+          title: cardInfo.turkishName.split(' ')[0],
+          size: double.infinity,
+        );
+      case CardType.winter:
+        return WinterCard(
+          icon: cardInfo.icon,
+          title: cardInfo.turkishName.split(' ')[0],
+          size: double.infinity,
+        );
+      case CardType.heroes:
+        return HeroesCard(
+          icon: cardInfo.icon,
+          title: cardInfo.turkishName.split(' ')[0],
+          size: double.infinity,
+        );
+      default:
+        return IconCard(
+          icon: cardInfo.icon,
+          title: cardInfo.turkishName.split(' ')[0],
+          iconColor: cardInfo.color,
+          size: double.infinity,
+          backgroundImagePath: cardInfo.backgroundImagePath,
+        );
+    }
   }
 }
 
