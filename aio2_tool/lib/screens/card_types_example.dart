@@ -95,6 +95,7 @@ class _CardTypesExamplePageState extends State<CardTypesExamplePage> {
                       title: cardInfo.turkishName.split(' ')[0],
                       subtitle: cardInfo.name,
                       iconColor: cardInfo.color,
+                      backgroundImagePath: cardInfo.backgroundImagePath,
                       size: double.infinity,
                       onTap: () => _viewCardDetails(cardInfo),
                     ),

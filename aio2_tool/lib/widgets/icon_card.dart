@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 /// A premium icon card with glossy golden border and sparkling edge effects.
 ///
 /// - Golden animated border with shimmer
-/// - White marble-like base
+/// - White marble-like base or custom background image
 /// - Animated gold speckles
 /// - Edge shine effects
 /// - Perfect for card types and new card displays
@@ -17,6 +17,7 @@ class IconCard extends StatefulWidget {
   final double size;
   final VoidCallback? onTap;
   final LinearGradient? customGradient;
+  final String? backgroundImagePath;
 
   const IconCard({
     Key? key,
@@ -27,6 +28,7 @@ class IconCard extends StatefulWidget {
     this.size = 140,
     this.onTap,
     this.customGradient,
+    this.backgroundImagePath,
   }) : super(key: key);
 
   @override
@@ -124,29 +126,56 @@ class _IconCardState extends State<IconCard>
                       borderRadius: BorderRadius.circular(16),
                       child: Stack(
                         children: [
-                          // Marble base gradient
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Colors.white,
-                                  Colors.grey.shade50,
-                                  Colors.grey.shade200,
+                          // Background - Image or Marble
+                          if (widget.backgroundImagePath != null)
+                            // Animated background image with pulsing overlay
+                            Positioned.fill(
+                              child: Stack(
+                                children: [
+                                  Image.asset(
+                                    widget.backgroundImagePath!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                  // Pulsing glow overlay
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      gradient: RadialGradient(
+                                        colors: [
+                                          Colors.amber.withOpacity(0.3 *
+                                              (0.5 + 0.5 * sin((t + 1) * 3))),
+                                          Colors.amber.withOpacity(0.1),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
                                 ],
-                                stops: const [0.0, 0.5, 1.0],
+                              ),
+                            )
+                          else
+                            // Marble base gradient (default)
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.white,
+                                    Colors.grey.shade50,
+                                    Colors.grey.shade200,
+                                  ],
+                                  stops: const [0.0, 0.5, 1.0],
+                                ),
                               ),
                             ),
-                          ),
 
-                          // Subtle veins for marble effect
-                          Positioned.fill(
-                            child: CustomPaint(
-                              painter: _VeinPainter(opacity: 0.06),
+                          // Subtle veins for marble effect (only if no background image)
+                          if (widget.backgroundImagePath == null)
+                            Positioned.fill(
+                              child: CustomPaint(
+                                painter: _VeinPainter(opacity: 0.06),
+                              ),
                             ),
-                          ),
 
                           // Diagonal gold streak (top)
                           Positioned.fill(

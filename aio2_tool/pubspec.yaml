@@ -58,6 +58,7 @@ flutter:
   # 'assets' kelimesi 'uses' ile aynı hizada olmalı (2 boşluk içeride)
   assets:
     - assets/music/
+    - assets/cards/
     - assets/X.mp4
     - assets/turkey.json
     - assets/Playstyles/
