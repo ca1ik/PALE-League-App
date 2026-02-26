@@ -59,6 +59,7 @@ flutter:
   assets:
     - assets/music/
     - assets/cards/
+    - assets/cards/s/
     - assets/X.mp4
     - assets/turkey.json
     - assets/Playstyles/

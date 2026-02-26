@@ -322,36 +322,39 @@ class Player extends HiveObject {
       position.contains("GK") ? 1 : (position.contains("ST") ? 9 : 10);
 
   int getCardTierStars() {
-    if (["TOTS", "BALLOND'OR", "ICON", "HEROES", "TOTY", "AWARD WINNERS"]
-        .contains(cardType)) return 5;
+    if ([
+      "TOTS",
+      "BALLONDOR",
+      "ICON",
+      "AWARD WINNERS",
+      "TOTS ICON",
+      "KING",
+      "ULTIMATE"
+    ].contains(cardType)) return 5;
     if ([
       "STAR",
       "MVP",
-      "FANTASY",
       "FUTURE STARS",
       "THUNDERSTRUCK",
       "DREAMCHASERS",
       "PCL CHAMPION",
-      "PEL CHAMPION"
+      "PEL CHAMPION",
+      "EVOLUTION PLUS",
+      "IQ",
+      "VS CHAMPION",
+      "TRAILBRAZERS"
     ].contains(cardType)) return 4;
     if ([
       "RAMADAN",
       "WINTER",
       "EVOLUTION",
-      "TEAM TURKEY",
       "TRICKSTER",
       "BIRTHDAY",
       "PECL CHAMPION",
       "FUNCUP CHAMPION"
     ].contains(cardType)) return 3;
-    if ([
-      "PCL PRO",
-      "STAFF",
-      "FM PRO",
-      "DRAFT CHAMPION",
-      "CLASSIC VII",
-      "END OF AN ERA"
-    ].contains(cardType)) return 2;
+    if (["PCL PRO", "STAFF", "FM PRO", "CLASSIC VII", "END OF AN ERA"]
+        .contains(cardType)) return 2;
     return 1;
   }
 
@@ -435,33 +438,105 @@ final List<String> globalCardTypes = [
   "TOTS",
   "MVP",
   "STAR",
-  "BALLOND'OR",
+  "BALLONDOR",
   "BAD",
   "ICON",
   "RAMADAN",
   "FUTURE STARS",
-  "FANTASY",
   "WINTER",
-  "HEROES",
   "THUNDERSTRUCK",
   "PCL PRO",
   "EVOLUTION",
-  "TOTY",
+  "EVOLUTION PLUS",
   "END OF AN ERA",
   "STAFF",
   "PCL CHAMPION",
   "PEL CHAMPION",
   "PECL CHAMPION",
   "FUNCUP CHAMPION",
-  "DRAFT CHAMPION",
   "CLASSIC VII",
+  "DEFENDER",
+  "MIDFIELDER",
+  "STRIKER",
+  "ELO CHAMPION",
   "TRICKSTER",
   "FM PRO",
+  "IQ",
+  "KING",
+  "TOTS ICON",
+  "TRAILBRAZERS",
+  "ULTIMATE",
+  "VS CHAMPION",
   "DREAMCHASERS",
   "AWARD WINNERS",
-  "TEAM TURKEY",
   "BIRTHDAY",
 ];
+
+final Map<String, String> _cardTypeAssetFileNames = {
+  "TEMEL": "Temel.png",
+  "TOTW": "TOTW.png",
+  "TOTM": "TOTM.png",
+  "TOTS": "TOTS.png",
+  "MVP": "MVP.png",
+  "STAR": "STAR.png",
+  "BALLONDOR": "Ballondor.png",
+  "BAD": "BAD.png",
+  "ICON": "../icon.png",
+  "RAMADAN": "Ramadan.png",
+  "FUTURE STARS": "Future Stars.png",
+  "WINTER": "Winter.png",
+  "THUNDERSTRUCK": "Thunderstuck.png",
+  "THUNDERSTUCK": "Thunderstuck.png",
+  "PCL PRO": "PCLPro.png",
+  "EVOLUTION": "Evolution.png",
+  "EVOLUTION PLUS": "EvolutionPlus.png",
+  "END OF AN ERA": "EndofanEra.png",
+  "STAFF": "Staff.png",
+  "PCL CHAMPION": "PCLChamp.png",
+  "PEL CHAMPION": "PELChamp.png",
+  "PECL CHAMPION": "PECLChamp.png",
+  "FUNCUP CHAMPION": "FuncupChampion.png",
+  "CLASSIC VII": "ClassicVII.png",
+  "DEFENDER": "DEFENDER.png",
+  "MIDFIELDER": "MIDFIELDER.png",
+  "STRIKER": "STRIKER.png",
+  "ELO CHAMPION": "ELOChamp.png",
+  "TRICKSTER": "trickster.png",
+  "FM PRO": "FMPro.png",
+  "IQ": "IQ.png",
+  "KING": "KING.png",
+  "TOTS ICON": "TOTSIcon.png",
+  "TRAILBRAZERS": "Trailbrazers.png",
+  "ULTIMATE": "Ultimate.png",
+  "VS CHAMPION": "VS Champion.png",
+  "DREAMCHASERS": "Dreamchasers.png",
+  "AWARD WINNERS": "AwardWinner.png",
+  "BIRTHDAY": "Birthday.png",
+};
+
+final Map<String, String> _cardTypeAliases = {
+  "BALLON D'OR": "BALLONDOR",
+  "BALLON DOR": "BALLONDOR",
+  "BALLOND'OR": "BALLONDOR",
+  "ELO CHAMP": "ELO CHAMPION",
+  "ELOCHAMP": "ELO CHAMPION",
+};
+
+String normalizeCardType(String cardType) {
+  final key = cardType.trim().toUpperCase();
+  return _cardTypeAliases[key] ?? key;
+}
+
+String? cardTypeToAssetPath(String cardType) {
+  final key = normalizeCardType(cardType);
+  final fileName = _cardTypeAssetFileNames[key];
+  if (fileName == null) return null;
+  if (fileName.startsWith("../")) {
+    return "assets/cards/${fileName.substring(3)}";
+  }
+  return "assets/cards/s/$fileName";
+}
+
 // Global chemistry styles available for quick selection in editor
 final List<String> globalChemistryStyles = [
   "Temel",

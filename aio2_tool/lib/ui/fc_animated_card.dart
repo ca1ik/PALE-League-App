@@ -60,13 +60,13 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     _pulseController =
         AnimationController(vsync: this, duration: const Duration(seconds: 2));
 
-    String type = widget.player.cardType;
+    String type = normalizeCardType(widget.player.cardType);
     if (_hasGif(type)) {
       _loopController.repeat();
-    } else if (!widget.animateOnHover && type != "Temel") {
+    } else if (!widget.animateOnHover && type != "TEMEL") {
       _loopController.repeat();
     }
-    if (!widget.animateOnHover && type != "Temel") {
+    if (!widget.animateOnHover && type != "TEMEL") {
       _pulseController.repeat(reverse: true);
     }
   }
@@ -92,9 +92,11 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
   @override
   Widget build(BuildContext context) {
     Player p = widget.player;
-    String type = p.cardType;
-    bool isBad = type == "BAD";
-    bool isBasic = type == "Temel";
+    final String normalizedType = normalizeCardType(p.cardType);
+    bool isBad = normalizedType == "BAD";
+    bool isBasic = normalizedType == "TEMEL";
+    final String cardBgAsset =
+        cardTypeToAssetPath(normalizedType) ?? "assets/cards/s/Temel.png";
     Map<String, int> cs = p.getCardStats();
 
     // TÜM GOLD PLAYSTYLE'LARI AL (İstiflemek için)
@@ -105,7 +107,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
       // Hata yok
     }
 
-    Color borderColor = _getBorderColor(type);
+    Color borderColor = _getBorderColor(normalizedType);
     String? teamLogo = teamLogos[p.team];
 
     return FittedBox(
@@ -127,47 +129,40 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                     alignment: Alignment.center,
                     children: [
                       // --- ARKA PLAN ---
-                      Container(
-                        width: 320,
+                      SizedBox(
+                        width: 340,
                         height: 480,
-                        decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(width: 2, color: borderColor),
-                            gradient: _getBgGradient(type),
-                            boxShadow: isBasic
-                                ? []
-                                : [
-                                    BoxShadow(
-                                        color: _getGlowColor(type).withOpacity(
-                                            _pulseController.value * 0.3 + 0.1),
-                                        blurRadius: isBad ? 5 : 25,
-                                        spreadRadius: isBad ? 0 : 3)
-                                  ]),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: Stack(children: [
-                            if (_hasGif(type))
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                                child: Image.asset(cardBgAsset,
+                                    fit: BoxFit.fill,
+                                    errorBuilder: (c, e, s) =>
+                                        const SizedBox.shrink())),
+                            if (_hasGif(normalizedType))
                               Positioned.fill(
                                   child: Opacity(
-                                      opacity:
-                                          type == "BALLOND'OR" ? 0.15 : 0.5,
-                                      child: Image.asset(_getGif(type),
+                                      opacity: normalizedType == "BALLONDOR"
+                                          ? 0.15
+                                          : 0.5,
+                                      child: Image.asset(
+                                          _getGif(normalizedType),
                                           fit: BoxFit.cover,
                                           errorBuilder: (c, e, s) =>
                                               Container()))),
-                            if (!_hasGif(type) && !isBasic)
-                              _buildCodeEffects(type),
+                            if (!_hasGif(normalizedType) && !isBasic)
+                              _buildCodeEffects(normalizedType),
                             if (!isBasic &&
                                 !isBad &&
-                                (type == "TOTS" ||
-                                    type == "BALLOND'OR" ||
-                                    type == "STAR" ||
-                                    type == "ICON" ||
-                                    type == "RAMADAN" ||
-                                    type == "FUTURE STARS" ||
-                                    type == "FANTASY" ||
-                                    type == "WINTER" ||
-                                    type == "HEROES"))
+                                (normalizedType == "TOTS" ||
+                                    normalizedType == "BALLONDOR" ||
+                                    normalizedType == "STAR" ||
+                                    normalizedType == "ICON" ||
+                                    normalizedType == "RAMADAN" ||
+                                    normalizedType == "FUTURE STARS" ||
+                                    normalizedType == "FANTASY" ||
+                                    normalizedType == "WINTER" ||
+                                    normalizedType == "HEROES"))
                               Positioned.fill(
                                   child: ShaderMask(
                                       shaderCallback: (bounds) => SweepGradient(
@@ -175,13 +170,12 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                   _loopController.value *
                                                       4 *
                                                       pi),
-                                              colors: _getShaderColors(type))
+                                              colors: _getShaderColors(
+                                                  normalizedType))
                                           .createShader(bounds),
                                       child: Container(
-                                          decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                              border: Border.all(width: 3, color: Colors.white.withOpacity(0.15)))))),
+                                          decoration:
+                                              BoxDecoration(border: Border.all(width: 2, color: Colors.white.withOpacity(0.15)))))),
                             Padding(
                               padding: const EdgeInsets.all(20.0),
                               child: Stack(children: [
@@ -194,9 +188,11 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                           child: Text(
                                               isBad
                                                   ? "BAD"
-                                                  : type.toUpperCase(),
+                                                  : _displayCardTitle(
+                                                      normalizedType),
                                               style: GoogleFonts.orbitron(
-                                                  color: _getTitleColor(type),
+                                                  color: _getTitleColor(
+                                                      normalizedType),
                                                   fontWeight: FontWeight.w900,
                                                   fontSize: 16,
                                                   letterSpacing: 3,
@@ -303,10 +299,10 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                     cs["REF"] ??
                                                         cs["Refleks"] ??
                                                         50,
-                                                    type,
+                                                    normalizedType,
                                                     isBad),
                                                 _cStat("1v1", cs["1v1"] ?? 50,
-                                                    type, isBad)
+                                                    normalizedType, isBad)
                                               ]),
                                           const SizedBox(height: 5),
                                           Row(
@@ -315,9 +311,9 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                       .spaceBetween,
                                               children: [
                                                 _cStat("ÇİZ", cs["ÇİZ"] ?? 50,
-                                                    type, isBad),
+                                                    normalizedType, isBad),
                                                 _cStat("POZ", cs["POZ"] ?? 50,
-                                                    type, isBad)
+                                                    normalizedType, isBad)
                                               ]),
                                           const SizedBox(height: 5),
                                           Row(
@@ -326,9 +322,9 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                       .spaceBetween,
                                               children: [
                                                 _cStat("KAR", cs["KAR"] ?? 50,
-                                                    type, isBad),
+                                                    normalizedType, isBad),
                                                 _cStat("PAS", cs["PAS"] ?? 50,
-                                                    type, isBad)
+                                                    normalizedType, isBad)
                                               ])
                                         ])
                                       else
@@ -338,10 +334,10 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                   MainAxisAlignment
                                                       .spaceBetween,
                                               children: [
-                                                _cStat("PAC", cs["PAC"]!, type,
-                                                    isBad),
-                                                _cStat("DRI", cs["DRI"]!, type,
-                                                    isBad)
+                                                _cStat("PAC", cs["PAC"]!,
+                                                    normalizedType, isBad),
+                                                _cStat("DRI", cs["DRI"]!,
+                                                    normalizedType, isBad)
                                               ]),
                                           const SizedBox(height: 5),
                                           Row(
@@ -349,10 +345,10 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                   MainAxisAlignment
                                                       .spaceBetween,
                                               children: [
-                                                _cStat("SHO", cs["SHO"]!, type,
-                                                    isBad),
-                                                _cStat("DEF", cs["DEF"]!, type,
-                                                    isBad)
+                                                _cStat("SHO", cs["SHO"]!,
+                                                    normalizedType, isBad),
+                                                _cStat("DEF", cs["DEF"]!,
+                                                    normalizedType, isBad)
                                               ]),
                                           const SizedBox(height: 5),
                                           Row(
@@ -360,10 +356,10 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                   MainAxisAlignment
                                                       .spaceBetween,
                                               children: [
-                                                _cStat("PAS", cs["PAS"]!, type,
-                                                    isBad),
-                                                _cStat("PHY", cs["PHY"]!, type,
-                                                    isBad)
+                                                _cStat("PAS", cs["PAS"]!,
+                                                    normalizedType, isBad),
+                                                _cStat("PHY", cs["PHY"]!,
+                                                    normalizedType, isBad)
                                               ])
                                         ]),
                                       const SizedBox(height: 15),
@@ -390,7 +386,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                         ])),
                               ]),
                             ),
-                          ]),
+                          ],
                         ),
                       ),
                       // --- PLAYSTYLE PLUS İKONLARI (İSTİFLENMİŞ) ---
@@ -432,13 +428,21 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
       ]);
 
   bool _hasGif(String t) =>
-      ["TOTS", "BALLOND'OR", "MVP", "TOTM", "STAR"].contains(t);
+      ["TOTS", "BALLONDOR", "MVP", "TOTM", "STAR"].contains(t);
+
+  String _displayCardTitle(String t) {
+    if (t == "BALLONDOR") return "BALLON D'OR";
+    if (t == "ELO CHAMPION") return "ELO CHAMP";
+    if (t == "FUNCUP CHAMPION") return "FUNCUP";
+    if (t == "EVOLUTION PLUS") return "EVO+";
+    return t;
+  }
 
   String _getGif(String t) {
     switch (t) {
       case "TOTS":
         return "assets/gifs/tots_effect.gif";
-      case "BALLOND'OR":
+      case "BALLONDOR":
         return "assets/gifs/ballondor_effect.gif";
       case "MVP":
         return "assets/gifs/mvp_effect.gif";
@@ -491,7 +495,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         return const Color(0xFFE91E63);
       case "MVP":
         return Colors.redAccent;
-      case "BALLOND'OR":
+      case "BALLONDOR":
         return Colors.amberAccent;
       case "BAD":
         return Colors.pinkAccent;
@@ -547,6 +551,20 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         return const Color(0xFFDC2626);
       case "BIRTHDAY":
         return const Color(0xFFFBBF24);
+      case "EVOLUTION PLUS":
+        return const Color(0xFF7C3AED);
+      case "IQ":
+        return const Color(0xFF06B6D4);
+      case "KING":
+        return const Color(0xFFFFD700);
+      case "TOTS ICON":
+        return const Color(0xFF38BDF8);
+      case "TRAILBRAZERS":
+        return const Color(0xFFF97316);
+      case "ULTIMATE":
+        return const Color(0xFFA78BFA);
+      case "VS CHAMPION":
+        return const Color(0xFF22C55E);
       default:
         return Colors.white24;
     }
@@ -573,7 +591,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         return Colors.redAccent;
       case "STAR":
         return Colors.cyan;
-      case "BALLOND'OR":
+      case "BALLONDOR":
         return Colors.amber;
       case "ICON":
         return const Color(0xFFFFD700);
@@ -587,6 +605,20 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         return const Color(0xFF00FF7F);
       case "HEROES":
         return const Color(0xFFFFD700);
+      case "EVOLUTION PLUS":
+        return const Color(0xFFA78BFA);
+      case "IQ":
+        return const Color(0xFF67E8F9);
+      case "KING":
+        return const Color(0xFFFFD700);
+      case "TOTS ICON":
+        return const Color(0xFF67E8F9);
+      case "TRAILBRAZERS":
+        return const Color(0xFFF97316);
+      case "ULTIMATE":
+        return const Color(0xFFC4B5FD);
+      case "VS CHAMPION":
+        return const Color(0xFF86EFAC);
       default:
         return Colors.white;
     }
@@ -602,7 +634,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
             colors: [Color(0xFF2E001F), Color(0xFFC2185B)]);
       case "MVP":
         return const LinearGradient(colors: [Colors.black, Color(0xFFB71C1C)]);
-      case "BALLOND'OR":
+      case "BALLONDOR":
         return const LinearGradient(
             colors: [Color(0xFF8E6E1D), Colors.black, Color(0xFFF8D568)]);
       case "BAD":
@@ -639,7 +671,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
   }
 
   List<Color> _getShaderColors(String t) {
-    if (t == "BALLOND'OR") return [Colors.amber, Colors.white, Colors.amber];
+    if (t == "BALLONDOR") return [Colors.amber, Colors.white, Colors.amber];
     if (t == "TOTS") return [Colors.blue, Colors.cyanAccent, Colors.blue];
     if (t == "STAR") return [Colors.cyan, Colors.white, Colors.cyan];
     if (t == "ICON") return [Colors.amber, Colors.white, Colors.amber];

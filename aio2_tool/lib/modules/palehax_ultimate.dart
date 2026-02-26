@@ -332,11 +332,11 @@ class _UltimateBodyState extends State<_UltimateBody> {
     List<Player> pack = [];
     Random r = Random();
 
-    // Özel kartlar ekle (TOTS, BALLOND'OR, etc)
+    // Özel kartlar ekle (TOTS, BALLONDOR, etc)
     var specialCards = all
         .where((p) =>
             p.cardType == "TOTS" ||
-            p.cardType == "BALLOND'OR" ||
+            p.cardType == "BALLONDOR" ||
             p.cardType == "MVP" ||
             p.cardType == "TOTM" ||
             p.cardType == "STAR")

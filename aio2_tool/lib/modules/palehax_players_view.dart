@@ -482,12 +482,42 @@ final List<Map<String, dynamic>> metaPlaystyles = [
 final Map<String, String> cardTypeDescriptions = {
   "Temel": "Standart oyuncu kartı.",
   "TOTW": "Haftanın Takımı.",
+  "TOTM": "Ayın Takımı.",
   "TOTS": "Sezonun Takımı.",
   "MVP": "En Değerli Oyuncu.",
   "STAR": "Yıldız Oyuncu.",
-  "BALLOND'OR": "Sezonun Oyuncusu.",
+  "BALLONDOR": "Ballon d'Or - Sezonun en iyi oyuncusu.",
   "BAD": "Facia Performans.",
-  "TOTM": "Ayın Takımı."
+  "ICON": "İkon - Efsane oyuncu kartı.",
+  "RAMADAN": "Ramazan özel kartı.",
+  "FUTURE STARS": "Gelecek Yıldızları kartı.",
+  "WINTER": "Kış özel kartı.",
+  "THUNDERSTRUCK": "Yıldırım özel kartı.",
+  "PCL PRO": "PCL Pro - Profesyonel lig kartı.",
+  "EVOLUTION": "Evolution - Gelişim ve dönüşüm kartı.",
+  "EVOLUTION PLUS": "Geliştirilmiş Evrim kartı.",
+  "END OF AN ERA": "Efsane oyuncuların veda kartı.",
+  "STAFF": "Özel personel kartı.",
+  "PCL CHAMPION": "PCL şampiyonluk kartı.",
+  "PEL CHAMPION": "PEL şampiyonluk kartı.",
+  "PECL CHAMPION": "PECL şampiyonluk kartı.",
+  "FUNCUP CHAMPION": "FunCup şampiyonluk kartı.",
+  "CLASSIC VII": "Vintage klasik kart.",
+  "DEFENDER": "Defans odaklı özel kart.",
+  "MIDFIELDER": "Orta saha odaklı özel kart.",
+  "STRIKER": "Forvet odaklı özel kart.",
+  "ELO CHAMPION": "ELO şampiyonu kartı.",
+  "TRICKSTER": "Hile ve yetenek kartı.",
+  "FM PRO": "Football Manager Pro serisi.",
+  "IQ": "Yüksek oyun zekası kartı.",
+  "KING": "Elit seviye kral kart.",
+  "TOTS ICON": "Sezonun Takımı - İkon sürümü.",
+  "TRAILBRAZERS": "Yol açan özel seri.",
+  "ULTIMATE": "Ultimate premium kart.",
+  "VS CHAMPION": "Karşılaşma şampiyonu kartı.",
+  "DREAMCHASERS": "Rüya avcıları galaksi kartı.",
+  "AWARD WINNERS": "Ödül kazananlar kartı.",
+  "BIRTHDAY": "Doğum günü özel kartı.",
 };
 
 final Map<String, String> roleDescriptions = {
@@ -3580,25 +3610,86 @@ void _showGlobal(BuildContext context, AppDatabase db, String lang,
                   ])))));
 }
 
-
 Color _getRatingColor(int r) =>
     r >= 90 ? const Color(0xFF00FFC2) : (r >= 80 ? Colors.amber : Colors.white);
 Color _getCardTypeColor(String t) {
   switch (t) {
-    case "TOTS":
-      return Colors.cyanAccent;
-    case "BALLOND'OR":
-      return Colors.amber;
-    case "MVP":
-      return Colors.redAccent;
-    case "BAD":
-      return Colors.pinkAccent;
+    case "Temel":
+      return Colors.white70;
     case "TOTW":
       return Colors.amber;
     case "TOTM":
       return const Color(0xFFE91E63);
+    case "TOTS":
+      return Colors.cyanAccent;
+    case "MVP":
+      return Colors.redAccent;
     case "STAR":
       return Colors.cyan;
+    case "BALLONDOR":
+      return Colors.amberAccent;
+    case "BAD":
+      return Colors.pinkAccent;
+    case "ICON":
+      return const Color(0xFFFFD700);
+    case "RAMADAN":
+      return const Color(0xFF8B00FF);
+    case "FUTURE STARS":
+      return const Color(0xFF00FFFF);
+    case "WINTER":
+      return const Color(0xFF00FF7F);
+    case "THUNDERSTRUCK":
+      return const Color(0xFFFFD700);
+    case "PCL PRO":
+      return const Color(0xFF1E3A8A);
+    case "EVOLUTION":
+      return const Color(0xFF10B981);
+    case "EVOLUTION PLUS":
+      return const Color(0xFFA78BFA);
+    case "END OF AN ERA":
+      return const Color(0xFF9CA3AF);
+    case "STAFF":
+      return const Color(0xFF1E40AF);
+    case "PCL CHAMPION":
+      return const Color(0xFFDC2626);
+    case "PEL CHAMPION":
+      return const Color(0xFF3B82F6);
+    case "PECL CHAMPION":
+      return const Color(0xFFF97316);
+    case "FUNCUP CHAMPION":
+      return const Color(0xFFEC4899);
+    case "CLASSIC VII":
+      return const Color(0xFF92400E);
+    case "DEFENDER":
+      return const Color(0xFF60A5FA);
+    case "MIDFIELDER":
+      return const Color(0xFF34D399);
+    case "STRIKER":
+      return const Color(0xFFF87171);
+    case "ELO CHAMPION":
+      return const Color(0xFF93C5FD);
+    case "TRICKSTER":
+      return const Color(0xFFD946EF);
+    case "FM PRO":
+      return const Color(0xFF047857);
+    case "IQ":
+      return const Color(0xFF22D3EE);
+    case "KING":
+      return const Color(0xFFFFD700);
+    case "TOTS ICON":
+      return const Color(0xFF38BDF8);
+    case "TRAILBRAZERS":
+      return const Color(0xFFFB923C);
+    case "ULTIMATE":
+      return const Color(0xFFC4B5FD);
+    case "VS CHAMPION":
+      return const Color(0xFF86EFAC);
+    case "DREAMCHASERS":
+      return const Color(0xFF6366F1);
+    case "AWARD WINNERS":
+      return const Color(0xFFFBBF24);
+    case "BIRTHDAY":
+      return const Color(0xFFFBBF24);
     default:
       return Colors.white;
   }
@@ -4221,9 +4312,25 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
   late TextEditingController _teamNameController;
   bool isVertical = true;
   String searchQuery = "";
-
-  // Harita stili: 0 = Mavi, 1 = Kırmızı, 2 = Turkuaz, 3 = Pembe (BAD)
-  int _mapStyle = 0;
+  late String _selectedMapType;
+  late String _selectedCardTypeFilter;
+  static const List<String> _preferredMapTypes = [
+    "TRICKSTER",
+    "BAD",
+    "TOTS",
+    "MVP",
+    "STAR",
+    "BALLONDOR",
+    "TOTM",
+    "EVOLUTION PLUS",
+    "FM PRO",
+    "IQ",
+    "KING",
+    "TOTS ICON",
+    "TRAILBRAZERS",
+    "ULTIMATE",
+    "VS CHAMPION"
+  ];
 
   // 7 Pozisyon: 0:GK, 1:LCB, 2:RCB, 3:CAM, 4:LW, 5:RW, 6:ST
   List<Player?> squad = List.filled(7, null);
@@ -4233,6 +4340,17 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
     super.initState();
     _teamNameController =
         TextEditingController(text: t("TOTS_NAME", widget.lang));
+    final available = _availableMapTypes;
+    _selectedMapType = available.contains("TRICKSTER")
+        ? "TRICKSTER"
+        : (available.isNotEmpty ? available.first : "TOTS");
+    _selectedCardTypeFilter = t("FILTER", widget.lang);
+  }
+
+  List<String> get _availableMapTypes {
+    return _preferredMapTypes
+        .where((type) => pd.cardTypeToAssetPath(type) != null)
+        .toList();
   }
 
   @override
@@ -4286,30 +4404,17 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
                                   setState(() => isVertical = !isVertical),
                             ),
                             const SizedBox(width: 10),
-                            // Harita Değiştirme Butonu
+                            // Harita Seçme Butonu
                             ElevatedButton.icon(
-                              onPressed: () => setState(
-                                  () => _mapStyle = (_mapStyle + 1) % 4),
+                              onPressed: _openMapPicker,
                               icon: const Icon(Icons.map, color: Colors.white),
-                              label: Text(
-                                  _mapStyle == 0
-                                      ? "KIRMIZI HARİTA"
-                                      : (_mapStyle == 1
-                                          ? "TURKUAZ HARİTA"
-                                          : (_mapStyle == 2
-                                              ? "PEMBE HARİTA"
-                                              : "MAVİ HARİTA")),
+                              label: Text("${_selectedMapType.toUpperCase()}",
                                   style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold)),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: _mapStyle == 0
-                                    ? Colors.red.shade700
-                                    : (_mapStyle == 1
-                                        ? Colors.cyan
-                                        : (_mapStyle == 2
-                                            ? Colors.pinkAccent
-                                            : Colors.blueAccent)),
+                                backgroundColor:
+                                    _getCardTypeColor(_selectedMapType),
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -4346,41 +4451,32 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
                             gradient: LinearGradient(
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
-                                colors: _mapStyle == 1
-                                    ? [
-                                        const Color(0xFF2B0505),
-                                        const Color(0xFF500A0A),
-                                        const Color(0xFF2B0505)
-                                      ]
-                                    : (_mapStyle == 2
-                                        ? [
-                                            const Color(0xFF000914),
-                                            const Color(0xFF002A40),
-                                            const Color(0xFF000914)
-                                          ]
-                                        : (_mapStyle == 3
-                                            ? [
-                                                const Color(0xFF2A0515),
-                                                const Color(0xFF500A25),
-                                                const Color(0xFF2A0515)
-                                              ]
-                                            : [
-                                                const Color(0xFF050505),
-                                                const Color(0xFF101025),
-                                                const Color(0xFF050505)
-                                              ]))),
+                                colors: const [
+                                  Color(0xFF050505),
+                                  Color(0xFF101025),
+                                  Color(0xFF050505)
+                                ]),
                             // Kenarlık inceltildi, radius kaldırıldı (Tam otursun diye)
                             border: Border.all(
-                                color: _mapStyle == 1
-                                    ? Colors.redAccent.withOpacity(0.3)
-                                    : (_mapStyle == 2
-                                        ? Colors.cyan.withOpacity(0.4)
-                                        : (_mapStyle == 3
-                                            ? Colors.pinkAccent.withOpacity(0.4)
-                                            : Colors.white12)),
+                                color: _getCardTypeColor(_selectedMapType)
+                                    .withOpacity(0.45),
                                 width: 2)),
                         child: Stack(
                           children: [
+                            if (pd.cardTypeToAssetPath(_selectedMapType) !=
+                                null)
+                              Positioned.fill(
+                                  child: Opacity(
+                                      opacity: 0.28,
+                                      child: Image.asset(
+                                          pd.cardTypeToAssetPath(
+                                              _selectedMapType)!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (c, e, s) =>
+                                              const SizedBox.shrink()))),
+                            Positioned.fill(
+                                child: Container(
+                                    color: Colors.black.withOpacity(0.38))),
                             // Saha Çizgileri
                             Positioned.fill(
                                 child: CustomPaint(
@@ -4454,6 +4550,27 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
                     onChanged: (v) => setState(() => searchQuery = v),
                   ),
                   const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: _selectedCardTypeFilter,
+                    items: [t("FILTER", widget.lang), ...pd.globalCardTypes]
+                        .toSet()
+                        .map((cardType) => DropdownMenuItem(
+                            value: cardType,
+                            child: Text(cardType,
+                                style: const TextStyle(color: Colors.white))))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() => _selectedCardTypeFilter = value);
+                    },
+                    dropdownColor: const Color(0xFF2C2C35),
+                    decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white10,
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10))),
+                  ),
+                  const SizedBox(height: 10),
                   Expanded(
                     child: StreamBuilder<List<dynamic>>(
                         stream: widget.database.watchAllPlayers(),
@@ -4487,9 +4604,13 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
                                     stats: {},
                                     role: row.role ?? "Yok");
                               })
-                              .where((p) => p.name
-                                  .toLowerCase()
-                                  .contains(searchQuery.toLowerCase()))
+                              .where((p) =>
+                                  p.name
+                                      .toLowerCase()
+                                      .contains(searchQuery.toLowerCase()) &&
+                                  (_selectedCardTypeFilter ==
+                                          t("FILTER", widget.lang) ||
+                                      p.cardType == _selectedCardTypeFilter))
                               .toList();
 
                           return GridView.builder(
@@ -4579,13 +4700,6 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
                               alignment: Alignment.center,
                               children: [
                                 FCAnimatedCard(player: p, animateOnHover: true),
-                                if (_mapStyle == 3)
-                                  Positioned.fill(
-                                      child: Center(
-                                          child: Icon(Icons.close,
-                                              size: 120,
-                                              color: Colors.pinkAccent
-                                                  .withOpacity(0.15))))
                               ],
                             )),
                       ),
@@ -4599,6 +4713,42 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
         },
       ),
     );
+  }
+
+  void _openMapPicker() {
+    final options = _availableMapTypes;
+    showModalBottomSheet(
+        context: context,
+        backgroundColor: const Color(0xFF16161D),
+        builder: (ctx) => SafeArea(
+              child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: options.length,
+                  separatorBuilder: (_, __) => const Divider(
+                      color: Colors.white12, height: 1, thickness: 1),
+                  itemBuilder: (context, i) {
+                    final type = options[i];
+                    final selected = type == _selectedMapType;
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: _getCardTypeColor(type),
+                        child: const Icon(Icons.map, color: Colors.black),
+                      ),
+                      title: Text(type,
+                          style: TextStyle(
+                              color:
+                                  selected ? Colors.cyanAccent : Colors.white)),
+                      trailing: selected
+                          ? const Icon(Icons.check_circle,
+                              color: Colors.cyanAccent)
+                          : null,
+                      onTap: () {
+                        setState(() => _selectedMapType = type);
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  }),
+            ));
   }
 
   void _capture() async {

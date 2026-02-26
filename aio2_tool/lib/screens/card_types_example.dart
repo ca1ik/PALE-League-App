@@ -13,10 +13,10 @@ class CardTypesExamplePage extends StatefulWidget {
 
 class _CardTypesExamplePageState extends State<CardTypesExamplePage> {
   List<CardType> userCards = [
-    CardType.spade,
-    CardType.heart,
-    CardType.diamond,
-    CardType.club,
+    CardType.temel,
+    CardType.totw,
+    CardType.tots,
+    CardType.mvp,
   ];
 
   @override
