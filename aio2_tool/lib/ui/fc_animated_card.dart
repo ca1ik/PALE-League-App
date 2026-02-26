@@ -107,8 +107,29 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
       // Hata yok
     }
 
-    Color borderColor = _getBorderColor(normalizedType);
     String? teamLogo = teamLogos[p.team];
+
+    // Koyu metin gereken kart tipleri
+    final bool isDarkTextCard = [
+      "TEMEL",
+      "ICON",
+      "FUTURE STARS",
+      "MIDFIELDER",
+      "ELO CHAMPION",
+      "IQ",
+      "KING",
+      "TOTS ICON"
+    ].contains(normalizedType);
+
+    // Metin renkleri
+    final Color mainTextColor =
+        isDarkTextCard ? const Color(0xFF1A1A1A) : const Color(0xFFE8E8E8);
+    final Color subTextColor =
+        isDarkTextCard ? const Color(0xFF333333) : const Color(0xFFCCCCCC);
+    final Color statValueColor =
+        isDarkTextCard ? const Color(0xFF1A1A1A) : const Color(0xFFE8E8E8);
+    final Color statLabelColor =
+        isDarkTextCard ? const Color(0xFF444444) : const Color(0xFFBBBBBB);
 
     return FittedBox(
       fit: BoxFit.contain,
@@ -122,8 +143,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                 scale: _isHovering ? 1.02 : 1.0,
                 duration: const Duration(milliseconds: 200),
                 child: SizedBox(
-                  width: 350,
-                  height: 480,
+                  width: 340,
+                  height: 500,
                   child: Stack(
                     clipBehavior: Clip.none,
                     alignment: Alignment.center,
@@ -132,263 +153,308 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                       SizedBox(
                         width: 340,
                         height: 480,
-                        child: Stack(
-                          children: [
-                            Positioned.fill(
-                                child: Image.asset(cardBgAsset,
-                                    fit: BoxFit.fill,
-                                    errorBuilder: (c, e, s) =>
-                                        const SizedBox.shrink())),
-                            if (_hasGif(normalizedType))
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Stack(
+                            children: [
                               Positioned.fill(
-                                  child: Opacity(
-                                      opacity: normalizedType == "BALLONDOR"
-                                          ? 0.15
-                                          : 0.5,
-                                      child: Image.asset(
-                                          _getGif(normalizedType),
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (c, e, s) =>
-                                              Container()))),
-                            if (!_hasGif(normalizedType) && !isBasic)
-                              _buildCodeEffects(normalizedType),
-                            if (!isBasic &&
-                                !isBad &&
-                                (normalizedType == "TOTS" ||
-                                    normalizedType == "BALLONDOR" ||
-                                    normalizedType == "STAR" ||
-                                    normalizedType == "ICON" ||
-                                    normalizedType == "RAMADAN" ||
-                                    normalizedType == "FUTURE STARS" ||
-                                    normalizedType == "FANTASY" ||
-                                    normalizedType == "WINTER" ||
-                                    normalizedType == "HEROES"))
-                              Positioned.fill(
-                                  child: ShaderMask(
-                                      shaderCallback: (bounds) => SweepGradient(
-                                              transform: GradientRotation(
-                                                  _loopController.value *
-                                                      4 *
-                                                      pi),
-                                              colors: _getShaderColors(
-                                                  normalizedType))
-                                          .createShader(bounds),
-                                      child: Container(
-                                          decoration:
-                                              BoxDecoration(border: Border.all(width: 2, color: Colors.white.withOpacity(0.15)))))),
-                            Padding(
-                              padding: const EdgeInsets.all(20.0),
-                              child: Stack(children: [
-                                if (!isBasic)
+                                  child: Image.asset(cardBgAsset,
+                                      fit: BoxFit.fill,
+                                      errorBuilder: (c, e, s) =>
+                                          const SizedBox.shrink())),
+                              if (_hasGif(normalizedType))
+                                Positioned(
+                                    top: 12,
+                                    left: 10,
+                                    right: 10,
+                                    bottom: 12,
+                                    child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Opacity(
+                                            opacity:
+                                                normalizedType == "BALLONDOR"
+                                                    ? 0.12
+                                                    : 0.3,
+                                            child: Image.asset(
+                                                _getGif(normalizedType),
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (c, e, s) =>
+                                                    Container())))),
+                              if (!_hasGif(normalizedType) && !isBasic)
+                                _buildCodeEffects(normalizedType),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 40.0, vertical: 22.0),
+                                child: Stack(children: [
+                                  // --- KART TİPİ BAŞLIĞI ---
+                                  if (!isBasic)
+                                    Positioned(
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        child: Center(
+                                            child: Text(
+                                                isBad
+                                                    ? "BAD"
+                                                    : _displayCardTitle(
+                                                        normalizedType),
+                                                style: GoogleFonts.orbitron(
+                                                    color: _getTitleColor(
+                                                        normalizedType),
+                                                    fontWeight: FontWeight.w900,
+                                                    fontSize: 13,
+                                                    letterSpacing: 2.5,
+                                                    shadows: [
+                                                      Shadow(
+                                                          color: Colors.black
+                                                              .withOpacity(0.7),
+                                                          blurRadius: 6)
+                                                    ]))))
+                                  else
+                                    Positioned(
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        child: Center(
+                                            child: Text("TEMEL",
+                                                style: GoogleFonts.orbitron(
+                                                    color:
+                                                        const Color(0xFF444444),
+                                                    fontWeight: FontWeight.w900,
+                                                    fontSize: 13,
+                                                    letterSpacing: 2.5)))),
+                                  // --- LOGOLAR ---
                                   Positioned(
-                                      top: 0,
+                                      top: 32,
+                                      left: 8,
+                                      child: (teamLogo != null &&
+                                              teamLogo.isNotEmpty)
+                                          ? Image.asset(teamLogo,
+                                              width: 26,
+                                              height: 26,
+                                              errorBuilder: (c, e, s) => Icon(
+                                                  Icons.sports_soccer,
+                                                  color: subTextColor,
+                                                  size: 22))
+                                          : Icon(Icons.sports_soccer,
+                                              color: subTextColor, size: 22)),
+                                  Positioned(
+                                      top: 32,
+                                      right: 8,
+                                      child: Image.asset(
+                                          "assets/takimlar/palehax.png",
+                                          width: 26,
+                                          height: 26,
+                                          errorBuilder: (c, e, s) => Icon(
+                                              isBad
+                                                  ? Icons.thumb_down
+                                                  : Icons.shield,
+                                              color: subTextColor,
+                                              size: 22))),
+                                  // --- RATING & POZİSYON ---
+                                  Positioned(
+                                      top: 62,
+                                      left: 12,
+                                      child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text("${p.rating}",
+                                                style: GoogleFonts.oswald(
+                                                    fontSize: 42,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: mainTextColor,
+                                                    height: 1)),
+                                            Text(
+                                                p.position.replaceAll(
+                                                    RegExp(r'[^A-Z]'), ''),
+                                                style: GoogleFonts.oswald(
+                                                    fontSize: 17,
+                                                    color: subTextColor,
+                                                    fontWeight:
+                                                        FontWeight.w500))
+                                          ])),
+                                  // --- KIT NUMARASI ---
+                                  Positioned(
+                                      top: 62,
+                                      right: 8,
+                                      child: Text("${p.kitNumber}",
+                                          style: GoogleFonts.russoOne(
+                                              fontSize: 46,
+                                              color: isDarkTextCard
+                                                  ? Colors.black
+                                                      .withOpacity(0.06)
+                                                  : Colors.white
+                                                      .withOpacity(0.06)))),
+                                  // --- İSİM ---
+                                  Positioned(
+                                      top: 170,
                                       left: 0,
                                       right: 0,
                                       child: Center(
-                                          child: Text(
-                                              isBad
-                                                  ? "BAD"
-                                                  : _displayCardTitle(
-                                                      normalizedType),
-                                              style: GoogleFonts.orbitron(
-                                                  color: _getTitleColor(
-                                                      normalizedType),
-                                                  fontWeight: FontWeight.w900,
-                                                  fontSize: 16,
-                                                  letterSpacing: 3,
-                                                  shadows: [
-                                                    const Shadow(
-                                                        color: Colors.black,
-                                                        blurRadius: 5)
-                                                  ])))),
-                                Positioned(
-                                    top: 40,
-                                    left: 0,
-                                    child: (teamLogo != null &&
-                                            teamLogo.isNotEmpty)
-                                        ? Image.asset(teamLogo,
-                                            width: 35,
-                                            height: 35,
-                                            errorBuilder: (c, e, s) =>
-                                                const Icon(Icons.sports_soccer,
-                                                    color: Colors.white70))
-                                        : const Icon(Icons.sports_soccer,
-                                            color: Colors.white70, size: 30)),
-                                Positioned(
-                                    top: 40,
-                                    right: 0,
-                                    child: Image.asset(
-                                        "assets/takimlar/palehax.png",
-                                        width: 35,
-                                        height: 35,
-                                        errorBuilder: (c, e, s) => Icon(
-                                            isBad
-                                                ? Icons.thumb_down
-                                                : Icons.shield,
-                                            color: Colors.white70,
-                                            size: 30))),
-                                Positioned(
-                                    top: 80,
-                                    left: 0,
-                                    child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text("${p.rating}",
-                                              style: GoogleFonts.orbitron(
-                                                  fontSize: 45,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.white,
-                                                  height: 1)),
-                                          Text(
-                                              p.position.replaceAll(
-                                                  RegExp(r'[^A-Z]'), ''),
-                                              style: GoogleFonts.montserrat(
-                                                  fontSize: 20,
-                                                  color: Colors.white70,
-                                                  fontWeight: FontWeight.bold))
-                                        ])),
-                                Positioned(
-                                    top: 80,
-                                    right: 5,
-                                    child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.end,
-                                        children: [
-                                          Text("${p.kitNumber}",
-                                              style: GoogleFonts.russoOne(
-                                                  fontSize: 60,
-                                                  color: Colors.white12)),
-                                          if (!isBad && !isBasic)
+                                          child: Text(p.name.toUpperCase(),
+                                              style: GoogleFonts.oswald(
+                                                  fontSize: 23,
+                                                  color: mainTextColor,
+                                                  fontWeight: FontWeight.w600,
+                                                  letterSpacing: 1.5),
+                                              overflow:
+                                                  TextOverflow.ellipsis))),
+                                  // --- STATLAR ---
+                                  Positioned(
+                                      top: 220,
+                                      left: 4,
+                                      right: 4,
+                                      child: Column(children: [
+                                        Divider(
+                                            color: isDarkTextCard
+                                                ? Colors.black.withOpacity(0.15)
+                                                : Colors.white
+                                                    .withOpacity(0.15),
+                                            thickness: 0.5),
+                                        const SizedBox(height: 4),
+                                        if (p.position.contains("GK") ||
+                                            cs.containsKey("REF"))
+                                          Column(children: [
                                             Row(
-                                                children: List.generate(
-                                                    p.getCardTierStars(),
-                                                    (i) => Icon(Icons.star,
-                                                        color: borderColor,
-                                                        size: 14)))
-                                        ])),
-                                Positioned(
-                                    top: 190,
-                                    left: 0,
-                                    right: 0,
-                                    child: Center(
-                                        child: Text(p.name.toUpperCase(),
-                                            style: GoogleFonts.orbitron(
-                                                fontSize: 26,
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
-                                                letterSpacing: 1.2),
-                                            overflow: TextOverflow.ellipsis))),
-                                Positioned(
-                                    top: 250,
-                                    left: 10,
-                                    right: 10,
-                                    child: Column(children: [
-                                      const Divider(color: Colors.white30),
-                                      const SizedBox(height: 10),
-                                      if (p.position.contains("GK") ||
-                                          cs.containsKey("REF"))
-                                        Column(children: [
-                                          Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                _cStat(
-                                                    "REF",
-                                                    cs["REF"] ??
-                                                        cs["Refleks"] ??
-                                                        50,
-                                                    normalizedType,
-                                                    isBad),
-                                                _cStat("1v1", cs["1v1"] ?? 50,
-                                                    normalizedType, isBad)
-                                              ]),
-                                          const SizedBox(height: 5),
-                                          Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                _cStat("ÇİZ", cs["ÇİZ"] ?? 50,
-                                                    normalizedType, isBad),
-                                                _cStat("POZ", cs["POZ"] ?? 50,
-                                                    normalizedType, isBad)
-                                              ]),
-                                          const SizedBox(height: 5),
-                                          Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                _cStat("KAR", cs["KAR"] ?? 50,
-                                                    normalizedType, isBad),
-                                                _cStat("PAS", cs["PAS"] ?? 50,
-                                                    normalizedType, isBad)
-                                              ])
-                                        ])
-                                      else
-                                        Column(children: [
-                                          Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                _cStat("PAC", cs["PAC"]!,
-                                                    normalizedType, isBad),
-                                                _cStat("DRI", cs["DRI"]!,
-                                                    normalizedType, isBad)
-                                              ]),
-                                          const SizedBox(height: 5),
-                                          Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                _cStat("SHO", cs["SHO"]!,
-                                                    normalizedType, isBad),
-                                                _cStat("DEF", cs["DEF"]!,
-                                                    normalizedType, isBad)
-                                              ]),
-                                          const SizedBox(height: 5),
-                                          Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                _cStat("PAS", cs["PAS"]!,
-                                                    normalizedType, isBad),
-                                                _cStat("PHY", cs["PHY"]!,
-                                                    normalizedType, isBad)
-                                              ])
-                                        ]),
-                                      const SizedBox(height: 15),
-                                      const Divider(color: Colors.white30)
-                                    ])),
-                                Positioned(
-                                    bottom: 10,
-                                    left: 0,
-                                    right: 0,
-                                    child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(Icons.science,
-                                              color: Colors.white60, size: 14),
-                                          const SizedBox(width: 5),
-                                          Text(
-                                              "${p.chemistryStyle} • ${p.role}"
-                                                  .toUpperCase(),
-                                              style: GoogleFonts.montserrat(
-                                                  color: Colors.white60,
-                                                  letterSpacing: 1,
-                                                  fontSize: 10))
-                                        ])),
-                              ]),
-                            ),
-                          ],
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  _cStat(
+                                                      "REF",
+                                                      cs["REF"] ??
+                                                          cs["Refleks"] ??
+                                                          50,
+                                                      statValueColor,
+                                                      statLabelColor),
+                                                  _cStat(
+                                                      "1v1",
+                                                      cs["1v1"] ?? 50,
+                                                      statValueColor,
+                                                      statLabelColor)
+                                                ]),
+                                            const SizedBox(height: 5),
+                                            Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  _cStat(
+                                                      "ÇİZ",
+                                                      cs["ÇİZ"] ?? 50,
+                                                      statValueColor,
+                                                      statLabelColor),
+                                                  _cStat(
+                                                      "POZ",
+                                                      cs["POZ"] ?? 50,
+                                                      statValueColor,
+                                                      statLabelColor)
+                                                ]),
+                                            const SizedBox(height: 5),
+                                            Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  _cStat(
+                                                      "KAR",
+                                                      cs["KAR"] ?? 50,
+                                                      statValueColor,
+                                                      statLabelColor),
+                                                  _cStat(
+                                                      "PAS",
+                                                      cs["PAS"] ?? 50,
+                                                      statValueColor,
+                                                      statLabelColor)
+                                                ])
+                                          ])
+                                        else
+                                          Column(children: [
+                                            Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  _cStat(
+                                                      "PAC",
+                                                      cs["PAC"]!,
+                                                      statValueColor,
+                                                      statLabelColor),
+                                                  _cStat(
+                                                      "DRI",
+                                                      cs["DRI"]!,
+                                                      statValueColor,
+                                                      statLabelColor)
+                                                ]),
+                                            const SizedBox(height: 5),
+                                            Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  _cStat(
+                                                      "SHO",
+                                                      cs["SHO"]!,
+                                                      statValueColor,
+                                                      statLabelColor),
+                                                  _cStat(
+                                                      "DEF",
+                                                      cs["DEF"]!,
+                                                      statValueColor,
+                                                      statLabelColor)
+                                                ]),
+                                            const SizedBox(height: 5),
+                                            Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  _cStat(
+                                                      "PAS",
+                                                      cs["PAS"]!,
+                                                      statValueColor,
+                                                      statLabelColor),
+                                                  _cStat(
+                                                      "PHY",
+                                                      cs["PHY"]!,
+                                                      statValueColor,
+                                                      statLabelColor)
+                                                ])
+                                          ]),
+                                        const SizedBox(height: 6),
+                                        Divider(
+                                            color: isDarkTextCard
+                                                ? Colors.black.withOpacity(0.15)
+                                                : Colors.white
+                                                    .withOpacity(0.15),
+                                            thickness: 0.5)
+                                      ])),
+                                ]),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
+                      // --- INFO TEXT (kartın dışında, altta) ---
+                      Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.science,
+                                    color: const Color(0xFFAAAAAA), size: 12),
+                                const SizedBox(width: 4),
+                                Text(
+                                    "${p.chemistryStyle} • ${p.role}"
+                                        .toUpperCase(),
+                                    style: GoogleFonts.montserrat(
+                                        color: const Color(0xFFAAAAAA),
+                                        letterSpacing: 1,
+                                        fontSize: 9))
+                              ])),
                       // --- PLAYSTYLE PLUS İKONLARI (İSTİFLENMİŞ) ---
                       if (goldPsList.isNotEmpty && !isBad && !isBasic)
                         ...List.generate(goldPsList.length, (index) {
@@ -416,15 +482,15 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     );
   }
 
-  Widget _cStat(String l, int v, String t, bool bad) => Row(children: [
+  Widget _cStat(String l, int v, Color valueColor, Color labelColor) =>
+      Row(mainAxisSize: MainAxisSize.min, children: [
         Text("$v",
-            style: GoogleFonts.orbitron(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.white)),
-        const SizedBox(width: 5),
+            style: GoogleFonts.oswald(
+                fontSize: 19, fontWeight: FontWeight.w600, color: valueColor)),
+        const SizedBox(width: 3),
         Text(l,
-            style: GoogleFonts.montserrat(fontSize: 16, color: Colors.white70))
+            style: GoogleFonts.montserrat(
+                fontSize: 11, fontWeight: FontWeight.w600, color: labelColor))
       ]);
 
   bool _hasGif(String t) =>
