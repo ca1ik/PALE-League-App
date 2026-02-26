@@ -3580,6 +3580,7 @@ void _showGlobal(BuildContext context, AppDatabase db, String lang,
                   ])))));
 }
 
+
 Color _getRatingColor(int r) =>
     r >= 90 ? const Color(0xFF00FFC2) : (r >= 80 ? Colors.amber : Colors.white);
 Color _getCardTypeColor(String t) {
