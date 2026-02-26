@@ -1,9 +1,9 @@
-import 'dart:math';
+﻿import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../data/player_data.dart'; // teamLogos, Player, PlayStyle buradan gelir
 
-// Dosya isimleri eşleştirme haritası (Türkçe karakter ve boşluksuz)
+// Dosya isimleri eÅŸleÅŸtirme haritasÄ± (TÃ¼rkÃ§e karakter ve boÅŸluksuz)
 final Map<String, String> playStyleFileMap = {
   "GameChanger": "OyunKurucu",
   "Acrobatic": "Akrobatik",
@@ -99,7 +99,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         cardTypeToAssetPath(normalizedType) ?? "assets/cards/s/Temel.png";
     Map<String, int> cs = p.getCardStats();
 
-    // TÜM GOLD PLAYSTYLE'LARI AL (İstiflemek için)
+    // TÃœM GOLD PLAYSTYLE'LARI AL (Ä°stiflemek iÃ§in)
     List<PlayStyle> goldPsList = [];
     try {
       goldPsList = p.playstyles.where((ps) => ps.isGold).toList();
@@ -118,7 +118,11 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
       "ELO CHAMPION",
       "IQ",
       "KING",
-      "TOTS ICON"
+      "TOTS ICON",
+      "CLASSIC VII",
+      "DREAMCHASERS",
+      "BIRTHDAY",
+      "AWARD WINNERS"
     ].contains(normalizedType);
 
     // Metin renkleri
@@ -162,157 +166,169 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                       fit: BoxFit.fill,
                                       errorBuilder: (c, e, s) =>
                                           const SizedBox.shrink())),
-                              if (_hasGif(normalizedType))
-                                Positioned(
-                                    top: 12,
-                                    left: 10,
-                                    right: 10,
-                                    bottom: 12,
-                                    child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Opacity(
-                                            opacity:
-                                                normalizedType == "BALLONDOR"
-                                                    ? 0.12
-                                                    : 0.3,
-                                            child: Image.asset(
-                                                _getGif(normalizedType),
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (c, e, s) =>
-                                                    Container())))),
-                              if (!_hasGif(normalizedType) && !isBasic)
-                                _buildCodeEffects(normalizedType),
+                              if (!isBasic) _buildCodeEffects(normalizedType),
                               Padding(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 40.0, vertical: 22.0),
+                                    horizontal: 38.0, vertical: 18.0),
                                 child: Stack(children: [
-                                  // --- KART TİPİ BAŞLIĞI ---
-                                  if (!isBasic)
-                                    Positioned(
-                                        top: 0,
-                                        left: 0,
-                                        right: 0,
-                                        child: Center(
-                                            child: Text(
-                                                isBad
-                                                    ? "BAD"
-                                                    : _displayCardTitle(
-                                                        normalizedType),
-                                                style: GoogleFonts.orbitron(
-                                                    color: _getTitleColor(
-                                                        normalizedType),
-                                                    fontWeight: FontWeight.w900,
-                                                    fontSize: 13,
-                                                    letterSpacing: 2.5,
-                                                    shadows: [
-                                                      Shadow(
-                                                          color: Colors.black
-                                                              .withOpacity(0.7),
-                                                          blurRadius: 6)
-                                                    ]))))
-                                  else
-                                    Positioned(
-                                        top: 0,
-                                        left: 0,
-                                        right: 0,
-                                        child: Center(
-                                            child: Text("TEMEL",
-                                                style: GoogleFonts.orbitron(
-                                                    color:
-                                                        const Color(0xFF444444),
-                                                    fontWeight: FontWeight.w900,
-                                                    fontSize: 13,
-                                                    letterSpacing: 2.5)))),
-                                  // --- LOGOLAR ---
+                                  // --- KART TÄ°PÄ° BAÅLIÄI ---
                                   Positioned(
-                                      top: 32,
-                                      left: 8,
+                                      top: 4,
+                                      left: 0,
+                                      right: 0,
+                                      child: Center(
+                                          child: Text(
+                                              isBasic
+                                                  ? "TEMEL"
+                                                  : (isBad
+                                                      ? "BAD"
+                                                      : _displayCardTitle(
+                                                          normalizedType)),
+                                              style: GoogleFonts.orbitron(
+                                                  color: isBasic
+                                                      ? const Color(0xFF444444)
+                                                      : _getTitleColor(
+                                                          normalizedType),
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 12,
+                                                  letterSpacing: 2.0,
+                                                  shadows: isBasic
+                                                      ? []
+                                                      : [
+                                                          Shadow(
+                                                              color: Colors
+                                                                  .black
+                                                                  .withOpacity(
+                                                                      0.8),
+                                                              blurRadius: 8)
+                                                        ])))),
+                                  // --- LOGOLAR (reytingin hemen üstünde) ---
+                                  Positioned(
+                                      top: 82,
+                                      left: 10,
                                       child: (teamLogo != null &&
                                               teamLogo.isNotEmpty)
                                           ? Image.asset(teamLogo,
-                                              width: 26,
-                                              height: 26,
+                                              width: 22,
+                                              height: 22,
                                               errorBuilder: (c, e, s) => Icon(
                                                   Icons.sports_soccer,
                                                   color: subTextColor,
-                                                  size: 22))
+                                                  size: 18))
                                           : Icon(Icons.sports_soccer,
-                                              color: subTextColor, size: 22)),
+                                              color: subTextColor, size: 18)),
                                   Positioned(
-                                      top: 32,
-                                      right: 8,
+                                      top: 82,
+                                      right: 10,
                                       child: Image.asset(
                                           "assets/takimlar/palehax.png",
-                                          width: 26,
-                                          height: 26,
+                                          width: 22,
+                                          height: 22,
                                           errorBuilder: (c, e, s) => Icon(
                                               isBad
                                                   ? Icons.thumb_down
                                                   : Icons.shield,
                                               color: subTextColor,
-                                              size: 22))),
+                                              size: 18))),
+                                  // --- KART TİPİ (logolar arası orta) ---
+                                  Positioned(
+                                      top: 82,
+                                      left: 0,
+                                      right: 0,
+                                      height: 22,
+                                      child: Center(
+                                          child: Text(
+                                              isBasic
+                                                  ? "TEMEL"
+                                                  : (isBad
+                                                      ? "BAD"
+                                                      : _displayCardTitle(
+                                                          normalizedType)),
+                                              style: GoogleFonts.orbitron(
+                                                  color: isBasic
+                                                      ? subTextColor
+                                                      : _getTitleColor(
+                                                          normalizedType),
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 10,
+                                                  letterSpacing: 1.8,
+                                                  shadows: _buildTitleLedShadows(
+                                                      _getTitleColor(
+                                                          normalizedType)))))),
                                   // --- RATING & POZİSYON ---
                                   Positioned(
-                                      top: 62,
-                                      left: 12,
+                                      top: 108,
+                                      left: 14,
                                       child: Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text("${p.rating}",
-                                                style: GoogleFonts.oswald(
+                                                style: GoogleFonts.orbitron(
                                                     fontSize: 42,
-                                                    fontWeight: FontWeight.w700,
+                                                    fontWeight: FontWeight.w400,
                                                     color: mainTextColor,
-                                                    height: 1)),
+                                                    height: 1,
+                                                    letterSpacing: 2,
+                                                    shadows: _ledShadows(
+                                                        isDarkTextCard))),
                                             Text(
                                                 p.position.replaceAll(
                                                     RegExp(r'[^A-Z]'), ''),
-                                                style: GoogleFonts.oswald(
-                                                    fontSize: 17,
+                                                style: GoogleFonts.outfit(
+                                                    fontSize: 13,
                                                     color: subTextColor,
+                                                    letterSpacing: 1.5,
                                                     fontWeight:
-                                                        FontWeight.w500))
+                                                        FontWeight.w700))
                                           ])),
                                   // --- KIT NUMARASI ---
                                   Positioned(
-                                      top: 62,
+                                      top: 108,
                                       right: 8,
                                       child: Text("${p.kitNumber}",
-                                          style: GoogleFonts.russoOne(
-                                              fontSize: 46,
+                                          style: GoogleFonts.outfit(
+                                              fontSize: 40,
+                                              fontWeight: FontWeight.w800,
                                               color: isDarkTextCard
                                                   ? Colors.black
-                                                      .withOpacity(0.06)
+                                                      .withOpacity(0.05)
                                                   : Colors.white
-                                                      .withOpacity(0.06)))),
+                                                      .withOpacity(0.05)))),
                                   // --- İSİM ---
                                   Positioned(
-                                      top: 170,
+                                      top: 194,
                                       left: 0,
                                       right: 0,
                                       child: Center(
                                           child: Text(p.name.toUpperCase(),
-                                              style: GoogleFonts.oswald(
-                                                  fontSize: 23,
-                                                  color: mainTextColor,
-                                                  fontWeight: FontWeight.w600,
-                                                  letterSpacing: 1.5),
+                                              style: GoogleFonts.outfit(
+                                                  fontSize: 20,
+                                                  color: isDarkTextCard
+                                                      ? _getTitleColor(
+                                                          normalizedType)
+                                                      : mainTextColor,
+                                                  fontWeight: FontWeight.w800,
+                                                  letterSpacing: 2.5,
+                                                  shadows: _buildNameLedShadows(
+                                                      _getTitleColor(
+                                                          normalizedType),
+                                                      isDarkTextCard)),
                                               overflow:
                                                   TextOverflow.ellipsis))),
                                   // --- STATLAR ---
                                   Positioned(
-                                      top: 220,
-                                      left: 4,
-                                      right: 4,
+                                      top: 248,
+                                      left: 6,
+                                      right: 6,
                                       child: Column(children: [
                                         Divider(
                                             color: isDarkTextCard
-                                                ? Colors.black.withOpacity(0.15)
+                                                ? Colors.black.withOpacity(0.12)
                                                 : Colors.white
-                                                    .withOpacity(0.15),
+                                                    .withOpacity(0.12),
                                             thickness: 0.5),
-                                        const SizedBox(height: 4),
+                                        const SizedBox(height: 3),
                                         if (p.position.contains("GK") ||
                                             cs.containsKey("REF"))
                                           Column(children: [
@@ -341,8 +357,8 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                         .spaceBetween,
                                                 children: [
                                                   _cStat(
-                                                      "ÇİZ",
-                                                      cs["ÇİZ"] ?? 50,
+                                                      "Ã‡Ä°Z",
+                                                      cs["Ã‡Ä°Z"] ?? 50,
                                                       statValueColor,
                                                       statLabelColor),
                                                   _cStat(
@@ -422,13 +438,52 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                                       statLabelColor)
                                                 ])
                                           ]),
-                                        const SizedBox(height: 6),
+                                        const SizedBox(height: 3),
                                         Divider(
                                             color: isDarkTextCard
-                                                ? Colors.black.withOpacity(0.15)
+                                                ? Colors.black.withOpacity(0.12)
                                                 : Colors.white
-                                                    .withOpacity(0.15),
-                                            thickness: 0.5)
+                                                    .withOpacity(0.12),
+                                            thickness: 0.5),
+                                        // --- SKILL STARS & WEAK FOOT ---
+                                        const SizedBox(height: 2),
+                                        Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Text("${p.skillMoves}",
+                                                  style: GoogleFonts.outfit(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: isDarkTextCard
+                                                          ? const Color(
+                                                              0xFFB8860B)
+                                                          : Colors.amber,
+                                                      shadows: _ledShadows(
+                                                          isDarkTextCard))),
+                                              const SizedBox(width: 2),
+                                              Icon(Icons.star_rounded,
+                                                  color: isDarkTextCard
+                                                      ? const Color(0xFFB8860B)
+                                                      : Colors.amber,
+                                                  size: 13),
+                                              const SizedBox(width: 14),
+                                              Text("${p.stats['WF'] ?? 3}",
+                                                  style: GoogleFonts.outfit(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: statValueColor,
+                                                      shadows: _ledShadows(
+                                                          isDarkTextCard))),
+                                              const SizedBox(width: 2),
+                                              Icon(Icons.sports_soccer_outlined,
+                                                  color: statValueColor
+                                                      .withOpacity(0.75),
+                                                  size: 12),
+                                            ]),
+                                        const SizedBox(height: 2),
                                       ])),
                                 ]),
                               ),
@@ -436,7 +491,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                           ),
                         ),
                       ),
-                      // --- INFO TEXT (kartın dışında, altta) ---
+                      // --- INFO TEXT (kartÄ±n dÄ±ÅŸÄ±nda, altta) ---
                       Positioned(
                           bottom: 0,
                           left: 0,
@@ -450,28 +505,30 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                 Text(
                                     "${p.chemistryStyle} • ${p.role}"
                                         .toUpperCase(),
-                                    style: GoogleFonts.montserrat(
+                                    style: GoogleFonts.outfit(
                                         color: const Color(0xFFAAAAAA),
-                                        letterSpacing: 1,
-                                        fontSize: 9))
+                                        letterSpacing: 1.2,
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 8.5))
                               ])),
-                      // --- PLAYSTYLE PLUS İKONLARI (İSTİFLENMİŞ) ---
+                      // --- PLAYSTYLE PLUS Ä°KONLARI (sol kenar ortasÄ±) ---
                       if (goldPsList.isNotEmpty && !isBad && !isBasic)
                         ...List.generate(goldPsList.length, (index) {
                           var ps = goldPsList[index];
-                          // Her birini biraz aşağı kaydırarak üst üste bindir
+                          double centerY = 240.0;
+                          double totalH = goldPsList.length * 32.0;
+                          double startY = centerY - totalH / 2;
                           return Positioned(
                               left: -10,
-                              top: 215.0 +
-                                  (index * 35), // 35px aralıkla aşağı in
+                              top: startY + (index * 32),
                               child: Image.asset(
                                   "assets/Playstyles/${playStyleFileMap[ps.name.trim()] ?? ps.name.trim()}Plus.png",
-                                  width: 45,
-                                  height: 45,
+                                  width: 40,
+                                  height: 40,
                                   errorBuilder: (c, e, s) => const Icon(
                                       Icons.star,
                                       color: Colors.amber,
-                                      size: 35)));
+                                      size: 30)));
                         }),
                     ],
                   ),
@@ -482,19 +539,101 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     );
   }
 
-  Widget _cStat(String l, int v, Color valueColor, Color labelColor) =>
-      Row(mainAxisSize: MainAxisSize.min, children: [
-        Text("$v",
-            style: GoogleFonts.oswald(
-                fontSize: 19, fontWeight: FontWeight.w600, color: valueColor)),
-        const SizedBox(width: 3),
-        Text(l,
-            style: GoogleFonts.montserrat(
-                fontSize: 11, fontWeight: FontWeight.w600, color: labelColor))
-      ]);
+  Widget _cStat(String l, int v, Color valueColor, Color labelColor) {
+    final bool isDarkText = valueColor.computeLuminance() < 0.35;
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Text("$v",
+          style: GoogleFonts.outfit(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+              shadows: _ledShadowsStrong(isDarkText))),
+      const SizedBox(width: 3),
+      Text(l,
+          style: GoogleFonts.outfit(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: labelColor,
+              letterSpacing: 0.6,
+              shadows: _ledShadows(isDarkText)))
+    ]);
+  }
 
-  bool _hasGif(String t) =>
-      ["TOTS", "BALLONDOR", "MVP", "TOTM", "STAR"].contains(t);
+  // Subtle LED — rating, position, star/wf numbers, stat labels
+  List<Shadow> _ledShadows(bool isDark) {
+    if (isDark) {
+      return [
+        Shadow(color: Colors.white, blurRadius: 1),
+        Shadow(color: Colors.white.withOpacity(0.95), blurRadius: 4),
+        Shadow(color: Colors.white.withOpacity(0.75), blurRadius: 10),
+        Shadow(color: Colors.white.withOpacity(0.45), blurRadius: 20),
+        Shadow(color: Colors.white.withOpacity(0.2), blurRadius: 32),
+      ];
+    } else {
+      return [
+        Shadow(color: Colors.black, blurRadius: 1),
+        Shadow(color: Colors.black.withOpacity(1.0), blurRadius: 4),
+        Shadow(color: Colors.black.withOpacity(0.8), blurRadius: 10),
+        Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 20),
+        Shadow(color: Colors.black.withOpacity(0.25), blurRadius: 32),
+      ];
+    }
+  }
+
+  // Title LED — card type label glow (color-matched)
+  List<Shadow> _buildTitleLedShadows(Color titleColor) {
+    final Color glow = titleColor;
+    final Color glowMid = titleColor.withOpacity(0.8);
+    final Color glowSoft = titleColor.withOpacity(0.5);
+    return [
+      Shadow(color: Colors.black, blurRadius: 1),
+      Shadow(color: glow, blurRadius: 3),
+      Shadow(color: glow, blurRadius: 8),
+      Shadow(color: glowMid, blurRadius: 16),
+      Shadow(color: glowSoft, blurRadius: 28),
+      Shadow(color: glowSoft, blurRadius: 40),
+    ];
+  }
+
+  // Name LED — most intense; card-color tinted glow + contrast outline
+  List<Shadow> _buildNameLedShadows(Color cardColor, bool isDark) {
+    final Color glow = cardColor.withOpacity(1.0);
+    final Color glowMid = cardColor.withOpacity(0.7);
+    final Color glowSoft = cardColor.withOpacity(0.4);
+    final Color outline =
+        isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(1.0);
+    return [
+      Shadow(color: outline, blurRadius: 1),
+      Shadow(color: glow, blurRadius: 4),
+      Shadow(color: glow, blurRadius: 8),
+      Shadow(color: glowMid, blurRadius: 16),
+      Shadow(color: glowSoft, blurRadius: 28),
+      Shadow(color: glowSoft, blurRadius: 40),
+    ];
+  }
+
+  // Strong LED — for stat numbers
+  List<Shadow> _ledShadowsStrong(bool isDark) {
+    if (isDark) {
+      return [
+        Shadow(color: Colors.white, blurRadius: 1),
+        Shadow(color: Colors.white, blurRadius: 3),
+        Shadow(color: Colors.white.withOpacity(0.9), blurRadius: 8),
+        Shadow(color: Colors.white.withOpacity(0.6), blurRadius: 16),
+        Shadow(color: Colors.white.withOpacity(0.3), blurRadius: 28),
+      ];
+    } else {
+      return [
+        Shadow(color: Colors.black, blurRadius: 1),
+        Shadow(color: Colors.black, blurRadius: 3),
+        Shadow(color: Colors.black.withOpacity(0.95), blurRadius: 8),
+        Shadow(color: Colors.black.withOpacity(0.7), blurRadius: 16),
+        Shadow(color: Colors.black.withOpacity(0.4), blurRadius: 28),
+      ];
+    }
+  }
+
+  bool _hasGif(String t) => false; // GIF/Video efektler devre dÄ±ÅŸÄ±
 
   String _displayCardTitle(String t) {
     if (t == "BALLONDOR") return "BALLON D'OR";
@@ -502,23 +641,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     if (t == "FUNCUP CHAMPION") return "FUNCUP";
     if (t == "EVOLUTION PLUS") return "EVO+";
     return t;
-  }
-
-  String _getGif(String t) {
-    switch (t) {
-      case "TOTS":
-        return "assets/gifs/tots_effect.gif";
-      case "BALLONDOR":
-        return "assets/gifs/ballondor_effect.gif";
-      case "MVP":
-        return "assets/gifs/mvp_effect.gif";
-      case "STAR":
-        return "assets/gifs/star_effect.gif";
-      case "TOTM":
-        return "assets/gifs/totm_effect.gif";
-      default:
-        return "";
-    }
   }
 
   Widget _buildCodeEffects(String type) {
@@ -636,13 +758,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     }
   }
 
-  Color _getGlowColor(String t) {
-    if (t == "BAD") return Colors.red;
-    if (t == "MVP") return Colors.deepOrange;
-    if (t == "STAR") return Colors.cyan;
-    return _getBorderColor(t);
-  }
-
   Color _getTitleColor(String t) {
     switch (t) {
       case "TOTW":
@@ -688,81 +803,5 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
       default:
         return Colors.white;
     }
-  }
-
-  LinearGradient _getBgGradient(String t) {
-    switch (t) {
-      case "TOTW":
-        return const LinearGradient(
-            colors: [Color(0xFF2C2C2C), Color(0xFFA47F35)]);
-      case "TOTM":
-        return const LinearGradient(
-            colors: [Color(0xFF2E001F), Color(0xFFC2185B)]);
-      case "MVP":
-        return const LinearGradient(colors: [Colors.black, Color(0xFFB71C1C)]);
-      case "BALLONDOR":
-        return const LinearGradient(
-            colors: [Color(0xFF8E6E1D), Colors.black, Color(0xFFF8D568)]);
-      case "BAD":
-        return const LinearGradient(
-            colors: [Color(0xFFF48FB1), Color(0xFFD32F2F)]);
-      case "TOTS":
-        return const LinearGradient(
-            colors: [Color(0xFF000000), Color(0xFF311B92)]);
-      case "STAR":
-        return const LinearGradient(
-            colors: [Color(0xFF000046), Color(0xFF1CB5E0)]);
-      case "ICON":
-        return const LinearGradient(
-            colors: [Color(0xFF2C2C2C), Color(0xFFA47F35), Color(0xFFFFD700)]);
-      case "RAMADAN":
-        return const LinearGradient(
-            colors: [Color(0xFF1A0033), Color(0xFF2E001F), Color(0xFF8B00FF)]);
-      case "FUTURE STARS":
-        return const LinearGradient(
-            colors: [Color(0xFF001a33), Color(0xFF003366), Color(0xFF00FFFF)]);
-      case "FANTASY":
-        return const LinearGradient(
-            colors: [Color(0xFF0D001A), Color(0xFF2D0A3D), Color(0xFFFF00FF)]);
-      case "WINTER":
-        return const LinearGradient(
-            colors: [Color(0xFF001a1a), Color(0xFF003333), Color(0xFF00FF7F)]);
-      case "HEROES":
-        return const LinearGradient(
-            colors: [Color(0xFF000000), Color(0xFF330000), Color(0xFFFF0000)]);
-      default:
-        return const LinearGradient(
-            colors: [Color(0xFF232526), Color(0xFF414345)]);
-    }
-  }
-
-  List<Color> _getShaderColors(String t) {
-    if (t == "BALLONDOR") return [Colors.amber, Colors.white, Colors.amber];
-    if (t == "TOTS") return [Colors.blue, Colors.cyanAccent, Colors.blue];
-    if (t == "STAR") return [Colors.cyan, Colors.white, Colors.cyan];
-    if (t == "ICON") return [Colors.amber, Colors.white, Colors.amber];
-    if (t == "RAMADAN")
-      return [
-        const Color(0xFF8B00FF),
-        const Color(0xFFFFD700),
-        const Color(0xFF8B00FF)
-      ];
-    if (t == "FUTURE STARS")
-      return [const Color(0xFF00FFFF), Colors.white, const Color(0xFF00FFFF)];
-    if (t == "FANTASY")
-      return [
-        const Color(0xFFFF00FF),
-        const Color(0xFFFF69B4),
-        const Color(0xFFFF00FF)
-      ];
-    if (t == "WINTER")
-      return [const Color(0xFF00FF7F), Colors.white, const Color(0xFF00FF7F)];
-    if (t == "HEROES")
-      return [
-        const Color(0xFFFF0000),
-        const Color(0xFFFFD700),
-        const Color(0xFFFF0000)
-      ];
-    return [Colors.white, Colors.grey, Colors.white];
   }
 }
