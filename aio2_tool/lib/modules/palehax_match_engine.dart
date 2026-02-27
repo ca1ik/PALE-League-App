@@ -145,6 +145,12 @@ class SimPlayer {
   int pressTimer = 0;
   bool isCornering = false;
 
+  // Visual & marking state
+  bool isPassShoot = false;
+  int passShootTimer = 0;
+  int playerIndex = 0; // 0=GK,1-2=DEF,3-4=MID,5-6=FWD
+  SimPlayer? markTarget; // assigned man-marking target
+
   SimPlayer({
     required this.data,
     required Pos startPos,
@@ -363,6 +369,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
         role: role,
         instruction: instr,
       ));
+      target.last.playerIndex = i;
     }
   }
 
@@ -380,8 +387,21 @@ class _MatchEngineViewState extends State<MatchEngineView>
   }
 
   void _kickoff(List<SimPlayer> byTeam) {
+    // Tüm oyuncuları baz pozisyonlara sıfırla
+    for (var p in [...homeTeam, ...awayTeam]) {
+      p.pos.set(p.homeBase);
+      p.moveTarget.set(p.homeBase);
+      p.isPressing = false;
+      p.pressTimer = 0;
+      p.isCornering = false;
+      p.isPassShoot = false;
+      p.passShootTimer = 0;
+      p.markTarget = null;
+    }
+
     // Reset ball to center
     ball.phase = BallPhase.owned;
+    ball.passTarget = null;
     ball.pos = Pos(0.5, 0.5);
 
     SimPlayer kicker = byTeam.firstWhere(
@@ -390,11 +410,6 @@ class _MatchEngineViewState extends State<MatchEngineView>
     );
     kicker.pos.set(Pos(0.5, 0.5));
     ball.owner = kicker;
-
-    // Reset everyone else to home base
-    for (var p in [...homeTeam, ...awayTeam]) {
-      if (p != kicker) p.moveTarget.set(p.homeBase);
-    }
 
     _log('🎾 Santral: ${kicker.data.name}', Colors.greenAccent);
   }
@@ -443,8 +458,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
         break;
     }
 
-    // Move all non-owner players
+    // Move all non-owner players; tick visual timers
     for (var p in [...homeTeam, ...awayTeam]) {
+      if (p.passShootTimer > 0) {
+        p.passShootTimer--;
+        if (p.passShootTimer == 0) p.isPassShoot = false;
+      }
       if (p != ball.owner) {
         _updateMovementTarget(p);
         _moveToward(p);
@@ -473,25 +492,42 @@ class _MatchEngineViewState extends State<MatchEngineView>
     var team = owner.isHome ? homeTeam : awayTeam;
     var gk = opp.firstWhere((p) => p.role == 'GK', orElse: () => opp.first);
 
-    // Progress toward goal
+    // Topu taşıyıcı kaleye ilerler
     owner.moveTarget = Pos(
-      (owner.pos.x + (goRight ? 0.03 : -0.03)).clamp(0.01, 0.99),
-      (owner.pos.y + (_rng.nextDouble() - 0.5) * 0.03).clamp(0.02, 0.98),
+      (owner.pos.x + (goRight ? 0.025 : -0.025)).clamp(0.01, 0.99),
+      (owner.pos.y + (_rng.nextDouble() - 0.5) * 0.025).clamp(0.02, 0.98),
     );
 
-    // Close pressers
+    // Yakın baskı yapanlar
     var pressers = opp.where((o) => o.pos.dist(owner.pos) < 0.11).toList();
 
-    // GK plays conservatively
+    // ── GK pasla temizle ──
     if (owner.role == 'GK') {
       owner.moveTarget.set(owner.homeBase);
-      if (tick % 25 == 0) _tryPass(owner, team, preferFwd: false);
+      if (tick % 20 == 0) _tryPass(owner, team, preferFwd: false);
       return;
     }
 
     TacticStyle myTac = _myTactic(owner.isHome);
 
-    // ── INSTRUCTION OVERRIDES ──
+    // ── DUVAR PAS: kenar çizgisine yakınken köşeye çekilip içe pas ──
+    bool nearSideWall = owner.pos.y < 0.09 || owner.pos.y > 0.91;
+    bool notInBox = goRight ? owner.pos.x < 0.78 : owner.pos.x > 0.22;
+    if (nearSideWall && notInBox && pressers.isEmpty && _rng.nextInt(100) < 3) {
+      var closeMates = team
+          .where((t) =>
+              t != owner && t.role != 'GK' && t.pos.dist(owner.pos) < 0.28)
+          .toList();
+      if (closeMates.isNotEmpty) {
+        closeMates.sort(
+            (a, b) => a.pos.dist(owner.pos).compareTo(b.pos.dist(owner.pos)));
+        _log('🧱 ${owner.data.name} duvara oynadı!', Colors.tealAccent);
+        _execPass(owner, closeMates.first);
+        return;
+      }
+    }
+
+    // ── TALİMAT ──
     if (owner.instruction.stayWide) {
       owner.moveTarget = Pos(goalX, owner.pos.y);
       bool nearLine = goRight ? owner.pos.x > 0.80 : owner.pos.x < 0.20;
@@ -502,7 +538,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
     }
 
     if (owner.instruction.passOnly) {
-      if (tick % 14 == 0 || pressers.isNotEmpty) {
+      if (tick % 12 == 0 || pressers.isNotEmpty) {
         if (_tryPass(owner, team, preferFwd: true)) return;
       }
     }
@@ -511,9 +547,19 @@ class _MatchEngineViewState extends State<MatchEngineView>
       owner.moveTarget = Pos(goalX, 0.35 + _rng.nextDouble() * 0.30);
     }
 
-    // ── SHOOT DECISION ──
+    // ── ŞUT (PAS ÖNCE YAKLAŞIM) ──
     bool inBox = goRight ? owner.pos.x > 0.78 : owner.pos.x < 0.22;
     if (inBox && !owner.instruction.passOnly) {
+      // Önce yakın takım arkadaşına pas ver → gol pasla gelsin
+      bool hasOpenBoxMate = team.any((t) =>
+          t != owner &&
+          t.role != 'GK' &&
+          t.pos.dist(owner.pos) < 0.22 &&
+          opp.every((o) => o.pos.dist(t.pos) > 0.10));
+      if (hasOpenBoxMate && _rng.nextInt(100) < 48) {
+        if (_tryPass(owner, team, preferFwd: false, boxPass: true)) return;
+      }
+
       int shootChance = _calcShootChance(myTac, owner.role, pressers.length);
       if (_rng.nextInt(100) < shootChance) {
         _shoot(owner, gk);
@@ -521,9 +567,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
     }
 
-    // ── TACKLE RISK ──
+    // ── MÜDAHALE RİSKİ ──
     if (pressers.isNotEmpty) {
-      // Tackle attempt
       var tackler = pressers.first;
       int defSk = tackler.defStat;
       int driSk = owner.dribbleStat;
@@ -531,24 +576,26 @@ class _MatchEngineViewState extends State<MatchEngineView>
         _beenTackled(owner, tackler);
         return;
       }
-      // Under pressure → pass
-      if (_rng.nextInt(100) < 60) {
+      // Baskı altında → pas
+      if (_rng.nextInt(100) < 65) {
         if (_tryPass(owner, team, preferFwd: true)) return;
       }
     }
 
-    // ── REGULAR PASS ──
+    // ── DÜZENLI PAS ──
     int passEvery = myTac == TacticStyle.tikiTaka
-        ? 16
+        ? 13
         : myTac == TacticStyle.gegen
-            ? 22
-            : 20;
+            ? 18
+            : myTac == TacticStyle.highPress
+                ? 15
+                : 17;
     if (tick % passEvery == 0) {
       _tryPass(owner, team, preferFwd: true);
     }
 
-    // ── WIDE SWITCH ──
-    if (tick % 38 == 0) {
+    // ── GENİŞ KANAT DEĞİŞİMİ ──
+    if (tick % 34 == 0) {
       var winers =
           team.where((t) => t.instruction.stayWide && t != owner).toList();
       if (winers.isNotEmpty) {
@@ -579,32 +626,47 @@ class _MatchEngineViewState extends State<MatchEngineView>
   // ─── PASS ───────────────────────────────────────────────────────────────────
 
   bool _tryPass(SimPlayer passer, List<SimPlayer> team,
-      {bool preferFwd = false}) {
+      {bool preferFwd = false, bool boxPass = false}) {
     var opts = team.where((t) => t != passer && t.role != 'GK').toList();
     if (opts.isEmpty) return false;
 
     bool goRight = passer.isHome;
+    var oppTeam = passer.isHome ? awayTeam : homeTeam;
     SimPlayer? best;
     double bestS = -9999;
 
     for (var t in opts) {
       double s = 0;
 
+      // İleriye pas tercihi
       if (preferFwd) {
         double fwdDist =
             goRight ? t.pos.x - passer.pos.x : passer.pos.x - t.pos.x;
-        s += fwdDist * 120;
+        s += fwdDist * 100;
       }
 
-      var oppTeam = passer.isHome ? awayTeam : homeTeam;
-      bool open = oppTeam.every((o) => o.pos.dist(t.pos) > 0.09);
-      if (open) s += 55;
-      if (t.role == 'FWD') s += 35;
-      if (t.instruction.stayWide) s += 28;
+      // Ceza alanı içi pas: yakın ve açık oyuncuyu tercih et
+      if (boxPass) {
+        double d2 = passer.pos.dist(t.pos);
+        if (d2 < 0.22) s += 80;
+      }
 
+      // Açık oyuncu: yakınında rakip yok (markajdan kurtulmuş)
+      bool open = oppTeam.every((o) => o.pos.dist(t.pos) > 0.12);
+      if (open) s += 70;
+
+      // Farklı Y bölgesinde (yayılma): yoğunlaşmayı önle
+      double yDiff = (t.pos.y - passer.pos.y).abs();
+      if (yDiff > 0.18) s += 30;
+
+      if (t.role == 'FWD') s += 40;
+      if (t.instruction.stayWide) s += 25;
+
+      // Optimal pas mesafesi: 0.10-0.50 arası
       double d = passer.pos.dist(t.pos);
-      if (d > 0.58) s -= 75;
-      if (d < 0.04) s -= 25;
+      if (d < 0.07) s -= 35;
+      if (d > 0.52) s -= 60;
+      if (d >= 0.10 && d <= 0.40) s += 20;
 
       if (s > bestS) {
         bestS = s;
@@ -731,6 +793,10 @@ class _MatchEngineViewState extends State<MatchEngineView>
     _log('🎯 ${shooter.data.name}${isVolley ? ' (gelişine)' : ''} şut!',
         Colors.amber);
 
+    // LED ring şut efekti
+    shooter.isPassShoot = true;
+    shooter.passShootTimer = 35;
+
     bool goRight = shooter.isHome;
 
     if (!onTarget) {
@@ -779,6 +845,13 @@ class _MatchEngineViewState extends State<MatchEngineView>
       awayScore++;
     goalCelebText = '⚽ GOOOL!\n$scorer\n${homeScore} - ${awayScore}';
     _log('⚽🔥 GOL! $scorer  $homeScore-$awayScore', Colors.yellowAccent);
+
+    // Topu kaleye gönder (fiziksel)
+    double goalX = homeScored ? 0.985 : 0.015;
+    ball.pos = Pos(goalX, 0.5);
+    ball.owner = null;
+    ball.phase = BallPhase.free;
+
     _goalAnim.forward(from: 0);
 
     setState(() {});
@@ -903,6 +976,97 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
   // ─── PLAYER MOVEMENT (non-owner) ────────────────────────────────────────────
 
+  /// Rol bazlı markaj hedefini döndürür. null = markaj yok
+  SimPlayer? _resolveMarkTarget(SimPlayer p) {
+    var opp = p.isHome ? awayTeam : homeTeam;
+    if (opp.isEmpty) return null;
+
+    // GK: kendi takımı topdayken rakibin FWD'sini (idx 5) markaj yapabilir
+    if (p.role == 'GK') {
+      bool ownHasBall = ball.owner != null && ball.owner!.isHome == p.isHome;
+      if (!ownHasBall) return null;
+      var targets = opp.where((o) => o.role == 'FWD').toList();
+      if (targets.isEmpty) return null;
+      // En yakın FWD'yi seç ama kaleye çok yakın olmasın
+      targets.sort((a, b) => a.pos.dist(p.pos).compareTo(b.pos.dist(p.pos)));
+      return targets.first;
+    }
+
+    // DEF: rakibin FWD/kanat oyuncularını tutar
+    // DEF index 1 → opp FWD index 5 veya 6 (playerIndex eşleşmesi)
+    if (p.role == 'DEF') {
+      var oppFwds = opp.where((o) => o.role == 'FWD').toList();
+      if (oppFwds.isEmpty) return null;
+      oppFwds.sort((a, b) => a.playerIndex.compareTo(b.playerIndex));
+      int pick = (p.playerIndex == 1) ? 0 : (oppFwds.length > 1 ? 1 : 0);
+      return oppFwds[pick.clamp(0, oppFwds.length - 1)];
+    }
+
+    // MID: rakip orta sahaları tutar
+    if (p.role == 'MID') {
+      var oppMids = opp.where((o) => o.role == 'MID').toList();
+      if (oppMids.isEmpty) {
+        // Orta saha yoksa DEF'e baskı
+        var oppDefs = opp.where((o) => o.role == 'DEF').toList();
+        if (oppDefs.isEmpty) return null;
+        oppDefs.sort((a, b) => a.pos.dist(p.pos).compareTo(b.pos.dist(p.pos)));
+        return oppDefs.first;
+      }
+      oppMids.sort((a, b) => a.playerIndex.compareTo(b.playerIndex));
+      int pick = (p.playerIndex == 3) ? 0 : (oppMids.length > 1 ? 1 : 0);
+      return oppMids[pick.clamp(0, oppMids.length - 1)];
+    }
+
+    // FWD: rakip DEF'i tutar (savunmaya çekilince)
+    if (p.role == 'FWD') {
+      bool defending = ball.owner != null && ball.owner!.isHome != p.isHome;
+      if (!defending) return null;
+      var oppDefs = opp.where((o) => o.role == 'DEF').toList();
+      if (oppDefs.isEmpty) return null;
+      oppDefs.sort((a, b) => a.playerIndex.compareTo(b.playerIndex));
+      int pick = (p.playerIndex == 5) ? 0 : (oppDefs.length > 1 ? 1 : 0);
+      return oppDefs[pick.clamp(0, oppDefs.length - 1)];
+    }
+
+    return null;
+  }
+
+  // Takım toplu olduğunda yayılma pozisyonunu hesapla
+  Pos _spreadPosition(SimPlayer p, Pos ballPos) {
+    bool goRight = p.isHome;
+    // Her oyuncuya sahadaki farklı dilim verilir (yığılmayı önler)
+    // Y dilimi: playerIndex 0-6 → 0.10, 0.22, 0.78, 0.18, 0.82, 0.28, 0.72
+    const spreadY = [0.50, 0.22, 0.78, 0.14, 0.86, 0.30, 0.70];
+    double ty = spreadY[p.playerIndex.clamp(0, 6)];
+
+    double tx;
+    switch (p.role) {
+      case 'GK':
+        return p.homeBase.copy();
+      case 'DEF':
+        // Savunma hattını biraz ilerlet ama dikkatli kal
+        tx = goRight
+            ? (ballPos.x - 0.22).clamp(0.08, 0.40)
+            : (ballPos.x + 0.22).clamp(0.60, 0.92);
+        break;
+      case 'MID':
+        // Topu taşıyan oyuncunun arkasında veya yanında, geniş aç
+        tx = goRight
+            ? (ballPos.x - 0.06).clamp(0.30, 0.72)
+            : (ballPos.x + 0.06).clamp(0.28, 0.70);
+        break;
+      case 'FWD':
+        // İleri koş, geniş açıl
+        tx = goRight
+            ? (ballPos.x + 0.16).clamp(0.52, 0.92)
+            : (ballPos.x - 0.16).clamp(0.08, 0.48);
+        break;
+      default:
+        tx = p.homeBase.x;
+    }
+    return Pos(tx, ty);
+  }
+
   void _updateMovementTarget(SimPlayer p) {
     // Gegenpres overrides everything
     if (p.isPressing) {
@@ -910,12 +1074,13 @@ class _MatchEngineViewState extends State<MatchEngineView>
       if (p.pressTimer <= 0) {
         p.isPressing = false;
         p.moveTarget.set(p.homeBase);
-      } else
+      } else {
         p.moveTarget.set(ball.pos);
+      }
       return;
     }
 
-    // Wide instruction
+    // Wide talimatı
     if (p.instruction.stayWide) {
       bool isLeft = p.homeBase.y < 0.5;
       p.moveTarget.y = isLeft ? 0.07 : 0.93;
@@ -926,18 +1091,19 @@ class _MatchEngineViewState extends State<MatchEngineView>
       return;
     }
 
-    // Marking instruction
+    // Manuel markaj talimatı
     if (p.instruction.marking) {
       var opp = p.isHome ? awayTeam : homeTeam;
       if (opp.isNotEmpty) {
         var mark =
             opp.reduce((a, b) => a.pos.dist(p.pos) < b.pos.dist(p.pos) ? a : b);
+        p.markTarget = mark;
         p.moveTarget = Pos(mark.pos.x + (p.isHome ? -0.04 : 0.04), mark.pos.y);
       }
       return;
     }
 
-    // Constant runs
+    // Sürekli koşu talimatı
     if (p.instruction.constantRuns &&
         ball.owner != null &&
         ball.owner!.isHome == p.isHome) {
@@ -953,41 +1119,65 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
     if (ball.owner == null) return;
     var bo = ball.owner!;
+    bool ownTeamHasBall = (bo.isHome == p.isHome);
 
-    if (bo.isHome == p.isHome) {
-      // Teammate
-      switch (p.role) {
-        case 'GK':
+    // ── OTOMATİK MAN-MARKING sistemi ──
+    // Markaj hedefini güncelle (sadece savunma pozisyonundayken)
+    SimPlayer? autoMark = _resolveMarkTarget(p);
+    p.markTarget = autoMark;
+
+    if (!ownTeamHasBall && autoMark != null && p.role != 'GK') {
+      // Rakibi gölgele - biraz önünde dur
+      double shadowX = autoMark.pos.x + (p.isHome ? -0.04 : 0.04);
+      double shadowY = autoMark.pos.y;
+      p.moveTarget = Pos(
+        shadowX.clamp(0.04, 0.96),
+        shadowY.clamp(0.04, 0.96),
+      );
+      // Yakın geçişte müdahale
+      if (p.pos.dist(autoMark.pos) < 0.052) {
+        if (_rng.nextInt(100) < max(8, p.defStat - bo.dribbleStat + 30)) {
+          _beenTackled(bo, p);
+        }
+      }
+      _constrainByTactic(p);
+      _applySeparation(p);
+      return;
+    }
+
+    if (ownTeamHasBall) {
+      // ── TAKIM TOPLU: yayılma pozisyonu al ──
+      if (p.role == 'GK') {
+        // GK markaj yapabilir veya kalesinde durabilir
+        if (autoMark != null) {
+          // GK rakip FWD'yi takip et ama kaleyi bırakma
+          double gx = p.homeBase.x;
+          double gy =
+              (autoMark.pos.y * 0.4 + p.homeBase.y * 0.6).clamp(0.28, 0.72);
+          p.moveTarget = Pos(gx, gy);
+        } else {
           p.moveTarget.set(p.homeBase);
-          break;
-        case 'DEF':
-          p.moveTarget =
-              Pos(p.homeBase.x, p.homeBase.y + (bo.pos.y - 0.5) * 0.15);
-          break;
-        case 'MID':
-          p.moveTarget = Pos(
-            (bo.pos.x + (p.isHome ? -0.06 : 0.06)).clamp(0.05, 0.95),
-            bo.pos.y + (_rng.nextDouble() - 0.5) * 0.22,
-          );
-          break;
-        case 'FWD':
-          p.moveTarget = Pos(
-            (bo.pos.x + (p.isHome ? 0.14 : -0.14)).clamp(0.05, 0.95),
-            bo.pos.y + (_rng.nextDouble() - 0.5) * 0.28,
-          );
-          break;
+        }
+      } else {
+        // Yayılma + pas almak için konum al
+        Pos spread = _spreadPosition(p, bo.pos);
+        // Sadece birkaç tickte bir pozisyonu güncelle (gerçekçi koşu)
+        if (tick % 8 == (p.playerIndex * 2) % 8) {
+          p.moveTarget.set(spread);
+        }
       }
     } else {
-      // Opponent
+      // ── SAVUNMA: GK kalesinde ──
       if (p.role == 'GK') {
         double idealY = bo.pos.y.clamp(0.26, 0.74);
         p.moveTarget = Pos(p.homeBase.x, idealY);
       } else {
+        // Orta saha/FWD için topun yakınına baskı
         p.moveTarget = Pos(
           (bo.pos.x + (p.isHome ? -0.10 : 0.10)).clamp(0.05, 0.95),
-          bo.pos.y + (_rng.nextDouble() - 0.5) * 0.14,
+          bo.pos.y + (_rng.nextDouble() - 0.5) * 0.12,
         );
-        // Inline intercept
+        // Yakın geçişte müdahale
         if (p.pos.dist(bo.pos) < 0.05) {
           if (_rng.nextInt(100) < max(8, p.defStat - bo.dribbleStat + 32)) {
             _beenTackled(bo, p);
@@ -997,6 +1187,23 @@ class _MatchEngineViewState extends State<MatchEngineView>
     }
 
     _constrainByTactic(p);
+    _applySeparation(p);
+  }
+
+  /// Takım arkadaşlarıyla yığılmayı önlemek için hafif itme uygular
+  void _applySeparation(SimPlayer p) {
+    var myTeam = p.isHome ? homeTeam : awayTeam;
+    for (var t in myTeam) {
+      if (t == p || t == ball.owner) continue;
+      double ddx = p.moveTarget.x - t.pos.x;
+      double ddy = p.moveTarget.y - t.pos.y;
+      double dd = sqrt(ddx * ddx + ddy * ddy);
+      if (dd < 0.09 && dd > 0.001) {
+        double push = (0.09 - dd) * 0.55;
+        p.moveTarget.x = (p.moveTarget.x + ddx / dd * push).clamp(0.04, 0.96);
+        p.moveTarget.y = (p.moveTarget.y + ddy / dd * push).clamp(0.04, 0.96);
+      }
+    }
   }
 
   void _constrainByTactic(SimPlayer p) {
@@ -1032,9 +1239,9 @@ class _MatchEngineViewState extends State<MatchEngineView>
   }
 
   double _speedFactor() {
-    if (speed == MatchSpeed.slow) return 0.65;
+    if (speed == MatchSpeed.slow) return 0.36; // gerçekten yavaş
     if (speed == MatchSpeed.fast) return 1.45;
-    return 1.0;
+    return 0.78; // orta biraz daha yavaş
   }
 
   // ─── LOG ────────────────────────────────────────────────────────────────────
@@ -1142,7 +1349,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
   Widget _speedBar() {
     return Container(
-      height: 38,
+      height: 50,
       color: const Color(0xFF0E0E18),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         Text('HIZ: ',
@@ -1164,11 +1371,22 @@ class _MatchEngineViewState extends State<MatchEngineView>
                       width: 1.5),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(s.label,
-                    style: TextStyle(
-                        color: speed == s ? s.color : Colors.white38,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold)),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(s.label,
+                        style: TextStyle(
+                            color: speed == s ? s.color : Colors.white38,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold)),
+                    Text('${s.durationSeconds}sn',
+                        style: TextStyle(
+                            color: (speed == s ? s.color : Colors.white38)
+                                .withOpacity(0.7),
+                            fontSize: 8,
+                            fontWeight: FontWeight.w300)),
+                  ],
+                ),
               ),
             )),
       ]),
@@ -1197,8 +1415,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
           Positioned(
               right: 0, top: h * 0.36, child: _goalBox(w * 0.025, h * 0.28)),
           // Players
-          ...homeTeam.map((p) => _playerDot(p, Colors.cyanAccent, w, h)),
-          ...awayTeam.map((p) => _playerDot(p, Colors.redAccent, w, h)),
+          ...homeTeam.map((p) => _playerDot(p, Colors.redAccent, w, h)),
+          ...awayTeam.map((p) => _playerDot(p, Colors.cyanAccent, w, h)),
           // Ball
           _ballDot(w, h),
           // Goal flash
@@ -1221,35 +1439,79 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
   Widget _playerDot(SimPlayer p, Color base, double w, double h) {
     bool hasBall = (ball.owner == p);
+    bool isMarking = (p.markTarget != null);
     Color c = p.isPressing ? Colors.orangeAccent : base;
+    bool ledActive = p.isPassShoot;
+
     return Positioned(
       left: (p.pos.x * w - 13).clamp(0.0, w - 26),
       top: (p.pos.y * h - 16).clamp(0.0, h - 32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: c.withOpacity(0.88),
-              border: Border.all(
-                  color: hasBall ? Colors.white : Colors.black87,
-                  width: hasBall ? 2.5 : 1),
-              boxShadow: [
-                BoxShadow(
-                    color: c.withOpacity(hasBall ? 0.9 : 0.4),
-                    blurRadius: hasBall ? 10 : 5)
-              ],
-            ),
-            child: Center(
-              child: Text(p.role[0],
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold)),
-            ),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              // LED ring when passing or shooting
+              if (ledActive)
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 1.0, end: 0.0),
+                  duration: const Duration(milliseconds: 420),
+                  builder: (_, v, __) => Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withOpacity(v * 0.95),
+                        width: 2.4,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: c.withOpacity(v * 0.85),
+                          blurRadius: 12,
+                          spreadRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              // Marking indicator ring
+              if (isMarking && !ledActive)
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: Colors.yellowAccent.withOpacity(0.55),
+                        width: 1.2),
+                  ),
+                ),
+              Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: c.withOpacity(0.88),
+                  border: Border.all(
+                      color: hasBall ? Colors.white : Colors.black87,
+                      width: hasBall ? 2.5 : 1),
+                  boxShadow: [
+                    BoxShadow(
+                        color: c.withOpacity(hasBall ? 0.9 : 0.4),
+                        blurRadius: hasBall ? 10 : 5)
+                  ],
+                ),
+                child: Center(
+                  child: Text(p.role[0],
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ),
           Text(
             p.data.name.length > 6

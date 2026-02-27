@@ -206,6 +206,11 @@ class UltimateTeamProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setRanked(bool v) {
+    isRanked = v;
+    notifyListeners();
+  }
+
   void autoBuild() {
     startingXI = List.generate(
         7, (_) => Player(name: 'BOŞ', rating: 0, position: '', playstyles: []));
@@ -672,10 +677,7 @@ class _UltimateRootState extends State<_UltimateRoot> {
         // Normal / Ranked toggle
         _ModeToggle(
           isRanked: prov.isRanked,
-          onToggle: (v) {
-            prov.isRanked = v;
-            prov.notifyListeners();
-          },
+          onToggle: (v) => prov.setRanked(v),
         ),
         const SizedBox(width: 16),
       ]),
@@ -1094,7 +1096,7 @@ class _MyTeamTabState extends State<_MyTeamTab> {
       left: cx - 48,
       top: cy - 62,
       child: DragTarget<Player>(
-        onAccept: (d) => prov.setStarter(i, d),
+        onAcceptWithDetails: (details) => prov.setStarter(i, details.data),
         builder: (c, cand, _) => SizedBox(
           width: 96,
           height: 124,
