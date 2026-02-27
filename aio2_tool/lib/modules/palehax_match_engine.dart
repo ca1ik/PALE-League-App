@@ -176,7 +176,7 @@ class SimPlayer {
 // BALL
 // =============================================================================
 
-enum BallPhase { owned, passFlight, cornerDelay, free }
+enum BallPhase { owned, passFlight, cornerDelay, free, shotFlight }
 
 class Ball {
   Pos pos = Pos(0.5, 0.5);
@@ -190,6 +190,13 @@ class Ball {
   int passTicksRemaining = 0;
 
   BallPhase phase = BallPhase.owned;
+
+  // Shot-flight state
+  bool shotWillGoal = false;
+  bool shotOnTarget = false;
+  SimPlayer? shotGk;
+  String shotShooterName = '';
+  bool shotIsHome = false;
 
   // Corner state
   bool cornerForHome = false;
@@ -271,6 +278,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
   Timer? _gameTimer;
   late AnimationController _goalAnim;
   List<LogEntry> logs = [];
+  int _shotSlowMoTicks = 0;
 
   @override
   void initState() {
@@ -403,6 +411,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
     ball.phase = BallPhase.owned;
     ball.passTarget = null;
     ball.pos = Pos(0.5, 0.5);
+    ball.shotWillGoal = false;
+    ball.shotOnTarget = false;
+    ball.shotGk = null;
+    ball.shotShooterName = '';
+    ball.shotIsHome = false;
+    _shotSlowMoTicks = 0;
 
     SimPlayer kicker = byTeam.firstWhere(
       (p) => p.role == 'FWD',
@@ -428,6 +442,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
     tick++;
     matchMinute = (tick / speed.totalTicks * 90.0).clamp(0, 90);
+
+    if (_shotSlowMoTicks > 0) _shotSlowMoTicks--;
 
     if (!isGoal) _simulate();
 
@@ -455,6 +471,9 @@ class _MatchEngineViewState extends State<MatchEngineView>
         break;
       case BallPhase.free:
         _freeBallPhase();
+        break;
+      case BallPhase.shotFlight:
+        _shotFlightPhase();
         break;
     }
 
@@ -492,11 +511,35 @@ class _MatchEngineViewState extends State<MatchEngineView>
     var team = owner.isHome ? homeTeam : awayTeam;
     var gk = opp.firstWhere((p) => p.role == 'GK', orElse: () => opp.first);
 
-    // Topu taşıyıcı kaleye ilerler
-    owner.moveTarget = Pos(
-      (owner.pos.x + (goRight ? 0.025 : -0.025)).clamp(0.01, 0.99),
-      (owner.pos.y + (_rng.nextDouble() - 0.5) * 0.025).clamp(0.02, 0.98),
-    );
+    // ── OWNER MOVEMENT: HaxBall-style – lateral/diagonal runs with forward intent ──
+    int moveMode = tick % 18;
+    if (moveMode < 6) {
+      // Charge forward – main advance
+      owner.moveTarget = Pos(
+        (owner.pos.x + (goRight ? 0.035 : -0.035)).clamp(0.01, 0.99),
+        (owner.pos.y + (_rng.nextDouble() - 0.5) * 0.04).clamp(0.02, 0.98),
+      );
+    } else if (moveMode < 10) {
+      // Lateral drift – create passing angle
+      owner.moveTarget = Pos(
+        (owner.pos.x + (goRight ? 0.010 : -0.010)).clamp(0.01, 0.99),
+        (owner.pos.y + (_rng.nextDouble() - 0.5) * 0.10).clamp(0.02, 0.98),
+      );
+    } else if (moveMode < 13) {
+      // Hold position briefly – look for pass
+      owner.moveTarget = Pos(
+        owner.pos.x,
+        owner.pos.y + (_rng.nextDouble() - 0.5) * 0.03,
+      );
+    } else {
+      // Diagonal run – forward + lateral
+      double diagY = (owner.homeBase.y > 0.5 ? 1 : -1) * 0.06;
+      owner.moveTarget = Pos(
+        (owner.pos.x + (goRight ? 0.028 : -0.028)).clamp(0.01, 0.99),
+        (owner.pos.y + diagY + (_rng.nextDouble() - 0.5) * 0.03)
+            .clamp(0.02, 0.98),
+      );
+    }
 
     // Yakın baskı yapanlar
     var pressers = opp.where((o) => o.pos.dist(owner.pos) < 0.11).toList();
@@ -582,14 +625,14 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
     }
 
-    // ── DÜZENLI PAS ──
+    // ── DÜZENLI PAS (sık sık – canlı maç hissi) ──
     int passEvery = myTac == TacticStyle.tikiTaka
-        ? 13
+        ? 8 // tiki-taka: çok sık pas
         : myTac == TacticStyle.gegen
-            ? 18
+            ? 11
             : myTac == TacticStyle.highPress
-                ? 15
-                : 17;
+                ? 9
+                : 11;
     if (tick % passEvery == 0) {
       _tryPass(owner, team, preferFwd: true);
     }
@@ -638,11 +681,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
     for (var t in opts) {
       double s = 0;
 
-      // İleriye pas tercihi
+      // İleriye pas tercihi – HaxBall tarzı: geri pas da olabilir
       if (preferFwd) {
         double fwdDist =
             goRight ? t.pos.x - passer.pos.x : passer.pos.x - t.pos.x;
-        s += fwdDist * 100;
+        // Reduced bias from 100 → 45: backward/sideways passes become viable
+        s += fwdDist * 45;
       }
 
       // Ceza alanı içi pas: yakın ve açık oyuncuyu tercih et
@@ -795,43 +839,133 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
     // LED ring şut efekti
     shooter.isPassShoot = true;
-    shooter.passShootTimer = 35;
+    shooter.passShootTimer = 45;
 
     bool goRight = shooter.isHome;
 
-    if (!onTarget) {
-      _log('❌ İskalık! ${shooter.data.name}', Colors.grey);
-      ball.owner = null;
-      ball.phase = BallPhase.free;
-      // Check for corner: shot missed wide near baseline
-      bool nearBase = goRight ? shooter.pos.x > 0.72 : shooter.pos.x < 0.28;
-      if (nearBase && _rng.nextBool()) {
-        _triggerCorner(!shooter.isHome, shooter.pos.y);
-      } else {
-        ball.pos.set(gk.pos);
-        ball.owner = gk;
-        ball.phase = BallPhase.owned;
-        _log('${gk.data.name} topu aldı', Colors.grey);
-      }
-      return;
-    }
-
-    // On target: GK save check
+    // Determine GK save outcome upfront
     int reflex = gk.reflexStat;
-    // 1v1 save%: reflexStat * 0.44  =>  90 stat → 40% save, 60% GK error
-    // With cover (defenders nearby): add 20%
     bool is1v1 = (shooter.isHome ? homeTeam : awayTeam)
         .where((p) => p.role == 'DEF' && p.pos.dist(shooter.pos) < 0.18)
         .isEmpty;
     int saveChance = max(8, (reflex * 0.44).round() + (is1v1 ? 0 : 20));
+    bool gkSaves = onTarget && _rng.nextInt(100) < saveChance;
 
-    if (_rng.nextInt(100) < saveChance) {
-      _log('🧤 ${gk.data.name} kurtardı!', Colors.cyanAccent);
+    // Store verdict in ball for flight resolution
+    ball.shotWillGoal = onTarget && !gkSaves;
+    ball.shotOnTarget = onTarget;
+    ball.shotGk = gk;
+    ball.shotShooterName = shooter.data.name;
+    ball.shotIsHome = shooter.isHome;
+
+    // Build shot target position: aim toward goal with slight randomness
+    double goalX = goRight ? 0.985 : 0.015;
+    double goalY;
+    if (!onTarget) {
+      // Off-target: aim wide or over (misses the goal box)
+      double baseY = 0.5 + (_rng.nextDouble() - 0.5) * 0.7;
+      goalY = baseY.clamp(0.02, 0.98);
+    } else {
+      // On-target: aim within goal mouth with small variation
+      goalY = 0.38 + _rng.nextDouble() * 0.24;
+    }
+
+    // Launch ball as shot flight
+    ball.owner = null;
+    ball.phase = BallPhase.shotFlight;
+    ball.passFrom.set(shooter.pos);
+    ball.passTo = Pos(goalX, goalY);
+    ball.passTicksTotal = 28;
+    ball.passTicksRemaining = 28;
+    ball.pos.set(shooter.pos);
+
+    // Engage slow motion
+    _shotSlowMoTicks = 55;
+  }
+
+  // ─── SHOT FLIGHT ────────────────────────────────────────────────────────────
+
+  void _shotFlightPhase() {
+    ball.passTicksRemaining--;
+    double t = 1.0 - (ball.passTicksRemaining / ball.passTicksTotal);
+    ball.pos.set(ball.passFrom.lerp(ball.passTo, t));
+
+    if (ball.passTicksRemaining > 0) return;
+
+    // Shot arrived – resolve
+    if (ball.shotWillGoal) {
+      _goal(ball.shotIsHome, ball.shotShooterName);
+    } else {
+      SimPlayer? gk = ball.shotGk;
+      bool goRight = ball.shotIsHome;
+
+      if (!ball.shotOnTarget) {
+        _log('❌ İskalık! ${ball.shotShooterName}', Colors.grey);
+        bool nearBase =
+            goRight ? ball.passFrom.x > 0.72 : ball.passFrom.x < 0.28;
+        if (nearBase && _rng.nextBool()) {
+          _triggerCorner(!ball.shotIsHome, ball.passTo.y);
+        } else {
+          ball.phase = BallPhase.free;
+          ball.pos.set(ball.passTo);
+        }
+      } else {
+        // On target but GK saves
+        _gkSave(gk);
+      }
+    }
+  }
+
+  void _gkSave(SimPlayer? gk) {
+    if (gk == null) {
+      ball.phase = BallPhase.free;
+      return;
+    }
+
+    _log('🧤 ${gk.data.name} kurtardı!', Colors.cyanAccent);
+    ball.pos.set(gk.pos);
+
+    int outcome = _rng.nextInt(100);
+
+    if (outcome < 35) {
+      // ── RICOCHET: ball bounces to a random position near goal ──
+      // Home team attacks right (x→1), away team attacks left (x→0)
+      bool nearRightGoal = ball.shotIsHome; // home shoots at right goal
+      double rebX = nearRightGoal
+          ? 0.78 + _rng.nextDouble() * 0.10 // near right goal mouth
+          : 0.10 + _rng.nextDouble() * 0.10; // near left goal mouth
+      double rebY = 0.28 + _rng.nextDouble() * 0.44;
+      ball.owner = null;
+      ball.phase = BallPhase.free;
+      ball.pos = Pos(rebX, rebY);
+      _log('💥 Top sekti! Herkes bölgeye!', Colors.orangeAccent);
+    } else if (outcome < 65) {
+      // ── DISTRIBUTION: GK throws to nearest open teammate ──
+      var ownTeam = gk.isHome ? homeTeam : awayTeam;
+      var targets = ownTeam.where((p) => p != gk && p.role != 'GK').toList();
+      if (targets.isNotEmpty) {
+        targets
+            .sort((a, b) => a.pos.dist(gk.pos).compareTo(b.pos.dist(gk.pos)));
+        SimPlayer recv = targets.first;
+        _log('🧤➡ ${gk.data.name} atışla ${recv.data.name}\'e dağıttı',
+            Colors.lightBlueAccent);
+        ball.owner = null;
+        ball.phase = BallPhase.passFlight;
+        ball.passFrom.set(gk.pos);
+        ball.passTo.set(recv.pos);
+        ball.passTarget = recv;
+        ball.passTicksTotal = max(16, (gk.pos.dist(recv.pos) * 70).round());
+        ball.passTicksRemaining = ball.passTicksTotal;
+      } else {
+        // Fallback: GK holds
+        ball.owner = gk;
+        ball.phase = BallPhase.owned;
+      }
+    } else {
+      // ── HOLD: GK catches cleanly ──
       ball.owner = gk;
       ball.phase = BallPhase.owned;
-      ball.pos.set(gk.pos);
-    } else {
-      _goal(shooter.isHome, shooter.data.name);
+      _log('${gk.data.name} kucakladı', Colors.white54);
     }
   }
 
@@ -1068,6 +1202,17 @@ class _MatchEngineViewState extends State<MatchEngineView>
   }
 
   void _updateMovementTarget(SimPlayer p) {
+    // During shot flight: players subtly shift (anticipate rebound) during slow-mo
+    if (ball.phase == BallPhase.shotFlight) {
+      if (tick % 7 == p.playerIndex % 7) {
+        p.moveTarget.x = (p.moveTarget.x + (_rng.nextDouble() - 0.5) * 0.04)
+            .clamp(0.04, 0.96);
+        p.moveTarget.y = (p.moveTarget.y + (_rng.nextDouble() - 0.5) * 0.035)
+            .clamp(0.04, 0.96);
+      }
+      return;
+    }
+
     // Gegenpres overrides everything
     if (p.isPressing) {
       p.pressTimer--;
@@ -1159,12 +1304,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
           p.moveTarget.set(p.homeBase);
         }
       } else {
-        // Yayılma + pas almak için konum al
+        // Yayılma + pas almak için konum al – her tick güncelle (canlı hareket)
         Pos spread = _spreadPosition(p, bo.pos);
-        // Sadece birkaç tickte bir pozisyonu güncelle (gerçekçi koşu)
-        if (tick % 8 == (p.playerIndex * 2) % 8) {
-          p.moveTarget.set(spread);
-        }
+        p.moveTarget = Pos(
+          (spread.x + (_rng.nextDouble() - 0.5) * 0.04).clamp(0.04, 0.96),
+          (spread.y + (_rng.nextDouble() - 0.5) * 0.03).clamp(0.04, 0.96),
+        );
       }
     } else {
       // ── SAVUNMA: GK kalesinde ──
@@ -1239,9 +1384,23 @@ class _MatchEngineViewState extends State<MatchEngineView>
   }
 
   double _speedFactor() {
-    if (speed == MatchSpeed.slow) return 0.36; // gerçekten yavaş
+    // Slow motion during shot flight
+    if (ball.phase == BallPhase.shotFlight || _shotSlowMoTicks > 40) {
+      return 0.28; // ~3x slower – cinematic slow-mo
+    }
+    if (_shotSlowMoTicks > 0) {
+      // Ease back to normal speed after shot resolves
+      double ease = _shotSlowMoTicks / 40.0;
+      double base = speed == MatchSpeed.slow
+          ? 0.36
+          : speed == MatchSpeed.fast
+              ? 1.45
+              : 0.78;
+      return base * (1.0 - ease * 0.65);
+    }
+    if (speed == MatchSpeed.slow) return 0.36;
     if (speed == MatchSpeed.fast) return 1.45;
-    return 0.78; // orta biraz daha yavaş
+    return 0.78;
   }
 
   // ─── LOG ────────────────────────────────────────────────────────────────────
@@ -1419,6 +1578,29 @@ class _MatchEngineViewState extends State<MatchEngineView>
           ...awayTeam.map((p) => _playerDot(p, Colors.cyanAccent, w, h)),
           // Ball
           _ballDot(w, h),
+          // Slow-motion overlay
+          if (ball.phase == BallPhase.shotFlight || _shotSlowMoTicks > 40)
+            Positioned(
+              top: 8,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.55),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                      color: Colors.orangeAccent.withOpacity(0.6), width: 1),
+                ),
+                child: Text(
+                  '🎬 SLOW MO',
+                  style: TextStyle(
+                      color: Colors.orangeAccent,
+                      fontSize: 8,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2),
+                ),
+              ),
+            ),
           // Goal flash
           if (isGoal) _goalFlash(),
           // Match over overlay
@@ -1526,24 +1708,30 @@ class _MatchEngineViewState extends State<MatchEngineView>
   }
 
   Widget _ballDot(double w, double h) {
-    Pos bp = ball.phase == BallPhase.passFlight
-        ? ball.pos
-        : (ball.owner?.pos ?? ball.pos);
+    bool inFlight = ball.phase == BallPhase.passFlight ||
+        ball.phase == BallPhase.shotFlight;
+    Pos bp = inFlight ? ball.pos : (ball.owner?.pos ?? ball.pos);
+    bool isShotBall = ball.phase == BallPhase.shotFlight;
     Color bc = ball.phase == BallPhase.cornerDelay
         ? Colors.purpleAccent
-        : Colors.white;
+        : isShotBall
+            ? Colors.orangeAccent
+            : Colors.white;
+    double size = isShotBall ? 16 : 14;
     return Positioned(
-      left: (bp.x * w - 7).clamp(0.0, w - 14),
-      top: (bp.y * h - 7).clamp(0.0, h - 14),
+      left: (bp.x * w - size / 2).clamp(0.0, w - size),
+      top: (bp.y * h - size / 2).clamp(0.0, h - size),
       child: Container(
-        width: 14,
-        height: 14,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: bc,
           boxShadow: [
             BoxShadow(
-                color: bc.withOpacity(0.9), blurRadius: 10, spreadRadius: 2)
+                color: bc.withOpacity(isShotBall ? 1.0 : 0.9),
+                blurRadius: isShotBall ? 18 : 10,
+                spreadRadius: isShotBall ? 4 : 2)
           ],
         ),
       ),
