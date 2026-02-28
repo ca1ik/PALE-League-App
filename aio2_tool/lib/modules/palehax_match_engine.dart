@@ -762,8 +762,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
       ball.passFrom.set(passer.pos);
       ball.passTo = Pos(projX, projY.clamp(0.04, 0.96));
       ball.passTarget = candidate;
-      ball.passTicksTotal = max(
-          16,
+      ball.passTicksTotal = max(16,
           (passer.pos.dist(Pos(projX, projY)) * 92 * _passTicksMult()).round());
       ball.passTicksRemaining = ball.passTicksTotal;
       ball.pos.set(passer.pos);
@@ -802,19 +801,16 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
       // Errant pass – ball goes to wrong position (loose ball)
       double errScale = 0.12 + (1.0 - psk / 100.0) * 0.22;
-      double errX =
-          (target.pos.x + (_rng.nextDouble() - 0.5) * errScale * 2.2)
-              .clamp(0.03, 0.97);
-      double errY =
-          (target.pos.y + (_rng.nextDouble() - 0.5) * errScale * 2.2)
-              .clamp(0.03, 0.97);
+      double errX = (target.pos.x + (_rng.nextDouble() - 0.5) * errScale * 2.2)
+          .clamp(0.03, 0.97);
+      double errY = (target.pos.y + (_rng.nextDouble() - 0.5) * errScale * 2.2)
+          .clamp(0.03, 0.97);
       ball.owner = null;
       ball.phase = BallPhase.passFlight;
       ball.passFrom.set(passer.pos);
       ball.passTo = Pos(errX, errY);
       ball.passTarget = null; // Loose ball – no guaranteed receiver
-      ball.passTicksTotal = max(
-          18,
+      ball.passTicksTotal = max(18,
           (passer.pos.dist(Pos(errX, errY)) * 95 * _passTicksMult()).round());
       ball.passTicksRemaining = ball.passTicksTotal;
       ball.pos.set(passer.pos);
@@ -1089,7 +1085,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
         ball.passFrom.set(gk.pos);
         ball.passTo.set(recv.pos);
         ball.passTarget = recv;
-        ball.passTicksTotal = max(16, (gk.pos.dist(recv.pos) * 70).round());
+        ball.passTicksTotal =
+            max(16, (gk.pos.dist(recv.pos) * 70 * _passTicksMult()).round());
         ball.passTicksRemaining = ball.passTicksTotal;
       } else {
         // Fallback: GK holds
@@ -1187,8 +1184,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
     ball.passFrom.set(ball.pos);
     ball.passTo.set(target.moveTarget);
     ball.passTarget = target;
-    ball.passTicksTotal = 52;
-    ball.passTicksRemaining = 52;
+    ball.passTicksTotal = max(22, (52 * _passTicksMult()).round());
+    ball.passTicksRemaining = ball.passTicksTotal;
   }
 
   // ─── FREE BALL ──────────────────────────────────────────────────────────────
@@ -1793,12 +1790,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
       margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF1B5E20), Color(0xFF2E7D32), Color(0xFF1B5E20)],
-        ),
-        border: Border.all(color: Colors.white24, width: 2),
+        color: const Color(0xFF1B6620),
+        border: Border.all(color: Colors.white30, width: 2),
       ),
       child: LayoutBuilder(builder: (ctx, box) {
         double w = box.maxWidth, h = box.maxHeight;
@@ -1923,8 +1916,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
                   height: 36,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border:
-                        Border.all(color: Colors.white.withOpacity(0.9), width: 2),
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.9), width: 2),
                     boxShadow: [
                       BoxShadow(
                           color: Colors.white.withOpacity(0.55),
@@ -1978,9 +1971,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
                 color: c.withOpacity(0.92),
                 fontSize: 7.5,
                 fontWeight: FontWeight.bold,
-                shadows: const [
-                  Shadow(color: Colors.black, blurRadius: 3)
-                ]),
+                shadows: const [Shadow(color: Colors.black, blurRadius: 3)]),
           ),
         ],
       ),
@@ -2166,12 +2157,9 @@ class _PitchPainter extends CustomPainter {
     double stripeH = h / numStripes;
     for (int i = 0; i < numStripes; i++) {
       final stripePaint = Paint()
-        ..color = (i.isEven
-            ? const Color(0xFF1B6620)
-            : const Color(0xFF1E7524))
+        ..color = (i.isEven ? const Color(0xFF1B6620) : const Color(0xFF1E7524))
         ..style = PaintingStyle.fill;
-      canvas.drawRect(
-          Rect.fromLTWH(0, i * stripeH, w, stripeH), stripePaint);
+      canvas.drawRect(Rect.fromLTWH(0, i * stripeH, w, stripeH), stripePaint);
     }
 
     final p = Paint()
@@ -2200,14 +2188,24 @@ class _PitchPainter extends CustomPainter {
     canvas.drawCircle(Offset(w * 0.88, h * 0.5), 3.5, p);
     p.style = PaintingStyle.stroke;
     // Penalty arc
-    canvas.drawArc(Rect.fromCenter(
-        center: Offset(w * 0.12, h * 0.5),
-        width: h * 0.28,
-        height: h * 0.28), -1.0, 2.0, false, p);
-    canvas.drawArc(Rect.fromCenter(
-        center: Offset(w * 0.88, h * 0.5),
-        width: h * 0.28,
-        height: h * 0.28), 2.1, 2.0, false, p);
+    canvas.drawArc(
+        Rect.fromCenter(
+            center: Offset(w * 0.12, h * 0.5),
+            width: h * 0.28,
+            height: h * 0.28),
+        -1.0,
+        2.0,
+        false,
+        p);
+    canvas.drawArc(
+        Rect.fromCenter(
+            center: Offset(w * 0.88, h * 0.5),
+            width: h * 0.28,
+            height: h * 0.28),
+        2.1,
+        2.0,
+        false,
+        p);
     // Touch line & goal line (border)
     canvas.drawRect(Rect.fromLTWH(1, 1, w - 2, h - 2), p);
   }
