@@ -12,10 +12,10 @@ enum MatchSpeed { fast, medium, slow }
 
 extension MatchSpeedExt on MatchSpeed {
   int get durationSeconds => this == MatchSpeed.fast
-      ? 15
+      ? 10
       : this == MatchSpeed.medium
-          ? 40
-          : 90;
+          ? 50
+          : 120;
   int get totalTicks => durationSeconds * 60;
   String get label => this == MatchSpeed.fast
       ? 'HIZLI'
@@ -279,6 +279,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
   late AnimationController _goalAnim;
   List<LogEntry> logs = [];
   int _shotSlowMoTicks = 0;
+  List<Pos> _ballTrail = [];
 
   @override
   void initState() {
@@ -447,6 +448,17 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
     if (!isGoal) _simulate();
 
+    // Ball trail for wind effect – only during shot flight near goal-line
+    if (ball.phase == BallPhase.shotFlight) {
+      bool nearGoalLine = ball.pos.x > 0.68 || ball.pos.x < 0.32;
+      if (nearGoalLine) {
+        _ballTrail.add(ball.pos.copy());
+        if (_ballTrail.length > 10) _ballTrail.removeAt(0);
+      }
+    } else if (_ballTrail.isNotEmpty) {
+      _ballTrail.clear();
+    }
+
     if (tick >= speed.totalTicks && !isMatchOver) {
       _gameTimer?.cancel();
       _endMatch();
@@ -511,35 +523,14 @@ class _MatchEngineViewState extends State<MatchEngineView>
     var team = owner.isHome ? homeTeam : awayTeam;
     var gk = opp.firstWhere((p) => p.role == 'GK', orElse: () => opp.first);
 
-    // ── OWNER MOVEMENT: HaxBall-style – lateral/diagonal runs with forward intent ──
-    int moveMode = tick % 18;
-    if (moveMode < 6) {
-      // Charge forward – main advance
-      owner.moveTarget = Pos(
-        (owner.pos.x + (goRight ? 0.035 : -0.035)).clamp(0.01, 0.99),
-        (owner.pos.y + (_rng.nextDouble() - 0.5) * 0.04).clamp(0.02, 0.98),
-      );
-    } else if (moveMode < 10) {
-      // Lateral drift – create passing angle
-      owner.moveTarget = Pos(
-        (owner.pos.x + (goRight ? 0.010 : -0.010)).clamp(0.01, 0.99),
-        (owner.pos.y + (_rng.nextDouble() - 0.5) * 0.10).clamp(0.02, 0.98),
-      );
-    } else if (moveMode < 13) {
-      // Hold position briefly – look for pass
-      owner.moveTarget = Pos(
-        owner.pos.x,
-        owner.pos.y + (_rng.nextDouble() - 0.5) * 0.03,
-      );
-    } else {
-      // Diagonal run – forward + lateral
-      double diagY = (owner.homeBase.y > 0.5 ? 1 : -1) * 0.06;
-      owner.moveTarget = Pos(
-        (owner.pos.x + (goRight ? 0.028 : -0.028)).clamp(0.01, 0.99),
-        (owner.pos.y + diagY + (_rng.nextDouble() - 0.5) * 0.03)
-            .clamp(0.02, 0.98),
-      );
-    }
+    // ── OWNER MOVEMENT: HaxBall-style – smooth forward run with gentle sway ──
+    // Sinusoidal lateral oscillation creates organic dribbling motion
+    double osc = sin(tick * 0.18 + owner.playerIndex * 0.9) * 0.065;
+    double fwdStep = owner.role == 'GK' ? 0.0 : 0.022;
+    owner.moveTarget = Pos(
+      (owner.pos.x + (goRight ? fwdStep : -fwdStep)).clamp(0.01, 0.99),
+      (owner.pos.y + osc + (_rng.nextDouble() - 0.5) * 0.015).clamp(0.02, 0.98),
+    );
 
     // Yakın baskı yapanlar
     var pressers = opp.where((o) => o.pos.dist(owner.pos) < 0.11).toList();
@@ -625,16 +616,34 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
     }
 
-    // ── DÜZENLI PAS (sık sık – canlı maç hissi) ──
-    int passEvery = myTac == TacticStyle.tikiTaka
-        ? 8 // tiki-taka: çok sık pas
+    // ── DÜZENLİ PAS (hız moduna göre ölçeklendirilmiş) ──
+    int passEvery = _scaledPassEvery(myTac == TacticStyle.tikiTaka
+        ? 5 // tiki-taka: çok sık pas
         : myTac == TacticStyle.gegen
-            ? 11
+            ? 7
             : myTac == TacticStyle.highPress
-                ? 9
-                : 11;
+                ? 6
+                : 8);
     if (tick % passEvery == 0) {
+      // ARA PAS dene (%22 şans)
+      if (_rng.nextInt(100) < 22) {
+        if (_tryThroughPass(owner, team)) return;
+      }
       _tryPass(owner, team, preferFwd: true);
+    }
+
+    // ── UZAKTAN ŞUT DEMELERİ ──
+    bool inLongShotRange = goRight
+        ? (owner.pos.x > 0.54 && owner.pos.x < 0.78)
+        : (owner.pos.x > 0.22 && owner.pos.x < 0.46);
+    if (inLongShotRange && owner.role != 'DEF' && !owner.instruction.passOnly) {
+      int lsc = owner.role == 'MID' ? 6 : 4;
+      if (pressers.length >= 2) lsc += 7;
+      if (_rng.nextInt(100) < lsc) {
+        _log('💥 ${owner.data.name} uzaktan şut!', Colors.orange);
+        _shoot(owner, gk);
+        return;
+      }
     }
 
     // ── GENİŞ KANAT DEĞİŞİMİ ──
@@ -723,16 +732,67 @@ class _MatchEngineViewState extends State<MatchEngineView>
     return true;
   }
 
+  // ─── THROUGH BALL (ARA PAS) ────────────────────────────────────────────────────
+
+  bool _tryThroughPass(SimPlayer passer, List<SimPlayer> team) {
+    bool goRight = passer.isHome;
+    var opp = passer.isHome ? awayTeam : homeTeam;
+
+    for (var candidate in team) {
+      if (candidate == passer || candidate.role == 'GK') continue;
+      double fwdDist = goRight
+          ? candidate.pos.x - passer.pos.x
+          : passer.pos.x - candidate.pos.x;
+      if (fwdDist < 0.12) continue; // Must be significantly ahead
+
+      // Project where they’ll sprint to
+      double projX =
+          (candidate.pos.x + (goRight ? 0.15 : -0.15)).clamp(0.05, 0.95);
+      double projY = candidate.pos.y + (_rng.nextDouble() - 0.5) * 0.06;
+
+      // Projection must be open
+      bool open = opp.every((o) => o.pos.dist(Pos(projX, projY)) > 0.09);
+      if (!open) continue;
+
+      // Sprint runner toward the through-ball destination
+      candidate.moveTarget = Pos(projX, projY.clamp(0.05, 0.95));
+
+      ball.owner = null;
+      ball.phase = BallPhase.passFlight;
+      ball.passFrom.set(passer.pos);
+      ball.passTo = Pos(projX, projY.clamp(0.04, 0.96));
+      ball.passTarget = candidate;
+      ball.passTicksTotal = max(
+          16,
+          (passer.pos.dist(Pos(projX, projY)) * 92 * _passTicksMult()).round());
+      ball.passTicksRemaining = ball.passTicksTotal;
+      ball.pos.set(passer.pos);
+
+      // Passer also makes a run
+      passer.moveTarget = Pos(
+        (passer.pos.x + (goRight ? 0.15 : -0.15)).clamp(0.05, 0.95),
+        (passer.pos.y + (_rng.nextDouble() - 0.5) * 0.18).clamp(0.05, 0.95),
+      );
+
+      _log('⚡ ${passer.data.name} ara pas! → ${candidate.data.name}',
+          Colors.yellowAccent);
+      return true;
+    }
+    return false;
+  }
+
   void _execPass(SimPlayer passer, SimPlayer target) {
     int psk = passer.passStat;
-    int err = max(5, 100 - psk); // 90-stat → 10% error
+    // Error chance scales with pass stat: low stat → higher error
+    // passStat 75 → ~10%, 50 → ~21%, 25 → ~32%
+    int errChance = max(3, ((100 - psk) * 0.42).round());
 
-    if (_rng.nextInt(100) < err) {
-      // Intercepted?
+    if (_rng.nextInt(100) < errChance) {
       var opp = passer.isHome ? awayTeam : homeTeam;
+      // Check if opponent can intercept (close to target)
       SimPlayer? intr =
-          opp.firstWhereOrNull((o) => o.pos.dist(target.pos) < 0.18);
-      if (intr != null && _rng.nextInt(100) < 42) {
+          opp.firstWhereOrNull((o) => o.pos.dist(target.pos) < 0.16);
+      if (intr != null && _rng.nextInt(100) < 30) {
         ball.owner = intr;
         ball.phase = BallPhase.owned;
         ball.pos.set(intr.pos);
@@ -740,14 +800,68 @@ class _MatchEngineViewState extends State<MatchEngineView>
         _maybeTriggerGegen(passer.isHome);
         return;
       }
+      // Errant pass – ball goes to wrong position (loose ball)
+      double errScale = 0.12 + (1.0 - psk / 100.0) * 0.22;
+      double errX =
+          (target.pos.x + (_rng.nextDouble() - 0.5) * errScale * 2.2)
+              .clamp(0.03, 0.97);
+      double errY =
+          (target.pos.y + (_rng.nextDouble() - 0.5) * errScale * 2.2)
+              .clamp(0.03, 0.97);
+      ball.owner = null;
+      ball.phase = BallPhase.passFlight;
+      ball.passFrom.set(passer.pos);
+      ball.passTo = Pos(errX, errY);
+      ball.passTarget = null; // Loose ball – no guaranteed receiver
+      ball.passTicksTotal = max(
+          18,
+          (passer.pos.dist(Pos(errX, errY)) * 95 * _passTicksMult()).round());
+      ball.passTicksRemaining = ball.passTicksTotal;
+      ball.pos.set(passer.pos);
+      _log('⚠️ ${passer.data.name} hatalı pas!', Colors.orange);
+      passer.moveTarget = Pos(
+        (passer.pos.x + (passer.isHome ? 0.10 : -0.10)).clamp(0.05, 0.95),
+        passer.pos.y,
+      );
+      return;
     }
+
+    // ── PASSER YARATICI KOŞU: pas attıktan sonra boşluğa koştur ──
+    bool goRight = passer.isHome;
+    bool nearBox = goRight ? passer.pos.x > 0.55 : passer.pos.x < 0.45;
+    double runX, runY;
+    if (nearBox && _rng.nextInt(100) < 75) {
+      // Ceza alanına veya içine koş – gol fırsatı yarat
+      runX = (goRight
+              ? 0.74 + _rng.nextDouble() * 0.16
+              : 0.10 + _rng.nextDouble() * 0.16)
+          .clamp(0.05, 0.95);
+      runY = 0.20 + _rng.nextDouble() * 0.60;
+    } else if (_rng.nextInt(100) < 60) {
+      // Genel yaratıcı koşu – ileri ve yana
+      runX = (passer.pos.x +
+              (goRight ? 0.14 : -0.14) +
+              (_rng.nextDouble() - 0.5) * 0.10)
+          .clamp(0.05, 0.95);
+      runY =
+          (passer.pos.y + (_rng.nextDouble() - 0.5) * 0.32).clamp(0.05, 0.95);
+    } else {
+      // Çapraz koşu – yeni açı yarat
+      double diagY = (passer.homeBase.y > 0.5 ? 1 : -1) * 0.22;
+      runX = (passer.pos.x + (goRight ? 0.12 : -0.12)).clamp(0.05, 0.95);
+      runY = (passer.pos.y + diagY).clamp(0.05, 0.95);
+    }
+    passer.moveTarget = Pos(runX, runY);
 
     ball.owner = null;
     ball.phase = BallPhase.passFlight;
     ball.passFrom.set(passer.pos);
-    ball.passTo.set(target.pos);
+    ball.passTo.set(target.pos); // locked destination
     ball.passTarget = target;
-    ball.passTicksTotal = max(10, (passer.pos.dist(target.pos) * 75).round());
+    // Receiver MUST run to exact arrival point – prevents "floating" ball
+    target.moveTarget.set(ball.passTo);
+    ball.passTicksTotal =
+        max(16, (passer.pos.dist(target.pos) * 95 * _passTicksMult()).round());
     ball.passTicksRemaining = ball.passTicksTotal;
     ball.pos.set(passer.pos);
     _log('✓ ${passer.data.name} → ${target.data.name}', Colors.lightBlueAccent);
@@ -764,15 +878,16 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
     SimPlayer? recv = ball.passTarget;
     if (recv == null) {
+      // Errant pass – loose ball at landing spot
       ball.phase = BallPhase.free;
       return;
     }
 
-    // Can an opponent intercept?
+    // Can an opponent intercept at arrival?
     var opp = recv.isHome ? awayTeam : homeTeam;
     SimPlayer? rival = opp.firstWhereOrNull(
         (o) => o.pos.dist(ball.pos) < recv.pos.dist(ball.pos) - 0.04);
-    if (rival != null && _rng.nextInt(100) < 28) {
+    if (rival != null && _rng.nextInt(100) < 22) {
       ball.owner = rival;
       ball.phase = BallPhase.owned;
       ball.pos.set(rival.pos);
@@ -781,9 +896,19 @@ class _MatchEngineViewState extends State<MatchEngineView>
       return;
     }
 
-    ball.owner = recv;
-    ball.phase = BallPhase.owned;
-    ball.pos.set(recv.pos);
+    // Ball arrives at its locked destination
+    ball.pos.set(ball.passTo);
+    // Receiver must be within 0.10 of arrival point to collect cleanly
+    if (recv.pos.dist(ball.passTo) < 0.10) {
+      ball.owner = recv;
+      ball.phase = BallPhase.owned;
+      recv.pos.set(ball.passTo);
+    } else {
+      // Receiver too far – loose ball at arrival spot
+      ball.owner = null;
+      ball.phase = BallPhase.free;
+      _log('📌 Top sahada kaldı!', Colors.white38);
+    }
   }
 
   // ─── CROSS ──────────────────────────────────────────────────────────────────
@@ -814,8 +939,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
     ball.passFrom.set(crosser.pos);
     ball.passTo.set(tgt.moveTarget);
     ball.passTarget = tgt;
-    ball.passTicksTotal = 45;
-    ball.passTicksRemaining = 45;
+    ball.passTicksTotal = max(20, (45 * _passTicksMult()).round());
+    ball.passTicksRemaining = ball.passTicksTotal;
   }
 
   // ─── SHOOT ──────────────────────────────────────────────────────────────────
@@ -848,7 +973,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
     bool is1v1 = (shooter.isHome ? homeTeam : awayTeam)
         .where((p) => p.role == 'DEF' && p.pos.dist(shooter.pos) < 0.18)
         .isEmpty;
-    int saveChance = max(8, (reflex * 0.44).round() + (is1v1 ? 0 : 20));
+    int saveChance = max(6, (reflex * 0.38).round() + (is1v1 ? 0 : 14));
     bool gkSaves = onTarget && _rng.nextInt(100) < saveChance;
 
     // Store verdict in ball for flight resolution
@@ -866,8 +991,18 @@ class _MatchEngineViewState extends State<MatchEngineView>
       double baseY = 0.5 + (_rng.nextDouble() - 0.5) * 0.7;
       goalY = baseY.clamp(0.02, 0.98);
     } else {
-      // On-target: aim within goal mouth with small variation
-      goalY = 0.38 + _rng.nextDouble() * 0.24;
+      // Finishing stat drives corner placement:
+      // shootStat 40 → center only; 100 → 72% chance at corner
+      double cornerProb = ((shooter.shootStat - 40) / 60.0).clamp(0.0, 1.0);
+      if (_rng.nextDouble() < cornerProb * 0.72) {
+        // Corner of the goal
+        goalY = _rng.nextBool()
+            ? 0.37 + _rng.nextDouble() * 0.03 // near post
+            : 0.60 + _rng.nextDouble() * 0.03; // far post
+      } else {
+        // Aim at center-ish area (easier for GK but still on target)
+        goalY = 0.43 + _rng.nextDouble() * 0.14;
+      }
     }
 
     // Launch ball as shot flight
@@ -880,7 +1015,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
     ball.pos.set(shooter.pos);
 
     // Engage slow motion
-    _shotSlowMoTicks = 55;
+    _shotSlowMoTicks = 90;
   }
 
   // ─── SHOT FLIGHT ────────────────────────────────────────────────────────────
@@ -1202,9 +1337,39 @@ class _MatchEngineViewState extends State<MatchEngineView>
   }
 
   void _updateMovementTarget(SimPlayer p) {
-    // During shot flight: players subtly shift (anticipate rebound) during slow-mo
+    // ─── PASS RECEIVER: always run to locked arrival point ──────────────────
+    if (ball.phase == BallPhase.passFlight && ball.passTarget == p) {
+      p.moveTarget.set(ball.passTo); // keep running to where ball will arrive
+      return;
+    }
+
+    // ─── GK: always tracks ball Y live – even during pass/shot flights ───────
+    if (p.role == 'GK') {
+      bool ownHasBall = ball.owner != null && ball.owner!.isHome == p.isHome;
+      double ballRefY = ball.pos.y; // live ball pos, not owner pos
+      if (ownHasBall) {
+        // Team has ball: stay near post, slight Y lean toward ball
+        double gy = (ballRefY * 0.20 + p.homeBase.y * 0.80).clamp(0.28, 0.72);
+        p.moveTarget = Pos(p.homeBase.x, gy);
+      } else {
+        // Defending: always be in-line with the ball
+        double idealY = ballRefY.clamp(0.24, 0.76);
+        p.moveTarget = Pos(p.homeBase.x, idealY);
+      }
+      return;
+    }
+
+    // During shot flight: players anticipate rebound
     if (ball.phase == BallPhase.shotFlight) {
-      if (tick % 7 == p.playerIndex % 7) {
+      bool goRight = p.isHome;
+      bool attacking = p.role == 'FWD' || p.role == 'MID';
+      if (attacking) {
+        // Rush toward rebound zone
+        double rebX = goRight
+            ? 0.78 + _rng.nextDouble() * 0.12
+            : 0.10 + _rng.nextDouble() * 0.12;
+        p.moveTarget = Pos(rebX, 0.28 + _rng.nextDouble() * 0.44);
+      } else if (tick % 7 == p.playerIndex % 7) {
         p.moveTarget.x = (p.moveTarget.x + (_rng.nextDouble() - 0.5) * 0.04)
             .clamp(0.04, 0.96);
         p.moveTarget.y = (p.moveTarget.y + (_rng.nextDouble() - 0.5) * 0.035)
@@ -1262,9 +1427,11 @@ class _MatchEngineViewState extends State<MatchEngineView>
       return;
     }
 
-    if (ball.owner == null) return;
-    var bo = ball.owner!;
-    bool ownTeamHasBall = (bo.isHome == p.isHome);
+    // Use ball.pos as reference during flights too
+    Pos ballRef = ball.pos;
+    bool ownTeamHasBall =
+        ball.owner != null && (ball.owner!.isHome == p.isHome);
+    SimPlayer? bo = ball.owner;
 
     // ── OTOMATİK MAN-MARKING sistemi ──
     // Markaj hedefini güncelle (sadece savunma pozisyonundayken)
@@ -1272,6 +1439,33 @@ class _MatchEngineViewState extends State<MatchEngineView>
     p.markTarget = autoMark;
 
     if (!ownTeamHasBall && autoMark != null && p.role != 'GK') {
+      // ── DEF: form solid wall at penalty-box edge ──
+      if (p.role == 'DEF') {
+        bool goRight = p.isHome;
+        // Edge of our own penalty box
+        double boxEdge = goRight ? 0.83 : 0.17;
+        // Shift line toward ball but never beyond box edge
+        double wallX = goRight
+            ? min(boxEdge, ballRef.x - 0.06).clamp(0.06, boxEdge)
+            : max(boxEdge, ballRef.x + 0.06).clamp(boxEdge, 0.94);
+        // Y: each DEF covers a channel of the goal
+        const defChannelY = [0.32, 0.68];
+        double channelY = defChannelY[(p.playerIndex == 1) ? 0 : 1];
+        // Blend toward marked attacker Y for tight marking
+        double targetY = autoMark != null
+            ? (autoMark.pos.y * 0.65 + channelY * 0.35)
+            : channelY;
+        p.moveTarget = Pos(wallX, targetY.clamp(0.08, 0.92));
+        // Tackle if attacker walks into wall
+        if (p.pos.dist(autoMark.pos) < 0.055 && bo != null) {
+          if (_rng.nextInt(100) < max(10, p.defStat - bo.dribbleStat + 32)) {
+            _beenTackled(bo, p);
+          }
+        }
+        _constrainByTactic(p);
+        _applySeparation(p);
+        return;
+      }
       // Rakibi gölgele - biraz önünde dur
       double shadowX = autoMark.pos.x + (p.isHome ? -0.04 : 0.04);
       double shadowY = autoMark.pos.y;
@@ -1280,7 +1474,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
         shadowY.clamp(0.04, 0.96),
       );
       // Yakın geçişte müdahale
-      if (p.pos.dist(autoMark.pos) < 0.052) {
+      if (p.pos.dist(autoMark.pos) < 0.052 && bo != null) {
         if (_rng.nextInt(100) < max(8, p.defStat - bo.dribbleStat + 30)) {
           _beenTackled(bo, p);
         }
@@ -1292,19 +1486,44 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
     if (ownTeamHasBall) {
       // ── TAKIM TOPLU: yayılma pozisyonu al ──
-      if (p.role == 'GK') {
-        // GK markaj yapabilir veya kalesinde durabilir
-        if (autoMark != null) {
-          // GK rakip FWD'yi takip et ama kaleyi bırakma
-          double gx = p.homeBase.x;
-          double gy =
-              (autoMark.pos.y * 0.4 + p.homeBase.y * 0.6).clamp(0.28, 0.72);
-          p.moveTarget = Pos(gx, gy);
-        } else {
-          p.moveTarget.set(p.homeBase);
+      bool goRight = p.isHome;
+
+      // FWD: when ball is in attacking half → run into penalty box
+      if (p.role == 'FWD') {
+        bool ballInAttHalf = goRight ? ballRef.x > 0.48 : ballRef.x < 0.52;
+        if (ballInAttHalf) {
+          double boxX = (goRight
+                  ? 0.78 + _rng.nextDouble() * 0.13
+                  : 0.09 + _rng.nextDouble() * 0.13)
+              .clamp(0.06, 0.94);
+          const fwdSlotY = [0.30, 0.70];
+          double slotY = fwdSlotY[(p.playerIndex == 5) ? 0 : 1];
+          slotY = (slotY + (_rng.nextDouble() - 0.5) * 0.10).clamp(0.10, 0.90);
+          p.moveTarget = Pos(boxX, slotY);
+          _applySeparation(p);
+          return;
         }
-      } else {
-        // Yayılma + pas almak için konum al – her tick güncelle (canlı hareket)
+      }
+
+      // MID: when ball in attacking half → support runs toward box edge
+      if (p.role == 'MID' && bo != null) {
+        bool ballInAttHalf = goRight ? ballRef.x > 0.52 : ballRef.x < 0.48;
+        if (ballInAttHalf) {
+          double supportX = (goRight
+                  ? 0.62 + _rng.nextDouble() * 0.14
+                  : 0.24 + _rng.nextDouble() * 0.14)
+              .clamp(0.06, 0.94);
+          const midSlotY = [0.22, 0.78];
+          double slotY = midSlotY[(p.playerIndex == 3) ? 0 : 1];
+          slotY = (slotY + (_rng.nextDouble() - 0.5) * 0.08).clamp(0.08, 0.92);
+          p.moveTarget = Pos(supportX, slotY);
+          _applySeparation(p);
+          return;
+        }
+      }
+
+      // DEF + others: spread position
+      if (bo != null) {
         Pos spread = _spreadPosition(p, bo.pos);
         p.moveTarget = Pos(
           (spread.x + (_rng.nextDouble() - 0.5) * 0.04).clamp(0.04, 0.96),
@@ -1312,11 +1531,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
         );
       }
     } else {
-      // ── SAVUNMA: GK kalesinde ──
-      if (p.role == 'GK') {
-        double idealY = bo.pos.y.clamp(0.26, 0.74);
-        p.moveTarget = Pos(p.homeBase.x, idealY);
-      } else {
+      // ── SAVUNMA ──
+      if (bo != null) {
         // Orta saha/FWD için topun yakınına baskı
         p.moveTarget = Pos(
           (bo.pos.x + (p.isHome ? -0.10 : 0.10)).clamp(0.05, 0.95),
@@ -1328,6 +1544,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
             _beenTackled(bo, p);
           }
         }
+      } else {
+        // Ball in flight – press toward ball position
+        p.moveTarget = Pos(
+          (ballRef.x + (p.isHome ? -0.08 : 0.08)).clamp(0.05, 0.95),
+          (ballRef.y + (_rng.nextDouble() - 0.5) * 0.10).clamp(0.05, 0.95),
+        );
       }
     }
 
@@ -1384,23 +1606,37 @@ class _MatchEngineViewState extends State<MatchEngineView>
   }
 
   double _speedFactor() {
-    // Slow motion during shot flight
+    // Dramatic slow-motion during shot flight
     if (ball.phase == BallPhase.shotFlight || _shotSlowMoTicks > 40) {
-      return 0.28; // ~3x slower – cinematic slow-mo
+      return 0.10; // ~10x slower – very cinematic
     }
     if (_shotSlowMoTicks > 0) {
       // Ease back to normal speed after shot resolves
       double ease = _shotSlowMoTicks / 40.0;
       double base = speed == MatchSpeed.slow
-          ? 0.36
+          ? 0.09
           : speed == MatchSpeed.fast
-              ? 1.45
-              : 0.78;
+              ? 1.10
+              : 0.38;
       return base * (1.0 - ease * 0.65);
     }
-    if (speed == MatchSpeed.slow) return 0.36;
-    if (speed == MatchSpeed.fast) return 1.45;
-    return 0.78;
+    if (speed == MatchSpeed.slow) return 0.09; // Very slow – highly realistic
+    if (speed == MatchSpeed.fast) return 1.10;
+    return 0.38; // Medium
+  }
+
+  /// Pass flight ticks multiplier – slow mode makes passes visually longer
+  double _passTicksMult() {
+    if (speed == MatchSpeed.slow) return 2.8;
+    if (speed == MatchSpeed.fast) return 0.55;
+    return 1.0;
+  }
+
+  /// How many engine ticks between automatic passes (scaled to speed)
+  int _scaledPassEvery(int base) {
+    if (speed == MatchSpeed.slow) return (base * 4.5).round();
+    if (speed == MatchSpeed.fast) return max(3, (base * 0.65).round());
+    return base;
   }
 
   // ─── LOG ────────────────────────────────────────────────────────────────────
@@ -1576,6 +1812,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
           // Players
           ...homeTeam.map((p) => _playerDot(p, Colors.redAccent, w, h)),
           ...awayTeam.map((p) => _playerDot(p, Colors.cyanAccent, w, h)),
+          // Wind trail for shot ball
+          if (_ballTrail.length > 1)
+            CustomPaint(
+              size: Size(w, h),
+              painter: _BallTrailPainter(_ballTrail, w, h),
+            ),
           // Ball
           _ballDot(w, h),
           // Slow-motion overlay
@@ -1619,15 +1861,19 @@ class _MatchEngineViewState extends State<MatchEngineView>
         ),
       );
 
+  // Jersey numbers per position slot
+  static const _jerseyNums = [1, 2, 3, 4, 5, 7, 9];
+
   Widget _playerDot(SimPlayer p, Color base, double w, double h) {
     bool hasBall = (ball.owner == p);
     bool isMarking = (p.markTarget != null);
     Color c = p.isPressing ? Colors.orangeAccent : base;
     bool ledActive = p.isPassShoot;
+    int jerseyNum = _jerseyNums[p.playerIndex.clamp(0, 6)];
 
     return Positioned(
-      left: (p.pos.x * w - 13).clamp(0.0, w - 26),
-      top: (p.pos.y * h - 16).clamp(0.0, h - 32),
+      left: (p.pos.x * w - 15).clamp(0.0, w - 30),
+      top: (p.pos.y * h - 18).clamp(0.0, h - 36),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1638,21 +1884,21 @@ class _MatchEngineViewState extends State<MatchEngineView>
               if (ledActive)
                 TweenAnimationBuilder<double>(
                   tween: Tween(begin: 1.0, end: 0.0),
-                  duration: const Duration(milliseconds: 420),
+                  duration: const Duration(milliseconds: 500),
                   builder: (_, v, __) => Container(
-                    width: 34,
-                    height: 34,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: Colors.white.withOpacity(v * 0.95),
-                        width: 2.4,
+                        width: 2.5,
                       ),
                       boxShadow: [
                         BoxShadow(
                           color: c.withOpacity(v * 0.85),
-                          blurRadius: 12,
-                          spreadRadius: 4,
+                          blurRadius: 14,
+                          spreadRadius: 5,
                         ),
                       ],
                     ),
@@ -1661,8 +1907,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
               // Marking indicator ring
               if (isMarking && !ledActive)
                 Container(
-                  width: 30,
-                  height: 30,
+                  width: 34,
+                  height: 34,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
@@ -1670,37 +1916,71 @@ class _MatchEngineViewState extends State<MatchEngineView>
                         width: 1.2),
                   ),
                 ),
+              // Ball-possession glow ring
+              if (hasBall)
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border:
+                        Border.all(color: Colors.white.withOpacity(0.9), width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.white.withOpacity(0.55),
+                          blurRadius: 10,
+                          spreadRadius: 2)
+                    ],
+                  ),
+                ),
               Container(
-                width: 26,
-                height: 26,
+                width: 28,
+                height: 28,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: c.withOpacity(0.88),
+                  gradient: RadialGradient(
+                    colors: [c, c.withOpacity(0.72)],
+                    center: const Alignment(-0.35, -0.35),
+                  ),
                   border: Border.all(
-                      color: hasBall ? Colors.white : Colors.black87,
-                      width: hasBall ? 2.5 : 1),
+                      color: hasBall
+                          ? Colors.white
+                          : Colors.black.withOpacity(0.6),
+                      width: hasBall ? 2.2 : 1.2),
                   boxShadow: [
                     BoxShadow(
-                        color: c.withOpacity(hasBall ? 0.9 : 0.4),
-                        blurRadius: hasBall ? 10 : 5)
+                        color: c.withOpacity(hasBall ? 0.85 : 0.35),
+                        blurRadius: hasBall ? 12 : 6)
                   ],
                 ),
                 child: Center(
-                  child: Text(p.role[0],
+                  child: Text('$jerseyNum',
                       style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold)),
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          shadows: [
+                            Shadow(
+                                color: Colors.black54,
+                                blurRadius: 3,
+                                offset: Offset(0.5, 0.5))
+                          ])),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 1),
           Text(
-            p.data.name.length > 6
-                ? '${p.data.name.substring(0, 5)}.'
+            p.data.name.length > 7
+                ? '${p.data.name.substring(0, 6)}.'
                 : p.data.name,
-            style:
-                TextStyle(color: c, fontSize: 7, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: c.withOpacity(0.92),
+                fontSize: 7.5,
+                fontWeight: FontWeight.bold,
+                shadows: const [
+                  Shadow(color: Colors.black, blurRadius: 3)
+                ]),
           ),
         ],
       ),
@@ -1721,19 +2001,48 @@ class _MatchEngineViewState extends State<MatchEngineView>
     return Positioned(
       left: (bp.x * w - size / 2).clamp(0.0, w - size),
       top: (bp.y * h - size / 2).clamp(0.0, h - size),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: bc,
-          boxShadow: [
-            BoxShadow(
-                color: bc.withOpacity(isShotBall ? 1.0 : 0.9),
-                blurRadius: isShotBall ? 18 : 10,
-                spreadRadius: isShotBall ? 4 : 2)
-          ],
-        ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // LED ring glow on shot ball
+          if (isShotBall)
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.4, end: 1.0),
+              duration: const Duration(milliseconds: 180),
+              builder: (_, v, __) => Container(
+                width: size + 14,
+                height: size + 14,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.orangeAccent.withOpacity(v * 0.9),
+                    width: 2.0,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange.withOpacity(v * 0.7),
+                      blurRadius: 16,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: bc,
+              boxShadow: [
+                BoxShadow(
+                    color: bc.withOpacity(isShotBall ? 1.0 : 0.9),
+                    blurRadius: isShotBall ? 22 : 10,
+                    spreadRadius: isShotBall ? 5 : 2)
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1816,31 +2125,91 @@ class _MatchEngineViewState extends State<MatchEngineView>
   }
 }
 
+// ─── BALL TRAIL PAINTER ──────────────────────────────────────────────────────────
+
+class _BallTrailPainter extends CustomPainter {
+  final List<Pos> trail;
+  final double w, h;
+  _BallTrailPainter(this.trail, this.w, this.h);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (trail.length < 2) return;
+    for (int i = 0; i < trail.length - 1; i++) {
+      double t = (i + 1) / trail.length;
+      final paint = Paint()
+        ..color = Colors.orangeAccent.withOpacity(t * 0.55)
+        ..strokeWidth = (t * 7).clamp(1.5, 7.0)
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+      canvas.drawLine(
+        Offset(trail[i].x * w, trail[i].y * h),
+        Offset(trail[i + 1].x * w, trail[i + 1].y * h),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BallTrailPainter old) => true;
+}
+
 // ─── PITCH PAINTER ──────────────────────────────────────────────────────────
 
 class _PitchPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
+    double w = size.width, h = size.height;
+
+    // ── Alternating mowing stripes (horizontal bands) ──
+    const int numStripes = 10;
+    double stripeH = h / numStripes;
+    for (int i = 0; i < numStripes; i++) {
+      final stripePaint = Paint()
+        ..color = (i.isEven
+            ? const Color(0xFF1B6620)
+            : const Color(0xFF1E7524))
+        ..style = PaintingStyle.fill;
+      canvas.drawRect(
+          Rect.fromLTWH(0, i * stripeH, w, stripeH), stripePaint);
+    }
+
     final p = Paint()
-      ..color = Colors.white.withOpacity(0.16)
-      ..strokeWidth = 1.0
+      ..color = Colors.white.withOpacity(0.20)
+      ..strokeWidth = 1.2
       ..style = PaintingStyle.stroke;
 
-    double w = size.width, h = size.height;
     // Center line
     canvas.drawLine(Offset(w / 2, 0), Offset(w / 2, h), p);
     // Center circle
-    canvas.drawCircle(Offset(w / 2, h / 2), h * 0.15, p);
+    canvas.drawCircle(Offset(w / 2, h / 2), h * 0.155, p);
     // Center dot
     p.style = PaintingStyle.fill;
-    canvas.drawCircle(Offset(w / 2, h / 2), 4, p);
+    canvas.drawCircle(Offset(w / 2, h / 2), 4.5, p);
     p.style = PaintingStyle.stroke;
     // Penalty boxes
-    canvas.drawRect(Rect.fromLTWH(0, h * 0.23, w * 0.16, h * 0.54), p);
-    canvas.drawRect(Rect.fromLTWH(w * 0.84, h * 0.23, w * 0.16, h * 0.54), p);
-    // Small boxes
-    canvas.drawRect(Rect.fromLTWH(0, h * 0.36, w * 0.055, h * 0.28), p);
-    canvas.drawRect(Rect.fromLTWH(w * 0.945, h * 0.36, w * 0.055, h * 0.28), p);
+    canvas.drawRect(Rect.fromLTWH(0, h * 0.22, w * 0.17, h * 0.56), p);
+    canvas.drawRect(Rect.fromLTWH(w * 0.83, h * 0.22, w * 0.17, h * 0.56), p);
+    // Small boxes (6-yard box)
+    canvas.drawRect(Rect.fromLTWH(0, h * 0.355, w * 0.058, h * 0.29), p);
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.942, h * 0.355, w * 0.058, h * 0.29), p);
+    // Penalty spots
+    p.style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(w * 0.12, h * 0.5), 3.5, p);
+    canvas.drawCircle(Offset(w * 0.88, h * 0.5), 3.5, p);
+    p.style = PaintingStyle.stroke;
+    // Penalty arc
+    canvas.drawArc(Rect.fromCenter(
+        center: Offset(w * 0.12, h * 0.5),
+        width: h * 0.28,
+        height: h * 0.28), -1.0, 2.0, false, p);
+    canvas.drawArc(Rect.fromCenter(
+        center: Offset(w * 0.88, h * 0.5),
+        width: h * 0.28,
+        height: h * 0.28), 2.1, 2.0, false, p);
+    // Touch line & goal line (border)
+    canvas.drawRect(Rect.fromLTWH(1, 1, w - 2, h - 2), p);
   }
 
   @override
