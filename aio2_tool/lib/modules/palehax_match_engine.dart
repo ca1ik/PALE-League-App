@@ -151,6 +151,11 @@ class SimPlayer {
   int playerIndex = 0; // 0=GK,1-2=DEF,3-4=MID,5-6=FWD
   SimPlayer? markTarget; // assigned man-marking target
 
+  // FM26-style smooth movement
+  double vx = 0, vy = 0;
+  // Stamina: 1.0 = fresh → 0.72 = tired late game
+  double stamina = 1.0;
+
   SimPlayer({
     required this.data,
     required Pos startPos,
@@ -281,6 +286,11 @@ class _MatchEngineViewState extends State<MatchEngineView>
   int _shotSlowMoTicks = 0;
   List<Pos> _ballTrail = [];
 
+  // Foul / free-kick state
+  bool _isFreeKick = false;
+  bool _freeKickForHome = false;
+  Pos _freeKickPos = Pos(0.5, 0.5);
+
   @override
   void initState() {
     super.initState();
@@ -400,6 +410,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
     for (var p in [...homeTeam, ...awayTeam]) {
       p.pos.set(p.homeBase);
       p.moveTarget.set(p.homeBase);
+      p.vx = 0;
+      p.vy = 0;
       p.isPressing = false;
       p.pressTimer = 0;
       p.isCornering = false;
@@ -448,14 +460,11 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
     if (!isGoal) _simulate();
 
-    // Ball trail for wind effect – only during shot flight near goal-line
-    if (ball.phase == BallPhase.shotFlight) {
-      bool nearGoalLine = ball.pos.x > 0.68 || ball.pos.x < 0.32;
-      if (nearGoalLine) {
-        _ballTrail.add(ball.pos.copy());
-        if (_ballTrail.length > 10) _ballTrail.removeAt(0);
-      }
-    } else if (_ballTrail.isNotEmpty) {
+    // Ball trail – always track for smooth FM26 motion blur
+    if (!isGoal && ball.phase != BallPhase.cornerDelay) {
+      _ballTrail.add(ball.pos.copy());
+      if (_ballTrail.length > 9) _ballTrail.removeAt(0);
+    } else if (isGoal) {
       _ballTrail.clear();
     }
 
@@ -501,6 +510,15 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
     }
 
+    // Stamina drain: each player tires across the match
+    if (tick % 90 == 0) {
+      for (var p in [...homeTeam, ...awayTeam]) {
+        double phy = (p.stats['Fizik'] ?? 10).toDouble();
+        double drainRate = 0.0012 * (1.2 - phy * 0.007).clamp(0.3, 1.2);
+        p.stamina = max(0.72, p.stamina - drainRate);
+      }
+    }
+
     // Owner moves toward their current target too, ball follows
     if (ball.owner != null && ball.phase == BallPhase.owned) {
       _moveToward(ball.owner!);
@@ -523,14 +541,31 @@ class _MatchEngineViewState extends State<MatchEngineView>
     var team = owner.isHome ? homeTeam : awayTeam;
     var gk = opp.firstWhere((p) => p.role == 'GK', orElse: () => opp.first);
 
-    // ── OWNER MOVEMENT: HaxBall-style – smooth forward run with gentle sway ──
-    // Sinusoidal lateral oscillation creates organic dribbling motion
-    double osc = sin(tick * 0.18 + owner.playerIndex * 0.9) * 0.065;
-    double fwdStep = owner.role == 'GK' ? 0.0 : 0.022;
-    owner.moveTarget = Pos(
-      (owner.pos.x + (goRight ? fwdStep : -fwdStep)).clamp(0.01, 0.99),
-      (owner.pos.y + osc + (_rng.nextDouble() - 0.5) * 0.015).clamp(0.02, 0.98),
-    );
+    // ── OWNER MOVEMENT: FM26-style – reads the field ──
+    // Check if forward path is blocked by opponents
+    double lookX = (owner.pos.x + (goRight ? 0.14 : -0.14)).clamp(0.04, 0.96);
+    var blocking = opp
+        .where((o) =>
+            (o.pos.x - lookX).abs() < 0.12 &&
+            (o.pos.y - owner.pos.y).abs() < 0.14)
+        .toList();
+
+    if (blocking.isEmpty && owner.role != 'GK') {
+      // Open lane: smooth controlled dribble forward
+      double sway = sin(tick * 0.12 + owner.playerIndex * 1.3) * 0.035;
+      double fwdStep = owner.role == 'DEF' ? 0.010 : 0.015;
+      owner.moveTarget = Pos(
+        (owner.pos.x + (goRight ? fwdStep : -fwdStep)).clamp(0.01, 0.99),
+        (owner.pos.y + sway).clamp(0.04, 0.96),
+      );
+    } else {
+      // Blocked: slow down, look for sideways escape
+      double sideStep = _rng.nextBool() ? 0.09 : -0.09;
+      owner.moveTarget = Pos(
+        (owner.pos.x + (goRight ? 0.003 : -0.003)).clamp(0.04, 0.96),
+        (owner.pos.y + sideStep).clamp(0.04, 0.96),
+      );
+    }
 
     // Yakın baskı yapanlar
     var pressers = opp.where((o) => o.pos.dist(owner.pos) < 0.11).toList();
@@ -1215,12 +1250,55 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
   void _beenTackled(SimPlayer owner, SimPlayer tackler) {
     if (_rng.nextInt(100) < max(15, tackler.defStat - owner.dribbleStat + 38)) {
+      // Foul chance: sert müdahale veya düşük defans statı
+      int foulChance = max(5, 30 - tackler.defStat ~/ 5);
+      if (!_isFreeKick && _rng.nextInt(100) < foulChance) {
+        _triggerFoul(owner, tackler);
+        return;
+      }
       ball.owner = tackler;
       ball.phase = BallPhase.owned;
       ball.pos.set(tackler.pos);
       _log('⚔️ ${tackler.data.name} topladı!', Colors.orangeAccent);
       _maybeTriggerGegen(owner.isHome);
     }
+  }
+
+  void _triggerFoul(SimPlayer fouled, SimPlayer tackler) {
+    _isFreeKick = true;
+    _freeKickForHome = fouled.isHome;
+    _freeKickPos = fouled.pos.copy();
+    ball.owner = null;
+    ball.phase = BallPhase.free;
+    ball.pos.set(_freeKickPos);
+
+    bool yellowCard = _rng.nextInt(100) < 20;
+    String card = yellowCard ? ' 🟨 Sarı Kart!' : '';
+    _log('🚨 Faul! ${tackler.data.name} → ${fouled.data.name}$card',
+        Colors.redAccent);
+
+    // Foul bekleme süresi (ms)
+    int waitMs = speed == MatchSpeed.slow
+        ? 2600
+        : speed == MatchSpeed.medium
+            ? 1200
+            : 600;
+    var team = _freeKickForHome ? homeTeam : awayTeam;
+    SimPlayer taker =
+        team.fold(team.first, (b, p) => p.passStat > b.passStat ? p : b);
+
+    Future.delayed(Duration(milliseconds: waitMs), () {
+      if (!mounted || isMatchOver || isGoal) return;
+      _isFreeKick = false;
+      taker.pos.set(_freeKickPos);
+      taker.vx = 0;
+      taker.vy = 0;
+      ball.owner = taker;
+      ball.pos.set(_freeKickPos);
+      ball.phase = BallPhase.owned;
+      _log('⚡ ${taker.data.name} serbest vuruş kullandı',
+          Colors.lightBlueAccent);
+    });
   }
 
   void _maybeTriggerGegen(bool losingIsHome) {
@@ -1449,9 +1527,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
         const defChannelY = [0.32, 0.68];
         double channelY = defChannelY[(p.playerIndex == 1) ? 0 : 1];
         // Blend toward marked attacker Y for tight marking
-        double targetY = autoMark != null
-            ? (autoMark.pos.y * 0.65 + channelY * 0.35)
-            : channelY;
+        double targetY = autoMark.pos.y * 0.65 + channelY * 0.35;
         p.moveTarget = Pos(wallX, targetY.clamp(0.08, 0.92));
         // Tackle if attacker walks into wall
         if (p.pos.dist(autoMark.pos) < 0.055 && bo != null) {
@@ -1482,70 +1558,96 @@ class _MatchEngineViewState extends State<MatchEngineView>
     }
 
     if (ownTeamHasBall) {
-      // ── TAKIM TOPLU: yayılma pozisyonu al ──
+      // ── TAKIM TOPLU: FM26-style şekil ──
       bool goRight = p.isHome;
+      // Only recompute target every few ticks to prevent jitter
+      bool shouldUpdate = (tick % 8 == p.playerIndex % 8);
 
-      // FWD: when ball is in attacking half → run into penalty box
-      if (p.role == 'FWD') {
-        bool ballInAttHalf = goRight ? ballRef.x > 0.48 : ballRef.x < 0.52;
+      // FWD: attacking half → run into channels at penalty box
+      if (p.role == 'FWD' && shouldUpdate) {
+        bool ballInAttHalf = goRight ? ballRef.x > 0.46 : ballRef.x < 0.54;
         if (ballInAttHalf) {
-          double boxX = (goRight
-                  ? 0.78 + _rng.nextDouble() * 0.13
-                  : 0.09 + _rng.nextDouble() * 0.13)
-              .clamp(0.06, 0.94);
-          const fwdSlotY = [0.30, 0.70];
-          double slotY = fwdSlotY[(p.playerIndex == 5) ? 0 : 1];
-          slotY = (slotY + (_rng.nextDouble() - 0.5) * 0.10).clamp(0.10, 0.90);
-          p.moveTarget = Pos(boxX, slotY);
-          _applySeparation(p);
-          return;
+          // Fixed channels (L/R) – no random jitter
+          const fwdChannelY = [0.28, 0.72];
+          double channelY = fwdChannelY[(p.playerIndex == 5) ? 0 : 1];
+          double targetX = (goRight
+                  ? 0.80 + sin(tick * 0.04 + p.playerIndex) * 0.05
+                  : 0.20 - sin(tick * 0.04 + p.playerIndex) * 0.05)
+              .clamp(0.10, 0.90);
+          p.moveTarget = Pos(targetX, channelY);
+        } else {
+          // Stay in own half, support possession
+          p.moveTarget = Pos(
+            goRight ? ballRef.x + 0.10 : ballRef.x - 0.10,
+            p.homeBase.y,
+          );
         }
+        _applySeparation(p);
+        return;
       }
 
-      // MID: when ball in attacking half → support runs toward box edge
-      if (p.role == 'MID' && bo != null) {
-        bool ballInAttHalf = goRight ? ballRef.x > 0.52 : ballRef.x < 0.48;
-        if (ballInAttHalf) {
-          double supportX = (goRight
-                  ? 0.62 + _rng.nextDouble() * 0.14
-                  : 0.24 + _rng.nextDouble() * 0.14)
-              .clamp(0.06, 0.94);
-          const midSlotY = [0.22, 0.78];
-          double slotY = midSlotY[(p.playerIndex == 3) ? 0 : 1];
-          slotY = (slotY + (_rng.nextDouble() - 0.5) * 0.08).clamp(0.08, 0.92);
-          p.moveTarget = Pos(supportX, slotY);
-          _applySeparation(p);
-          return;
-        }
+      // MID: stagger between ball carrier and penalty box edge
+      if (p.role == 'MID' && shouldUpdate && bo != null) {
+        bool ballInAttHalf = goRight ? ballRef.x > 0.50 : ballRef.x < 0.50;
+        const midChannelY = [0.22, 0.78];
+        double channelY = midChannelY[(p.playerIndex == 3) ? 0 : 1];
+        double targetX = ballInAttHalf
+            ? (goRight
+                ? 0.64 + sin(tick * 0.03) * 0.04
+                : 0.36 - sin(tick * 0.03) * 0.04)
+            : (goRight ? ballRef.x + 0.06 : ballRef.x - 0.06);
+        p.moveTarget = Pos(targetX.clamp(0.20, 0.82), channelY);
+        _applySeparation(p);
+        return;
       }
 
-      // DEF + others: spread position
-      if (bo != null) {
+      // DEF + others: hold formation shape relative to ball
+      if (shouldUpdate && bo != null) {
         Pos spread = _spreadPosition(p, bo.pos);
+        // Stable home-base blend (no random) – prevents constant jitter
         p.moveTarget = Pos(
-          (spread.x + (_rng.nextDouble() - 0.5) * 0.04).clamp(0.04, 0.96),
-          (spread.y + (_rng.nextDouble() - 0.5) * 0.03).clamp(0.04, 0.96),
+          (spread.x * 0.7 + p.homeBase.x * 0.3).clamp(0.04, 0.96),
+          (spread.y * 0.75 + p.homeBase.y * 0.25).clamp(0.04, 0.96),
         );
+        _applySeparation(p);
       }
     } else {
-      // ── SAVUNMA ──
-      if (bo != null) {
-        // Orta saha/FWD için topun yakınına baskı
+      // ── SAVUNMA: compact mid/low block ──
+      bool shouldUpdate = (tick % 6 == p.playerIndex % 6);
+      if (bo != null && shouldUpdate) {
+        bool goRight = p.isHome;
+        // Each role drops to a defensive compactness zone
+        double blockX;
+        switch (p.role) {
+          case 'FWD':
+            // High pressing forward – pressure the ball carrier
+            blockX = (bo.pos.x + (goRight ? -0.14 : 0.14)).clamp(0.10, 0.90);
+            break;
+          case 'MID':
+            // Mid-block: stay between ball and our goal
+            blockX = goRight
+                ? (bo.pos.x - 0.08).clamp(0.28, 0.60)
+                : (bo.pos.x + 0.08).clamp(0.40, 0.72);
+            break;
+          default:
+            blockX = p.moveTarget.x; // DEF handled by man-marking above
+        }
+        double channelBias = p.homeBase.y;
         p.moveTarget = Pos(
-          (bo.pos.x + (p.isHome ? -0.10 : 0.10)).clamp(0.05, 0.95),
-          bo.pos.y + (_rng.nextDouble() - 0.5) * 0.12,
+          blockX,
+          (bo.pos.y * 0.45 + channelBias * 0.55).clamp(0.06, 0.94),
         );
-        // Yakın geçişte müdahale
-        if (p.pos.dist(bo.pos) < 0.05) {
+        // Close-range interception attempt
+        if (p.pos.dist(bo.pos) < 0.052) {
           if (_rng.nextInt(100) < max(8, p.defStat - bo.dribbleStat + 32)) {
             _beenTackled(bo, p);
           }
         }
-      } else {
-        // Ball in flight – press toward ball position
+      } else if (bo == null && shouldUpdate) {
+        // Ball in flight – move to intercept general area
         p.moveTarget = Pos(
-          (ballRef.x + (p.isHome ? -0.08 : 0.08)).clamp(0.05, 0.95),
-          (ballRef.y + (_rng.nextDouble() - 0.5) * 0.10).clamp(0.05, 0.95),
+          (ballRef.x + (p.isHome ? -0.07 : 0.07)).clamp(0.05, 0.95),
+          (ballRef.y * 0.6 + p.homeBase.y * 0.4).clamp(0.05, 0.95),
         );
       }
     }
@@ -1594,12 +1696,35 @@ class _MatchEngineViewState extends State<MatchEngineView>
     double dx = p.moveTarget.x - p.pos.x;
     double dy = p.moveTarget.y - p.pos.y;
     double d = sqrt(dx * dx + dy * dy);
-    if (d < 0.001) return;
+    if (d < 0.001) {
+      p.vx *= 0.72; // decelerate when at target
+      p.vy *= 0.72;
+      return;
+    }
 
-    double spd = (0.005 + (p.stats['Hız'] ?? 10) * 0.00014) * _speedFactor();
-    double step = min(d, spd);
-    p.pos.x = (p.pos.x + dx / d * step).clamp(0.01, 0.99);
-    p.pos.y = (p.pos.y + dy / d * step).clamp(0.02, 0.98);
+    double baseSpd =
+        (0.0038 + (p.stats['İçgüç'] ?? p.stats['Hız'] ?? 10) * 0.000155) *
+            _speedFactor() *
+            p.stamina.clamp(0.72, 1.0);
+
+    double targetVx = (dx / d) * baseSpd;
+    double targetVy = (dy / d) * baseSpd;
+
+    // FM26-style inertia – smooth acceleration
+    const double accel = 0.18;
+    p.vx += (targetVx - p.vx) * accel;
+    p.vy += (targetVy - p.vy) * accel;
+
+    // Cap to max speed
+    double spd = sqrt(p.vx * p.vx + p.vy * p.vy);
+    double maxSpd = baseSpd * 1.6;
+    if (spd > maxSpd) {
+      p.vx = p.vx / spd * maxSpd;
+      p.vy = p.vy / spd * maxSpd;
+    }
+
+    p.pos.x = (p.pos.x + p.vx).clamp(0.01, 0.99);
+    p.pos.y = (p.pos.y + p.vy).clamp(0.02, 0.98);
   }
 
   double _speedFactor() {
@@ -1686,56 +1811,98 @@ class _MatchEngineViewState extends State<MatchEngineView>
     bool playerHome = !widget.isPlayerTeamAway;
     int myG = playerHome ? homeScore : awayScore;
     int oppG = playerHome ? awayScore : homeScore;
+    double progress = isStarted ? (matchMinute / 90.0).clamp(0.0, 1.0) : 0.0;
 
-    return Container(
-      height: 76,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF0C1824), Color(0xFF162238)],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        border: Border(bottom: BorderSide(color: Color(0xFF223358))),
-      ),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-        Text('$myG',
-            style: GoogleFonts.russoOne(
-                fontSize: 54,
-                color: Colors.cyanAccent,
-                shadows: [const Shadow(color: Colors.cyan, blurRadius: 14)])),
-        Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text(
-            isMatchOver ? 'BİTTİ' : "${matchMinute.toStringAsFixed(0)}'",
-            style: GoogleFonts.orbitron(
-                color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          if (!isStarted) ...[
-            const SizedBox(height: 4),
-            GestureDetector(
-              onTap: _startMatch,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 5),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                      colors: [Color(0xFF00C853), Color(0xFF00E5FF)]),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text('BAŞLAT',
-                    style: GoogleFonts.orbitron(
-                        color: Colors.black,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold)),
-              ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          height: 70,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF0A1620), Color(0xFF0E1E30), Color(0xFF0A1620)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
             ),
-          ],
-        ]),
-        Text('$oppG',
-            style: GoogleFonts.russoOne(
-                fontSize: 54,
-                color: Colors.redAccent,
-                shadows: [const Shadow(color: Colors.red, blurRadius: 14)])),
-      ]),
+            border: Border(bottom: BorderSide(color: Color(0xFF1A2D4A))),
+          ),
+          child:
+              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+            Text('$myG',
+                style: GoogleFonts.russoOne(
+                    fontSize: 52,
+                    color: Colors.cyanAccent,
+                    shadows: [
+                      const Shadow(color: Colors.cyan, blurRadius: 16)
+                    ])),
+            Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text(
+                isMatchOver
+                    ? 'BİTTİ'
+                    : isStarted
+                        ? "${matchMinute.toStringAsFixed(0)}'"
+                        : '00\'',
+                style: GoogleFonts.orbitron(
+                    color: Colors.white70,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold),
+              ),
+              if (!isStarted) ...[
+                const SizedBox(height: 4),
+                GestureDetector(
+                  onTap: _startMatch,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 18, vertical: 5),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFF00C853), Color(0xFF00E5FF)]),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text('BAŞLAT',
+                        style: GoogleFonts.orbitron(
+                            color: Colors.black,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ]),
+            Text('$oppG',
+                style: GoogleFonts.russoOne(
+                    fontSize: 52,
+                    color: Colors.redAccent,
+                    shadows: [
+                      const Shadow(color: Colors.red, blurRadius: 16)
+                    ])),
+          ]),
+        ),
+        // Match time progress bar
+        SizedBox(
+          height: 4,
+          child: LayoutBuilder(builder: (_, box) {
+            return Stack(
+              children: [
+                Container(color: const Color(0xFF0D1820)),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: box.maxWidth * progress,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: matchMinute > 75
+                          ? [Colors.redAccent, Colors.orangeAccent]
+                          : [
+                              Colors.cyanAccent.withOpacity(0.7),
+                              Colors.blueAccent
+                            ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }),
+        ),
+      ],
     );
   }
 
@@ -1805,14 +1972,31 @@ class _MatchEngineViewState extends State<MatchEngineView>
           // Players
           ...homeTeam.map((p) => _playerDot(p, Colors.redAccent, w, h)),
           ...awayTeam.map((p) => _playerDot(p, Colors.cyanAccent, w, h)),
-          // Wind trail for shot ball
+          // Ball trail (always-on)
           if (_ballTrail.length > 1)
             CustomPaint(
               size: Size(w, h),
-              painter: _BallTrailPainter(_ballTrail, w, h),
+              painter: _BallTrailPainter(
+                  _ballTrail, w, h, ball.phase == BallPhase.shotFlight),
             ),
           // Ball
           _ballDot(w, h),
+          // Free-kick spot indicator
+          if (_isFreeKick)
+            Positioned(
+              left: (_freeKickPos.x * w - 12).clamp(0.0, w - 24),
+              top: (_freeKickPos.y * h - 12).clamp(0.0, h - 24),
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                      color: Colors.redAccent.withOpacity(0.85), width: 2),
+                  color: Colors.red.withOpacity(0.12),
+                ),
+              ),
+            ),
           // Slow-motion overlay
           if (ball.phase == BallPhase.shotFlight || _shotSlowMoTicks > 40)
             Positioned(
@@ -1973,7 +2157,23 @@ class _MatchEngineViewState extends State<MatchEngineView>
                 fontWeight: FontWeight.bold,
                 shadows: const [Shadow(color: Colors.black, blurRadius: 3)]),
           ),
+          // FM26-style velocity direction arrow
+          _velocityArrow(p, c),
         ],
+      ),
+    );
+  }
+
+  Widget _velocityArrow(SimPlayer p, Color c) {
+    double sp = sqrt(p.vx * p.vx + p.vy * p.vy);
+    if (sp < 0.00035) return const SizedBox.shrink();
+    double angle = atan2(p.vy, p.vx);
+    return Transform.rotate(
+      angle: angle,
+      child: SizedBox(
+        width: 12,
+        height: 7,
+        child: CustomPaint(painter: _ArrowPainter(c.withOpacity(0.75))),
       ),
     );
   }
@@ -2121,18 +2321,23 @@ class _MatchEngineViewState extends State<MatchEngineView>
 class _BallTrailPainter extends CustomPainter {
   final List<Pos> trail;
   final double w, h;
-  _BallTrailPainter(this.trail, this.w, this.h);
+  final bool isShot;
+  _BallTrailPainter(this.trail, this.w, this.h, [this.isShot = false]);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (trail.length < 2) return;
     for (int i = 0; i < trail.length - 1; i++) {
       double t = (i + 1) / trail.length;
+      final trailColor = isShot
+          ? Colors.orangeAccent.withOpacity(t * 0.60)
+          : Colors.white.withOpacity(t * 0.20);
       final paint = Paint()
-        ..color = Colors.orangeAccent.withOpacity(t * 0.55)
-        ..strokeWidth = (t * 7).clamp(1.5, 7.0)
+        ..color = trailColor
+        ..strokeWidth =
+            isShot ? (t * 6).clamp(1.5, 6.0) : (t * 3).clamp(1.0, 3.0)
         ..strokeCap = StrokeCap.round
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, isShot ? 3.0 : 1.5);
       canvas.drawLine(
         Offset(trail[i].x * w, trail[i].y * h),
         Offset(trail[i + 1].x * w, trail[i + 1].y * h),
@@ -2212,6 +2417,29 @@ class _PitchPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_) => false;
+}
+
+// ─── ARROW PAINTER (velocity direction indicator) ────────────────────────────
+
+class _ArrowPainter extends CustomPainter {
+  final Color color;
+  _ArrowPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    final path = Path()
+      ..moveTo(size.width, size.height / 2)
+      ..lineTo(0, 0)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_ArrowPainter old) => old.color != color;
 }
 
 // ─── ITERABLE EXT ────────────────────────────────────────────────────────────
