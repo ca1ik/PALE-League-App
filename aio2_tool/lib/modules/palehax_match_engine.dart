@@ -291,6 +291,16 @@ class _MatchEngineViewState extends State<MatchEngineView>
   bool _freeKickForHome = false;
   Pos _freeKickPos = Pos(0.5, 0.5);
 
+  // Lane tracking – 0=top(y<0.35), 1=mid, 2=bottom(y>0.65)
+  int _homeLane = 1;
+  int _awayLane = 1;
+  int _homeConsecLane = 0;
+  int _awayConsecLane = 0;
+
+  // Cached team power (0-100): recalculated at init
+  double _homePower = 50;
+  double _awayPower = 50;
+
   @override
   void initState() {
     super.initState();
@@ -324,6 +334,32 @@ class _MatchEngineViewState extends State<MatchEngineView>
     }
 
     _kickoff(homeTeam);
+    _homePower = _calcTeamPower(homeTeam, _myTactic(true));
+    _awayPower = _calcTeamPower(awayTeam, _myTactic(false));
+  }
+
+  double _calcTeamPower(List<SimPlayer> team, TacticStyle tac) {
+    if (team.isEmpty) return 50;
+    double avg = team.map((p) {
+          var s = p.stats;
+          return ((s['Şut'] ?? 10) +
+                  (s['Pas'] ?? 10) +
+                  (s['Hız'] ?? 10) +
+                  (s['Defans'] ?? 10) +
+                  (s['Dripling'] ?? 10) +
+                  (s['Refleks'] ?? 10))
+              .toDouble();
+        }).reduce((a, b) => a + b) /
+        team.length /
+        6;
+    // avg is on 1-20 scale → multiply to 0-100
+    double power = avg * 5.0;
+    // Tactic synergy bonus
+    if (tac == TacticStyle.tikiTaka) power += 3;
+    if (tac == TacticStyle.highPress) power += 2;
+    if (tac == TacticStyle.gegen) power += 2;
+    if (tac == TacticStyle.attack) power += 4;
+    return power.clamp(20, 100);
   }
 
   void _buildTeam(
@@ -541,8 +577,29 @@ class _MatchEngineViewState extends State<MatchEngineView>
     var team = owner.isHome ? homeTeam : awayTeam;
     var gk = opp.firstWhere((p) => p.role == 'GK', orElse: () => opp.first);
 
+    // ── Lane tracking: update which vertical zone owner is in ──
+    int curLane = owner.pos.y < 0.35
+        ? 0
+        : owner.pos.y > 0.65
+            ? 2
+            : 1;
+    if (owner.isHome) {
+      if (curLane == _homeLane)
+        _homeConsecLane++;
+      else {
+        _homeLane = curLane;
+        _homeConsecLane = 0;
+      }
+    } else {
+      if (curLane == _awayLane)
+        _awayConsecLane++;
+      else {
+        _awayLane = curLane;
+        _awayConsecLane = 0;
+      }
+    }
+
     // ── OWNER MOVEMENT: FM26-style – reads the field ──
-    // Check if forward path is blocked by opponents
     double lookX = (owner.pos.x + (goRight ? 0.14 : -0.14)).clamp(0.04, 0.96);
     var blocking = opp
         .where((o) =>
@@ -551,16 +608,14 @@ class _MatchEngineViewState extends State<MatchEngineView>
         .toList();
 
     if (blocking.isEmpty && owner.role != 'GK') {
-      // Open lane: smooth controlled dribble forward
-      double sway = sin(tick * 0.12 + owner.playerIndex * 1.3) * 0.035;
-      double fwdStep = owner.role == 'DEF' ? 0.010 : 0.015;
+      double sway = sin(tick * 0.12 + owner.playerIndex * 1.3) * 0.030;
+      double fwdStep = owner.role == 'DEF' ? 0.010 : 0.014;
       owner.moveTarget = Pos(
         (owner.pos.x + (goRight ? fwdStep : -fwdStep)).clamp(0.01, 0.99),
         (owner.pos.y + sway).clamp(0.04, 0.96),
       );
     } else {
-      // Blocked: slow down, look for sideways escape
-      double sideStep = _rng.nextBool() ? 0.09 : -0.09;
+      double sideStep = _rng.nextBool() ? 0.07 : -0.07;
       owner.moveTarget = Pos(
         (owner.pos.x + (goRight ? 0.003 : -0.003)).clamp(0.04, 0.96),
         (owner.pos.y + sideStep).clamp(0.04, 0.96),
@@ -568,24 +623,27 @@ class _MatchEngineViewState extends State<MatchEngineView>
     }
 
     // Yakın baskı yapanlar
-    var pressers = opp.where((o) => o.pos.dist(owner.pos) < 0.11).toList();
+    var pressers = opp.where((o) => o.pos.dist(owner.pos) < 0.12).toList();
 
     // ── GK pasla temizle ──
     if (owner.role == 'GK') {
       owner.moveTarget.set(owner.homeBase);
-      if (tick % 20 == 0) _tryPass(owner, team, preferFwd: false);
+      if (tick % 18 == 0) _tryPass(owner, team, preferFwd: false);
       return;
     }
 
     TacticStyle myTac = _myTactic(owner.isHome);
 
     // ── DUVAR PAS: kenar çizgisine yakınken köşeye çekilip içe pas ──
-    bool nearSideWall = owner.pos.y < 0.09 || owner.pos.y > 0.91;
+    bool nearSideWall = owner.pos.y < 0.08 || owner.pos.y > 0.92;
     bool notInBox = goRight ? owner.pos.x < 0.78 : owner.pos.x > 0.22;
-    if (nearSideWall && notInBox && pressers.isEmpty && _rng.nextInt(100) < 3) {
+    if (nearSideWall &&
+        notInBox &&
+        pressers.isEmpty &&
+        _rng.nextInt(100) < 35) {
       var closeMates = team
           .where((t) =>
-              t != owner && t.role != 'GK' && t.pos.dist(owner.pos) < 0.28)
+              t != owner && t.role != 'GK' && t.pos.dist(owner.pos) < 0.30)
           .toList();
       if (closeMates.isNotEmpty) {
         closeMates.sort(
@@ -607,7 +665,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
     }
 
     if (owner.instruction.passOnly) {
-      if (tick % 12 == 0 || pressers.isNotEmpty) {
+      if (tick % 10 == 0 || pressers.isNotEmpty) {
         if (_tryPass(owner, team, preferFwd: true)) return;
       }
     }
@@ -616,16 +674,16 @@ class _MatchEngineViewState extends State<MatchEngineView>
       owner.moveTarget = Pos(goalX, 0.35 + _rng.nextDouble() * 0.30);
     }
 
-    // ── ŞUT (PAS ÖNCE YAKLAŞIM) ──
-    bool inBox = goRight ? owner.pos.x > 0.78 : owner.pos.x < 0.22;
+    // ── ŞUT: ceza alanı içi ──
+    bool inBox = goRight ? owner.pos.x > 0.76 : owner.pos.x < 0.24;
     if (inBox && !owner.instruction.passOnly) {
-      // Önce yakın takım arkadaşına pas ver → gol pasla gelsin
+      // 60% ihtimalle önce ortak ara: gol pası
       bool hasOpenBoxMate = team.any((t) =>
           t != owner &&
           t.role != 'GK' &&
-          t.pos.dist(owner.pos) < 0.22 &&
+          t.pos.dist(owner.pos) < 0.20 &&
           opp.every((o) => o.pos.dist(t.pos) > 0.10));
-      if (hasOpenBoxMate && _rng.nextInt(100) < 48) {
+      if (hasOpenBoxMate && _rng.nextInt(100) < 40) {
         if (_tryPass(owner, team, preferFwd: false, boxPass: true)) return;
       }
 
@@ -641,39 +699,55 @@ class _MatchEngineViewState extends State<MatchEngineView>
       var tackler = pressers.first;
       int defSk = tackler.defStat;
       int driSk = owner.dribbleStat;
-      if (_rng.nextInt(100) < max(8, defSk - driSk + 35)) {
+      // Power imbalance: stronger team tackles easier
+      double pwr = owner.isHome ? _homePower : _awayPower;
+      double oppPwr = owner.isHome ? _awayPower : _homePower;
+      int tackleMod = ((oppPwr - pwr) * 0.18).round();
+      if (_rng.nextInt(100) < max(6, defSk - driSk + 28 + tackleMod)) {
         _beenTackled(owner, tackler);
         return;
       }
-      // Baskı altında → pas
-      if (_rng.nextInt(100) < 65) {
+      // Under pressure → pass or shoot
+      if (_rng.nextInt(100) < 70) {
+        if (inBox) {
+          _shoot(owner, gk);
+          return;
+        }
         if (_tryPass(owner, team, preferFwd: true)) return;
       }
     }
 
     // ── DÜZENLİ PAS (hız moduna göre ölçeklendirilmiş) ──
-    int passEvery = _scaledPassEvery(myTac == TacticStyle.tikiTaka
-        ? 5 // tiki-taka: çok sık pas
+    // Uzun süredir aynı kanatta → daha sık pas zorla
+    int consecBonus =
+        owner.isHome ? (_homeConsecLane ~/ 30) : (_awayConsecLane ~/ 30);
+    int basePassEvery = myTac == TacticStyle.tikiTaka
+        ? 4
         : myTac == TacticStyle.gegen
-            ? 7
+            ? 6
             : myTac == TacticStyle.highPress
-                ? 6
-                : 8);
+                ? 5
+                : 7;
+    int passEvery = _scaledPassEvery(max(3, basePassEvery - consecBonus));
     if (tick % passEvery == 0) {
-      // ARA PAS dene (%22 şans)
-      if (_rng.nextInt(100) < 22) {
+      if (_rng.nextInt(100) < 28) {
         if (_tryThroughPass(owner, team)) return;
       }
       _tryPass(owner, team, preferFwd: true);
     }
 
-    // ── UZAKTAN ŞUT DEMELERİ ──
-    bool inLongShotRange = goRight
-        ? (owner.pos.x > 0.54 && owner.pos.x < 0.78)
-        : (owner.pos.x > 0.22 && owner.pos.x < 0.46);
-    if (inLongShotRange && owner.role != 'DEF' && !owner.instruction.passOnly) {
-      int lsc = owner.role == 'MID' ? 6 : 4;
-      if (pressers.length >= 2) lsc += 7;
+    // ── UZAKTAN ŞUT: orta saha / yakın orta saha ──
+    bool inMidLongRange = goRight
+        ? (owner.pos.x > 0.50 && owner.pos.x < 0.76)
+        : (owner.pos.x > 0.24 && owner.pos.x < 0.50);
+    if (inMidLongRange && owner.role != 'DEF' && !owner.instruction.passOnly) {
+      int lsc = owner.role == 'FWD'
+          ? 10
+          : owner.role == 'MID'
+              ? 8
+              : 4;
+      if (pressers.length >= 2) lsc += 12;
+      // Encourage more shots when in good position
       if (_rng.nextInt(100) < lsc) {
         _log('💥 ${owner.data.name} uzaktan şut!', Colors.orange);
         _shoot(owner, gk);
@@ -681,27 +755,33 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
     }
 
-    // ── GENİŞ KANAT DEĞİŞİMİ ──
-    if (tick % 34 == 0) {
+    // ── GENİŞ KANAT DEĞİŞİMİ: sık ──
+    if (tick % 22 == 0) {
       var winers =
           team.where((t) => t.instruction.stayWide && t != owner).toList();
       if (winers.isNotEmpty) {
         _execPass(owner, winers[_rng.nextInt(winers.length)]);
+        return;
+      }
+      // Force field-switch if stuck in same lane too long
+      if ((owner.isHome ? _homeConsecLane : _awayConsecLane) > 60) {
+        if (_tryPass(owner, team, preferFwd: false, forceLaneSwitch: true))
+          return;
       }
     }
   }
 
   int _calcShootChance(TacticStyle tac, String role, int pressers) {
     int base = role == 'FWD'
-        ? 32
+        ? 50
         : role == 'MID'
-            ? 18
-            : 8;
-    if (tac == TacticStyle.attack) base += 22;
-    if (tac == TacticStyle.defensive) base -= 14;
-    if (tac == TacticStyle.tikiTaka) base -= 8;
-    if (pressers > 1) base += 18;
-    return base.clamp(5, 82);
+            ? 32
+            : 14;
+    if (tac == TacticStyle.attack) base += 20;
+    if (tac == TacticStyle.defensive) base -= 10;
+    if (tac == TacticStyle.tikiTaka) base -= 6;
+    if (pressers > 1) base += 16;
+    return base.clamp(10, 90);
   }
 
   TacticStyle _myTactic(bool isHome) {
@@ -713,24 +793,36 @@ class _MatchEngineViewState extends State<MatchEngineView>
   // ─── PASS ───────────────────────────────────────────────────────────────────
 
   bool _tryPass(SimPlayer passer, List<SimPlayer> team,
-      {bool preferFwd = false, bool boxPass = false}) {
+      {bool preferFwd = false,
+      bool boxPass = false,
+      bool forceLaneSwitch = false}) {
     var opts = team.where((t) => t != passer && t.role != 'GK').toList();
     if (opts.isEmpty) return false;
 
     bool goRight = passer.isHome;
     var oppTeam = passer.isHome ? awayTeam : homeTeam;
+
+    // Determine current lane of the passer
+    int passerLane = passer.pos.y < 0.35
+        ? 0
+        : passer.pos.y > 0.65
+            ? 2
+            : 1;
+    int consecLane = passer.isHome ? _homeConsecLane : _awayConsecLane;
+    // If stuck in same lane >= 2 passes, heavily prefer a different lane
+    bool forceNewLane = forceLaneSwitch || consecLane >= 55;
+
     SimPlayer? best;
     double bestS = -9999;
 
     for (var t in opts) {
       double s = 0;
 
-      // İleriye pas tercihi – HaxBall tarzı: geri pas da olabilir
+      // İleriye pas tercihi
       if (preferFwd) {
         double fwdDist =
             goRight ? t.pos.x - passer.pos.x : passer.pos.x - t.pos.x;
-        // Reduced bias from 100 → 45: backward/sideways passes become viable
-        s += fwdDist * 45;
+        s += fwdDist * 40;
       }
 
       // Ceza alanı içi pas: yakın ve açık oyuncuyu tercih et
@@ -739,7 +831,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
         if (d2 < 0.22) s += 80;
       }
 
-      // Açık oyuncu: yakınında rakip yok (markajdan kurtulmuş)
+      // Açık oyuncu: yakınında rakip yok
       bool open = oppTeam.every((o) => o.pos.dist(t.pos) > 0.12);
       if (open) s += 70;
 
@@ -747,7 +839,19 @@ class _MatchEngineViewState extends State<MatchEngineView>
       double yDiff = (t.pos.y - passer.pos.y).abs();
       if (yDiff > 0.18) s += 30;
 
-      if (t.role == 'FWD') s += 40;
+      // ── LANE ROTATION: penalize same-lane targets when stuck ──
+      int targetLane = t.pos.y < 0.35
+          ? 0
+          : t.pos.y > 0.65
+              ? 2
+              : 1;
+      if (forceNewLane && targetLane == passerLane) {
+        s -= 80; // strongly avoid same lane
+      } else if (forceNewLane && targetLane != passerLane) {
+        s += 60; // strongly prefer different lane
+      }
+
+      if (t.role == 'FWD') s += 35;
       if (t.instruction.stayWide) s += 25;
 
       // Optimal pas mesafesi: 0.10-0.50 arası
@@ -918,13 +1022,21 @@ class _MatchEngineViewState extends State<MatchEngineView>
     var opp = recv.isHome ? awayTeam : homeTeam;
     SimPlayer? rival = opp.firstWhereOrNull(
         (o) => o.pos.dist(ball.pos) < recv.pos.dist(ball.pos) - 0.04);
-    if (rival != null && _rng.nextInt(100) < 22) {
-      ball.owner = rival;
-      ball.phase = BallPhase.owned;
-      ball.pos.set(rival.pos);
-      _log('⚔️ ${rival.data.name} arasına girdi!', Colors.orangeAccent);
-      _maybeTriggerGegen(recv.isHome);
-      return;
+    if (rival != null) {
+      // Power-weighted interception: stronger team intercepts more reliably
+      double recvPwr = recv.isHome ? _homePower : _awayPower;
+      double rivPwr = recv.isHome ? _awayPower : _homePower;
+      double powerAdv = ((rivPwr - recvPwr) / 100.0).clamp(-0.5, 0.5);
+      int interceptChance = (22 + (powerAdv * 22)).round().clamp(6, 55);
+      if (_rng.nextInt(100) < interceptChance) {
+        ball.owner = rival;
+        ball.phase = BallPhase.owned;
+        ball.pos.set(rival.pos);
+        _log('\u2694\ufe0f ${rival.data.name} aras\u0131na girdi!',
+            Colors.orangeAccent);
+        _maybeTriggerGegen(recv.isHome);
+        return;
+      }
     }
 
     // Ball arrives at its locked destination
@@ -1072,8 +1184,15 @@ class _MatchEngineViewState extends State<MatchEngineView>
         if (nearBase && _rng.nextBool()) {
           _triggerCorner(!ball.shotIsHome, ball.passTo.y);
         } else {
-          ball.phase = BallPhase.free;
-          ball.pos.set(ball.passTo);
+          // Off target → defending GK gets the ball immediately
+          var defTeam = ball.shotIsHome ? awayTeam : homeTeam;
+          var defGK = defTeam.firstWhere((p) => p.role == 'GK',
+              orElse: () => defTeam.first);
+          ball.owner = defGK;
+          ball.phase = BallPhase.owned;
+          ball.pos.set(defGK.pos);
+          _log('🧤 ${defGK.data.name} topu aldı (isabetsiz şut)',
+              Colors.cyanAccent);
         }
       } else {
         // On target but GK saves
@@ -1093,27 +1212,34 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
     int outcome = _rng.nextInt(100);
 
-    if (outcome < 35) {
-      // ── RICOCHET: ball bounces to a random position near goal ──
-      // Home team attacks right (x→1), away team attacks left (x→0)
-      bool nearRightGoal = ball.shotIsHome; // home shoots at right goal
-      double rebX = nearRightGoal
-          ? 0.78 + _rng.nextDouble() * 0.10 // near right goal mouth
-          : 0.10 + _rng.nextDouble() * 0.10; // near left goal mouth
-      double rebY = 0.28 + _rng.nextDouble() * 0.44;
+    if (outcome < 20) {
+      // ── RICOCHET: ball bounces to a MID zone (NOT near goal mouth) ──
+      // Send it toward the center/middle of the field
+      bool saveAtRightGoal = ball.shotIsHome;
+      double rebX = saveAtRightGoal
+          ? 0.40 + _rng.nextDouble() * 0.25 // bounces well away from goal
+          : 0.35 + _rng.nextDouble() * 0.25;
+      double rebY = 0.20 + _rng.nextDouble() * 0.60;
       ball.owner = null;
       ball.phase = BallPhase.free;
       ball.pos = Pos(rebX, rebY);
-      _log('💥 Top sekti! Herkes bölgeye!', Colors.orangeAccent);
+      _log('💥 Top sekti! Orta saha!', Colors.orangeAccent);
     } else if (outcome < 65) {
-      // ── DISTRIBUTION: GK throws to nearest open teammate ──
+      // ── DISTRIBUTION: GK throws DEEP to a DEF or MID (build from back) ──
       var ownTeam = gk.isHome ? homeTeam : awayTeam;
-      var targets = ownTeam.where((p) => p != gk && p.role != 'GK').toList();
+      // Prefer DEF/MID first, and pick the FURTHEST (most open) one
+      var defMid = ownTeam
+          .where((p) => p != gk && (p.role == 'DEF' || p.role == 'MID'))
+          .toList();
+      var targets = defMid.isNotEmpty
+          ? defMid
+          : ownTeam.where((p) => p != gk && p.role != 'GK').toList();
       if (targets.isNotEmpty) {
+        // Pick the furthest open teammate to build from back
         targets
-            .sort((a, b) => a.pos.dist(gk.pos).compareTo(b.pos.dist(gk.pos)));
+            .sort((a, b) => b.pos.dist(gk.pos).compareTo(a.pos.dist(gk.pos)));
         SimPlayer recv = targets.first;
-        _log('🧤➡ ${gk.data.name} atışla ${recv.data.name}\'e dağıttı',
+        _log('🧤➡ ${gk.data.name} geriden ${recv.data.name}\'e dağıttı',
             Colors.lightBlueAccent);
         ball.owner = null;
         ball.phase = BallPhase.passFlight;
@@ -1121,10 +1247,9 @@ class _MatchEngineViewState extends State<MatchEngineView>
         ball.passTo.set(recv.pos);
         ball.passTarget = recv;
         ball.passTicksTotal =
-            max(16, (gk.pos.dist(recv.pos) * 70 * _passTicksMult()).round());
+            max(20, (gk.pos.dist(recv.pos) * 70 * _passTicksMult()).round());
         ball.passTicksRemaining = ball.passTicksTotal;
       } else {
-        // Fallback: GK holds
         ball.owner = gk;
         ball.phase = BallPhase.owned;
       }
@@ -1227,17 +1352,32 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
   void _freeBallPhase() {
     var all = [...homeTeam, ...awayTeam];
+
+    // ── Possession balance: defending team gets reach advantage near own half ──
+    // If ball is in home half (x<0.5), away team is defending → they get priority
+    // If ball is in away half (x>0.5), home team is defending → they get priority
+    bool ballInHomeHalf = ball.pos.x < 0.5;
+
     SimPlayer? nearest;
     double minD = 999;
     for (var p in all) {
       p.moveTarget.set(ball.pos);
       double d = p.pos.dist(ball.pos);
-      if (d < minD) {
-        minD = d;
+
+      // Defending team near their own half → subtract from effective distance
+      // (they hustle harder to clear the ball from their zone)
+      bool isDefending =
+          (p.isHome && !ballInHomeHalf) || (!p.isHome && ballInHomeHalf);
+      double effectiveD = isDefending ? max(0.0, d - 0.065) : d;
+
+      if (effectiveD < minD) {
+        minD = effectiveD;
         nearest = p;
       }
     }
-    if (nearest != null && minD < 0.055) {
+    // Actual physical pickup range still uses real distance
+    double realD = nearest != null ? nearest.pos.dist(ball.pos) : 999;
+    if (nearest != null && realD < 0.065) {
       ball.owner = nearest;
       ball.phase = BallPhase.owned;
       ball.pos.set(nearest.pos);
@@ -1567,9 +1707,16 @@ class _MatchEngineViewState extends State<MatchEngineView>
       if (p.role == 'FWD' && shouldUpdate) {
         bool ballInAttHalf = goRight ? ballRef.x > 0.46 : ballRef.x < 0.54;
         if (ballInAttHalf) {
-          // Fixed channels (L/R) – no random jitter
-          const fwdChannelY = [0.28, 0.72];
-          double channelY = fwdChannelY[(p.playerIndex == 5) ? 0 : 1];
+          // 3-zone Y spread: rotate based on team lane state
+          int teamLane = p.isHome ? _homeLane : _awayLane;
+          // FWD-L (index 5) and FWD-R (index 6) use complementary zones
+          const fwdZones = [
+            [0.18, 0.50, 0.82], // lane 0 cycle
+            [0.50, 0.82, 0.18], // lane 1 cycle
+            [0.82, 0.18, 0.50], // lane 2 cycle
+          ];
+          int fwdIdx = (p.playerIndex == 5) ? 0 : 1;
+          double channelY = fwdZones[teamLane][fwdIdx];
           double targetX = (goRight
                   ? 0.80 + sin(tick * 0.04 + p.playerIndex) * 0.05
                   : 0.20 - sin(tick * 0.04 + p.playerIndex) * 0.05)
@@ -1589,8 +1736,14 @@ class _MatchEngineViewState extends State<MatchEngineView>
       // MID: stagger between ball carrier and penalty box edge
       if (p.role == 'MID' && shouldUpdate && bo != null) {
         bool ballInAttHalf = goRight ? ballRef.x > 0.50 : ballRef.x < 0.50;
-        const midChannelY = [0.22, 0.78];
-        double channelY = midChannelY[(p.playerIndex == 3) ? 0 : 1];
+        // 3-zone Y for MID: always try opposite of current FWD zone
+        int teamLane = p.isHome ? _homeLane : _awayLane;
+        const midZones = [
+          [0.25, 0.75], // lane 0 default
+          [0.15, 0.85], // lane 1 (stretch wide)
+          [0.50, 0.50], // lane 2 (central)
+        ];
+        double channelY = midZones[teamLane][(p.playerIndex == 3) ? 0 : 1];
         double targetX = ballInAttHalf
             ? (goRight
                 ? 0.64 + sin(tick * 0.03) * 0.04
