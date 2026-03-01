@@ -675,6 +675,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
     return const SizedBox.shrink();
   }
 
+  // ignore: unused_element
   Color _getBorderColor(String t) {
     switch (t) {
       case "TOTW":

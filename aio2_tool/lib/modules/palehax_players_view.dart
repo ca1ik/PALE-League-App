@@ -3703,6 +3703,7 @@ Widget _buildMatchHistory(Player p, bool showRec) {
           .toList());
 }
 
+// ignore: unused_element
 Widget _buildCardMenu(BuildContext context, Player p, Function(Player) onSave,
     Function(Player) onDelete, String lang) {
   return PopupMenuButton<String>(
@@ -4014,6 +4015,7 @@ class _ShowcaseDialogState extends State<_ShowcaseDialog>
     );
   }
 
+  // ignore: unused_element
   void _showMVPMap(BuildContext context, List<Player> mvpPlayers) {
     showDialog(
       context: context,

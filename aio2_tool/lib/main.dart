@@ -28,7 +28,6 @@ import 'modules/optimization_module.dart';
 import 'modules/charts_module.dart';
 import 'modules/cleaning_module.dart';
 import 'modules/system_tools.dart';
-import 'modules/pale_webview.dart';
 import 'modules/ai_photo_module.dart';
 import 'modules/keyboard_module.dart';
 import 'modules/turkey_map_module.dart';
@@ -39,7 +38,6 @@ import 'modules/squad_builder_module.dart';
 import 'modules/palehax_tierlist.dart';
 import 'modules/palehax_ultimate.dart';
 import 'modules/palehax_games.dart';
-import 'modules/pale_webview.dart';
 import 'modules/custom_browser_module.dart';
 import 'modules/extras_module.dart';
 

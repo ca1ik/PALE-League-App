@@ -10,6 +10,7 @@ class WifiModule extends StatefulWidget {
 
 class _WifiModuleState extends State<WifiModule> {
   List<String> _networks = [];
+  // ignore: unused_field
   bool _scanning = false;
 
   @override
