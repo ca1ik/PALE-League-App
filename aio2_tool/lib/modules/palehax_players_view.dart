@@ -1274,6 +1274,12 @@ class _PaleHaxPlayersViewState extends State<PaleHaxPlayersView> {
           ),
           body: Stack(
             children: [
+              Positioned.fill(
+                child: Opacity(
+                  opacity: 0.15,
+                  child: Image.asset('assets/pale2.jpg', fit: BoxFit.cover),
+                ),
+              ),
               TabBarView(
                   physics: const NeverScrollableScrollPhysics(),
                   children: [

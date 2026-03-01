@@ -38,7 +38,15 @@ class _GamesHubViewState extends State<GamesHubView> {
                 color: Colors.purpleAccent, fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
-      body: _buildGameMenu(),
+      body: Stack(children: [
+        Positioned.fill(
+          child: Opacity(
+            opacity: 0.15,
+            child: Image.asset('assets/pale2.jpg', fit: BoxFit.cover),
+          ),
+        ),
+        _buildGameMenu(),
+      ]),
     );
   }
 

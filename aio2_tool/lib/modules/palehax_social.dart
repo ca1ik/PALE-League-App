@@ -45,51 +45,59 @@ class _SocialHubViewState extends State<SocialHubView> {
               onPressed: () {})
         ],
       ),
-      body: ListView.builder(
-        itemCount: _users.length,
-        itemBuilder: (c, i) {
-          final user = _users[i];
-          return ListTile(
-            leading: Stack(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors
-                      .primaries[user.name.length % Colors.primaries.length],
-                  child: Text(user.name[0],
-                      style: const TextStyle(color: Colors.white)),
-                ),
-                if (user.isOnline)
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.black, width: 2)),
-                    ),
-                  )
-              ],
-            ),
-            title: Text(user.name,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
-            subtitle: Text(user.status,
-                style: TextStyle(
-                    color: Colors.white.withOpacity(0.5), fontSize: 12)),
-            trailing: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
-                  padding: const EdgeInsets.symmetric(horizontal: 10)),
-              onPressed: () => _openChat(context, user),
-              child: const Text("CHAT",
-                  style: TextStyle(color: Colors.white, fontSize: 10)),
-            ),
-          );
-        },
-      ),
+      body: Stack(children: [
+        Positioned.fill(
+          child: Opacity(
+            opacity: 0.15,
+            child: Image.asset('assets/pale2.jpg', fit: BoxFit.cover),
+          ),
+        ),
+        ListView.builder(
+          itemCount: _users.length,
+          itemBuilder: (c, i) {
+            final user = _users[i];
+            return ListTile(
+              leading: Stack(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors
+                        .primaries[user.name.length % Colors.primaries.length],
+                    child: Text(user.name[0],
+                        style: const TextStyle(color: Colors.white)),
+                  ),
+                  if (user.isOnline)
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.black, width: 2)),
+                      ),
+                    )
+                ],
+              ),
+              title: Text(user.name,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: Text(user.status,
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.5), fontSize: 12)),
+              trailing: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    padding: const EdgeInsets.symmetric(horizontal: 10)),
+                onPressed: () => _openChat(context, user),
+                child: const Text("CHAT",
+                    style: TextStyle(color: Colors.white, fontSize: 10)),
+              ),
+            );
+          },
+        ),
+      ]),
     );
   }
 

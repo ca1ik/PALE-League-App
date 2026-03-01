@@ -1789,7 +1789,6 @@ class _MatchEngineViewState extends State<MatchEngineView>
           [0.50, 0.18, 0.82], // lane 1 cycle
           [0.82, 0.50, 0.18], // lane 2 cycle
         ];
-        int fwdIdx = (p.playerIndex == 5) ? 0 : 1;
         // Her ~80 tick'te bölge değişir – forvet sürekli hareket halinde
         int zoneIdx = ((tick ~/ 80) + p.playerIndex) % 3;
         double channelY = fwdZones[teamLane][zoneIdx];
@@ -2038,11 +2037,19 @@ class _MatchEngineViewState extends State<MatchEngineView>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF08080F),
-      body: Column(children: [
-        _scoreBar(),
-        _speedBar(),
-        Expanded(child: _pitch()),
-        _logPanel(),
+      body: Stack(children: [
+        Positioned.fill(
+          child: Opacity(
+            opacity: 0.15,
+            child: Image.asset('assets/pale2.jpg', fit: BoxFit.cover),
+          ),
+        ),
+        Column(children: [
+          _scoreBar(),
+          _speedBar(),
+          Expanded(child: _pitch()),
+          _logPanel(),
+        ]),
       ]),
     );
   }

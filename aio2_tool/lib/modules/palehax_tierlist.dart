@@ -51,107 +51,116 @@ class _TierListViewState extends State<TierListView> {
               tooltip: "PNG Olarak İndir")
         ],
       ),
-      body: Flex(
-        direction: isMobile ? Axis.vertical : Axis.horizontal,
-        children: [
-          // SOL TARAF: TIER LIST
-          Expanded(
-            flex: 5, // Tier List alanını daha da genişlettim
-            child: Screenshot(
-              controller: screenshotController,
-              child: Container(
-                color: const Color(0xFF15151E),
-                padding: const EdgeInsets.all(
-                    5), // Padding azaltıldı, siyahlık azalsın diye
-                child: SingleChildScrollView(
-                  child: Column(
-                    children:
-                        tiers.keys.map((key) => _buildTierRow(key)).toList(),
+      body: Stack(children: [
+        Positioned.fill(
+          child: Opacity(
+            opacity: 0.15,
+            child: Image.asset('assets/pale2.jpg', fit: BoxFit.cover),
+          ),
+        ),
+        Flex(
+          direction: isMobile ? Axis.vertical : Axis.horizontal,
+          children: [
+            // SOL TARAF: TIER LIST
+            Expanded(
+              flex: 5, // Tier List alanını daha da genişlettim
+              child: Screenshot(
+                controller: screenshotController,
+                child: Container(
+                  color: const Color(0xFF15151E),
+                  padding: const EdgeInsets.all(
+                      5), // Padding azaltıldı, siyahlık azalsın diye
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children:
+                          tiers.keys.map((key) => _buildTierRow(key)).toList(),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          // SAĞ TARAF: OYUNCU HAVUZU
-          Container(
-            width: isMobile
-                ? double.infinity
-                : 320, // Sağ paneli biraz daralttım ki sola yer kalsın
-            height: isMobile ? 200 : double.infinity,
-            decoration: const BoxDecoration(
-                border: Border(left: BorderSide(color: Colors.white10)),
-                color: Color(0xFF101014)),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: TextField(
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                        hintText: "Oyuncu Ara...",
-                        hintStyle: const TextStyle(color: Colors.white30),
-                        prefixIcon:
-                            const Icon(Icons.search, color: Colors.cyanAccent),
-                        filled: true,
-                        fillColor: Colors.white.withOpacity(0.05),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10))),
-                    onChanged: (v) => setState(() => searchQuery = v),
+            // SAĞ TARAF: OYUNCU HAVUZU
+            Container(
+              width: isMobile
+                  ? double.infinity
+                  : 320, // Sağ paneli biraz daralttım ki sola yer kalsın
+              height: isMobile ? 200 : double.infinity,
+              decoration: const BoxDecoration(
+                  border: Border(left: BorderSide(color: Colors.white10)),
+                  color: Color(0xFF101014)),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: TextField(
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                          hintText: "Oyuncu Ara...",
+                          hintStyle: const TextStyle(color: Colors.white30),
+                          prefixIcon: const Icon(Icons.search,
+                              color: Colors.cyanAccent),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.05),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10))),
+                      onChanged: (v) => setState(() => searchQuery = v),
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: StreamBuilder<List<dynamic>>(
-                      stream: widget.database.watchAllPlayers(),
-                      builder: (context, snapshot) {
-                        if (!snapshot.hasData)
-                          return const Center(
-                              child: CircularProgressIndicator());
+                  Expanded(
+                    child: StreamBuilder<List<dynamic>>(
+                        stream: widget.database.watchAllPlayers(),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData)
+                            return const Center(
+                                child: CircularProgressIndicator());
 
-                        var playerList = snapshot.data!
-                            .map((t) => _convertToPlayer(t))
-                            .toList();
-                        var players = playerList
-                            .where((p) => p.name
-                                .toLowerCase()
-                                .contains(searchQuery.toLowerCase()))
-                            .toList();
-                        players.sort((a, b) => b.rating.compareTo(a.rating));
+                          var playerList = snapshot.data!
+                              .map((t) => _convertToPlayer(t))
+                              .toList();
+                          var players = playerList
+                              .where((p) => p.name
+                                  .toLowerCase()
+                                  .contains(searchQuery.toLowerCase()))
+                              .toList();
+                          players.sort((a, b) => b.rating.compareTo(a.rating));
 
-                        return GridView.builder(
-                          padding: const EdgeInsets.all(10),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  childAspectRatio: 0.72,
-                                  crossAxisSpacing: 10,
-                                  mainAxisSpacing: 10),
-                          itemCount: players.length,
-                          itemBuilder: (c, i) {
-                            pd.Player p = players[i];
-                            return Draggable<pd.Player>(
-                              data: p,
-                              feedback: Material(
-                                  color: Colors.transparent,
-                                  child: SizedBox(
-                                      width: 160, // Sürüklerken BÜYÜK görünsün
-                                      child: FCAnimatedCard(
-                                          player: p, animateOnHover: false))),
-                              childWhenDragging: Opacity(
-                                  opacity: 0.3,
-                                  child: FCAnimatedCard(
-                                      player: p, animateOnHover: false)),
-                              child: FCAnimatedCard(
-                                  player: p, animateOnHover: true),
-                            );
-                          },
-                        );
-                      }),
-                )
-              ],
-            ),
-          )
-        ],
-      ),
+                          return GridView.builder(
+                            padding: const EdgeInsets.all(10),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    childAspectRatio: 0.72,
+                                    crossAxisSpacing: 10,
+                                    mainAxisSpacing: 10),
+                            itemCount: players.length,
+                            itemBuilder: (c, i) {
+                              pd.Player p = players[i];
+                              return Draggable<pd.Player>(
+                                data: p,
+                                feedback: Material(
+                                    color: Colors.transparent,
+                                    child: SizedBox(
+                                        width:
+                                            160, // Sürüklerken BÜYÜK görünsün
+                                        child: FCAnimatedCard(
+                                            player: p, animateOnHover: false))),
+                                childWhenDragging: Opacity(
+                                    opacity: 0.3,
+                                    child: FCAnimatedCard(
+                                        player: p, animateOnHover: false)),
+                                child: FCAnimatedCard(
+                                    player: p, animateOnHover: true),
+                              );
+                            },
+                          );
+                        }),
+                  )
+                ],
+              ),
+            )
+          ],
+        ),
+      ]),
     );
   }
 
