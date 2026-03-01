@@ -636,6 +636,12 @@ class _UltimateRootState extends State<_UltimateRoot> {
     return Scaffold(
       backgroundColor: const Color(0xFF08080F),
       body: Stack(children: [
+        Positioned.fill(
+          child: Opacity(
+            opacity: 0.15,
+            child: Image.asset('assets/pale2.jpg', fit: BoxFit.cover),
+          ),
+        ),
         Column(children: [
           _buildTopBar(context, prov),
           _buildTabs(),
