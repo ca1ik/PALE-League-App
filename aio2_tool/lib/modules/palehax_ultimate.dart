@@ -1173,13 +1173,15 @@ class _MyTeamTabState extends State<_MyTeamTab> {
       String label, double cx, double cy) {
     var p = prov.startingXI[i];
     return Positioned(
-      left: cx - 66,
-      top: cy - 86,
+      left: cx - 82,
+      top: cy - 107,
       child: DragTarget<Player>(
         onAcceptWithDetails: (details) => prov.setStarter(i, details.data),
         builder: (c, cand, _) => SizedBox(
           width: 132,
           height: 172,
+          width: 165,
+          height: 215,
           child: Stack(children: [
             // Kart veya boş slot
             p.rating > 0
