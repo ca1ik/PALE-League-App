@@ -1178,8 +1178,6 @@ class _MyTeamTabState extends State<_MyTeamTab> {
       child: DragTarget<Player>(
         onAcceptWithDetails: (details) => prov.setStarter(i, details.data),
         builder: (c, cand, _) => SizedBox(
-          width: 132,
-          height: 172,
           width: 165,
           height: 215,
           child: Stack(children: [
