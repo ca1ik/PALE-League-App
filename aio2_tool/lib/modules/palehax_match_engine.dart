@@ -272,6 +272,11 @@ class Ball {
   int wallRunCountdown = 0;
   int wallRunBlinkTimer = 0;
 
+  // Wall-pull state (kanat duvara çekerek topu kendine alır)
+  bool isWallPull = false;
+  SimPlayer? wallPullRunner;
+  int wallPullBouncesLeft = 0; // kalan sekme sayısı (1 veya 2)
+
   // Shot-flight state
   bool shotWillGoal = false;
   bool shotOnTarget = false;
@@ -404,6 +409,11 @@ class _MatchEngineViewState extends State<MatchEngineView>
   bool _gkSaveActive = false;
   SimPlayer? _gkSavingPlayer;
   int _gkSaveTimer = 0;
+
+  // ── SHOT EFFECT ───────────────────────────────────────────────────────────
+  bool _shootEffectActive = false;
+  SimPlayer? _shootEffectPlayer;
+  int _shootEffectTimer = 0;
 
   // ── SHOT PARTICLES ────────────────────────────────────────────────────────
   final List<_ShotParticle> _shotParticles = [];
@@ -645,6 +655,9 @@ class _MatchEngineViewState extends State<MatchEngineView>
     ball.wallRunner = null;
     ball.wallRunCountdown = 0;
     ball.wallRunBlinkTimer = 0;
+    ball.isWallPull = false;
+    ball.wallPullRunner = null;
+    ball.wallPullBouncesLeft = 0;
     _shotSlowMoTicks = 0;
     _rocketFreezeTicks = 0;
     _shotParticles.clear();
@@ -778,6 +791,14 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
     }
 
+    if (_shootEffectTimer > 0) {
+      _shootEffectTimer--;
+      if (_shootEffectTimer == 0) {
+        _shootEffectActive = false;
+        _shootEffectPlayer = null;
+      }
+    }
+
     if (!isGoal) _simulate();
 
     // Ball-stuck detection: if ball barely moves for >1.5 real-seconds → force handover
@@ -886,19 +907,35 @@ class _MatchEngineViewState extends State<MatchEngineView>
     if (ball.owner != null && ball.phase == BallPhase.owned) {
       _moveToward(ball.owner!);
       ball.pos.set(ball.owner!.pos);
-      // ── Visual orbit offset: ball stays just outside the player circle ──
-      // Direction: blend movement velocity with a slow sinusoidal sway
+      // ── Visual orbit offset: ball position relative to player ──
       var ow = ball.owner!;
       double velLen = sqrt(ow.vx * ow.vx + ow.vy * ow.vy);
       double orbitAngle;
-      if (velLen > 0.00025) {
-        // Moving: offset is in the direction of travel (ball is slightly ahead)
-        orbitAngle = atan2(ow.vy, ow.vx) + sin(tick * 0.25) * 0.35;
+      double orbitR;
+      if (ow.isDribbling) {
+        // Sürüş: hız vektörü beklenmeden doğrudan hareket yönüne bak — vx/vy
+        // her zaman güncelleniyor bu admda (moveToward önce çalıştı)
+        double dvx = ow.vx;
+        double dvy = ow.vy;
+        double dvLen = sqrt(dvx * dvx + dvy * dvy);
+        if (dvLen > 0.00008) {
+          orbitAngle = atan2(dvy, dvx);
+        } else {
+          // Oyuncu henuz kalkmadı: hedef yönünden tahmin et
+          double tdx = ow.moveTarget.x - ow.pos.x;
+          double tdy = ow.moveTarget.y - ow.pos.y;
+          orbitAngle = atan2(tdy, tdx);
+        }
+        orbitR = 0.048;
+      } else if (velLen > 0.00025) {
+        // Moving normally: slight forward offset with minimal sway
+        orbitAngle = atan2(ow.vy, ow.vx) + sin(tick * 0.18) * 0.18;
+        orbitR = 0.024;
       } else {
-        // Standing: slow orbit around player
+        // Standing still: slow idle orbit
         orbitAngle = tick * 0.07 + ow.playerIndex * 1.31;
+        orbitR = 0.018;
       }
-      const double orbitR = 0.020;
       ball.ballDispDx = cos(orbitAngle) * orbitR;
       ball.ballDispDy = sin(orbitAngle) * orbitR;
     } else {
@@ -1138,6 +1175,20 @@ class _MatchEngineViewState extends State<MatchEngineView>
           return;
         }
       }
+      // ── DUVAR ÇEKMEŞİ: kanat kenara yakın, topu duvara çekü algıla ──
+      bool wingNearSide = owner.pos.y < 0.17 || owner.pos.y > 0.83;
+      bool wingNotTooDeep = goRight ? owner.pos.x < 0.70 : owner.pos.x > 0.30;
+      if (wingNearSide &&
+          wingNotTooDeep &&
+          pressers.isEmpty &&
+          !ball.isWallRunActive &&
+          !ball.isWallPull &&
+          !owner.instruction.passOnly &&
+          _rng.nextInt(100) < 36) {
+        _startWallPull(owner);
+        return;
+      }
+
       // ── DUVAR ROKETİ: kanat top sürüyor, duvara çok yakın, derin rakip sahası ──
       bool wingDeepOpp = goRight ? owner.pos.x > 0.64 : owner.pos.x < 0.36;
       bool wingOnWall = owner.pos.y < 0.08 || owner.pos.y > 0.92;
@@ -1253,10 +1304,33 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
     }
 
-    // ── DRIBBLING ATILIM: açık alan varsa topu sür ──
-    // All outfield players (incl. DEF) can carry when there's space
+    // ── DEVAM EDEN SÜRÜŞ: her tick topu düz önde tut ──
+    if (owner.isDribbling && owner.dribbleTimer > 0) {
+      bool spaceStillAhead = pressers.isEmpty &&
+          opp.every((o) => !((goRight
+                  ? o.pos.x > owner.pos.x - 0.04
+                  : o.pos.x < owner.pos.x + 0.04) &&
+              o.pos.dist(owner.pos) < 0.16));
+      if (spaceStillAhead) {
+        owner.dribbleTimer--;
+        // Her tick hedefi mevcut konumdan sabit bir adım önde tut
+        // → takılma yok, sürekli akış
+        double stepX =
+            (owner.pos.x + (goRight ? 0.055 : -0.055)).clamp(0.04, 0.96);
+        double stepY = owner.role == 'WING'
+            ? (owner.pos.y * 0.92 + owner.homeBase.y * 0.08).clamp(0.04, 0.96)
+            : owner.pos.y; // düz ileri
+        owner.moveTarget = Pos(stepX, stepY);
+        if (owner.dribbleTimer == 0) owner.isDribbling = false;
+        return;
+      } else {
+        owner.isDribbling = false;
+        owner.dribbleTimer = 0;
+      }
+    }
+
+    // ── SÜRÜŞE BAŞLA: önde açık alan varsa ──
     bool canDribble = owner.role != 'GK' && !owner.instruction.passOnly;
-    // Allow carrying from deep own half onwards
     bool inCarryZone = goRight ? owner.pos.x > 0.22 : owner.pos.x < 0.78;
     if (pressers.isEmpty && canDribble && inCarryZone) {
       bool spaceAhead = opp.every((o) => !((goRight
@@ -1267,26 +1341,22 @@ class _MatchEngineViewState extends State<MatchEngineView>
       int carryChance = owner.role == 'DEF'
           ? 38
           : owner.role == 'WING'
-              ? 88 // kanatlar ileri sürer – bencil taşıma
+              ? 88
               : owner.role == 'MID'
                   ? 55
                   : 65;
       if (spaceAhead && _rng.nextInt(100) < carryChance) {
         owner.isDribbling = true;
-        owner.dribbleTimer = 28 + _rng.nextInt(22); // longer carry bursts
-        double sway = sin(tick * 0.20 + owner.playerIndex * 0.9) * 0.048;
+        owner.dribbleTimer = 36 + _rng.nextInt(20);
         double dribX =
-            (owner.pos.x + (goRight ? 0.12 : -0.12)).clamp(0.04, 0.96);
-        double dribY = (owner.pos.y + sway).clamp(0.04, 0.96);
+            (owner.pos.x + (goRight ? 0.065 : -0.065)).clamp(0.04, 0.96);
+        double dribY = owner.role == 'WING'
+            ? (owner.pos.y * 0.90 + owner.homeBase.y * 0.10).clamp(0.04, 0.96)
+            : owner.pos.y;
         owner.moveTarget = Pos(dribX, dribY);
         _log('\u26bd ${owner.data.name} sürdü!', Colors.orangeAccent);
         return;
       }
-    }
-    // Dribble timer tick
-    if (owner.dribbleTimer > 0) {
-      owner.dribbleTimer--;
-      if (owner.dribbleTimer == 0) owner.isDribbling = false;
     }
 
     // ── MÜDAHALE RİSKİ ──
@@ -1590,7 +1660,35 @@ class _MatchEngineViewState extends State<MatchEngineView>
     return false;
   }
 
-  /// Directly activate wall-run for a WING player already hugging the touchline.
+  void _startWallPull(SimPlayer runner) {
+    bool goRight = runner.isHome;
+    if (goRight && runner.pos.x > 0.82) return;
+    if (!goRight && runner.pos.x < 0.18) return;
+    // 1 veya 2 kez duvara çek
+    int bounces = _rng.nextBool() ? 1 : 2;
+    double wallY = runner.pos.y < 0.5 ? 0.012 : 0.988;
+    // DÜMDÜZ duvara: aynı X, sadece Y değişir
+    Pos wallTarget = Pos(runner.pos.x, wallY);
+    ball.isWallPull = true;
+    ball.wallPullBouncesLeft = bounces;
+    ball.wallPullRunner = runner;
+    ball.owner = null;
+    ball.phase = BallPhase.passFlight;
+    ball.passFrom.set(runner.pos);
+    ball.passTo.set(wallTarget);
+    ball.passTarget = null;
+    ball.passTicksTotal =
+        max(6, (runner.pos.dist(wallTarget) * 68 * _passTicksMult()).round());
+    ball.passTicksRemaining = ball.passTicksTotal;
+    ball.pos.set(runner.pos);
+    // Kanat DÜMDÜZ ileri sprint başlatır (Y sabit)
+    double sprintX =
+        (runner.pos.x + (goRight ? 0.11 : -0.11)).clamp(0.04, 0.96);
+    runner.moveTarget = Pos(sprintX, runner.pos.y);
+    _log('🏃 ${runner.data.name} duvara çekti! ($bounces sek)',
+        Colors.lightGreenAccent);
+  }
+
   void _startWallRun(SimPlayer runner) {
     bool goRight = runner.isHome;
     double wallY = runner.pos.y < 0.5 ? 0.02 : 0.98;
@@ -1715,6 +1813,72 @@ class _MatchEngineViewState extends State<MatchEngineView>
     ball.pos.set(ball.passFrom.lerp(ball.passTo, t));
 
     if (ball.passTicksRemaining > 0) return;
+
+    // ── DUVAR SEKME: top duvara ulaştı (passTarget==null) veya oyuncuya döndü ──
+    if (ball.isWallPull) {
+      var runner = ball.wallPullRunner;
+      if (runner == null) {
+        ball.isWallPull = false;
+        ball.wallPullBouncesLeft = 0;
+        ball.phase = BallPhase.free;
+        return;
+      }
+      bool goRight = runner.isHome;
+
+      if (ball.passTarget == null) {
+        // ── FAZ A: Top duvara çarptı → DÜMDÜZ ileri oyuncuya geri gönder ──
+        // Oyuncu sprintle ilerledi; top onun ilerisine döner
+        double returnX =
+            (runner.pos.x + (goRight ? 0.07 : -0.07)).clamp(0.04, 0.96);
+        double returnY = runner.pos.y; // dümdüz geri, Y sabit
+        Pos returnTarget = Pos(returnX, returnY);
+        ball.passFrom.set(ball.pos);
+        ball.passTo.set(returnTarget);
+        ball.passTarget = runner;
+        ball.passTicksTotal = max(
+            6, (ball.pos.dist(returnTarget) * 68 * _passTicksMult()).round());
+        ball.passTicksRemaining = ball.passTicksTotal;
+        runner.moveTarget.set(returnTarget);
+        _log(
+            '💥 Duvardan döndü → ${runner.data.name}', Colors.lightGreenAccent);
+      } else {
+        // ── FAZ B: Top oyuncuya ulaştı ──
+        ball.wallPullBouncesLeft--;
+        if (ball.wallPullBouncesLeft > 0) {
+          // Daha sekme var → tekrar duvara dümdüz çek
+          double wallY = runner.pos.y < 0.5 ? 0.012 : 0.988;
+          Pos wallTarget = Pos(runner.pos.x, wallY);
+          ball.passFrom.set(runner.pos);
+          ball.passTo.set(wallTarget);
+          ball.passTarget = null;
+          ball.passTicksTotal = max(
+              6, (runner.pos.dist(wallTarget) * 68 * _passTicksMult()).round());
+          ball.passTicksRemaining = ball.passTicksTotal;
+          ball.pos.set(runner.pos);
+          // Sprint devam – dümdüz ileri
+          double sprintX =
+              (runner.pos.x + (goRight ? 0.11 : -0.11)).clamp(0.04, 0.96);
+          runner.moveTarget = Pos(sprintX, runner.pos.y);
+          _log(
+              '🏃 ${runner.data.name} tekrar duvara!', Colors.lightGreenAccent);
+        } else {
+          // Son sekme: topu al ve dripling başlat
+          ball.isWallPull = false;
+          ball.wallPullRunner = null;
+          ball.wallPullBouncesLeft = 0;
+          ball.owner = runner;
+          ball.phase = BallPhase.owned;
+          ball.pos.set(runner.pos);
+          runner.isDribbling = true;
+          runner.dribbleTimer = 44 + _rng.nextInt(20);
+          double dribX =
+              (runner.pos.x + (goRight ? 0.055 : -0.055)).clamp(0.04, 0.96);
+          runner.moveTarget = Pos(dribX, runner.pos.y);
+          _log('⚡ ${runner.data.name} topu aldı, ileri!', Colors.greenAccent);
+        }
+      }
+      return;
+    }
 
     SimPlayer? recv = ball.passTarget;
     if (recv == null) {
@@ -1940,6 +2104,11 @@ class _MatchEngineViewState extends State<MatchEngineView>
     // LED ring şut efekti
     shooter.isPassShoot = true;
     shooter.passShootTimer = 45;
+
+    // ŞUUUT! screen overlay
+    _shootEffectActive = true;
+    _shootEffectPlayer = shooter;
+    _shootEffectTimer = 60;
 
     // Spawn orange shot particles
     for (int i = 0; i < 18; i++) {
@@ -2943,6 +3112,19 @@ class _MatchEngineViewState extends State<MatchEngineView>
         p.moveTarget.y = (p.moveTarget.y + ddy / dd * push).clamp(0.04, 0.96);
       }
     }
+    // Top sahibinin etrafında yığılmayı önle – kopararak pozisyon al
+    if (ball.owner != null &&
+        ball.owner != p &&
+        ball.owner!.isHome == p.isHome) {
+      double ddx = p.moveTarget.x - ball.owner!.pos.x;
+      double ddy = p.moveTarget.y - ball.owner!.pos.y;
+      double dd = sqrt(ddx * ddx + ddy * ddy);
+      if (dd < 0.13 && dd > 0.001) {
+        double push = (0.13 - dd) * 0.40;
+        p.moveTarget.x = (p.moveTarget.x + ddx / dd * push).clamp(0.04, 0.96);
+        p.moveTarget.y = (p.moveTarget.y + ddy / dd * push).clamp(0.04, 0.96);
+      }
+    }
   }
 
   void _constrainByTactic(SimPlayer p) {
@@ -3010,16 +3192,17 @@ class _MatchEngineViewState extends State<MatchEngineView>
     double dy = p.moveTarget.y - p.pos.y;
     double d = sqrt(dx * dx + dy * dy);
     if (d < 0.004) {
-      // Near target: gentle sinusoidal sway + ball-watching lean
+      // Near target: gentle sinusoidal idle sway – drift back toward homeBase,
+      // NOT toward the ball (prevents clustering around the owner).
       if (p != ball.owner) {
         double angle = tick * 0.09 + p.playerIndex * 1.31;
-        // FM26-style weight shift toward ball – every player watches the ball
-        double ballDy = (ball.pos.y - p.pos.y) * 0.012;
-        double ballDx = (ball.pos.x - p.pos.x) * 0.006;
+        // Drift back toward formation pos to avoid stacking near the ball
+        double homeDx = (p.homeBase.x - p.pos.x) * 0.004;
+        double homeDy = (p.homeBase.y - p.pos.y) * 0.004;
         p.moveTarget.x =
-            (p.moveTarget.x + cos(angle) * 0.003 + ballDx).clamp(0.04, 0.96);
+            (p.moveTarget.x + cos(angle) * 0.002 + homeDx).clamp(0.04, 0.96);
         p.moveTarget.y =
-            (p.moveTarget.y + sin(angle) * 0.003 + ballDy).clamp(0.04, 0.96);
+            (p.moveTarget.y + sin(angle) * 0.002 + homeDy).clamp(0.04, 0.96);
       }
       p.vx *= 0.70;
       p.vy *= 0.70;
@@ -3031,11 +3214,15 @@ class _MatchEngineViewState extends State<MatchEngineView>
             _speedFactor() *
             p.stamina.clamp(0.72, 1.0);
 
+    // Sürüş sırasında hafif hız artışı – top önde taşınırken daha kararlı
+    if (p.isDribbling) baseSpd *= 1.22;
+
     double targetVx = (dx / d) * baseSpd;
     double targetVy = (dy / d) * baseSpd;
 
     // FM26-style inertia – smooth acceleration (lower = more buttery glide)
-    const double accel = 0.13;
+    // Sürüşte daha sert tutma (accel artırıldı) → ani durmalar azalır
+    final double accel = p.isDribbling ? 0.20 : 0.13;
     p.vx += (targetVx - p.vx) * accel;
     p.vy += (targetVy - p.vy) * accel;
 
@@ -3385,6 +3572,9 @@ class _MatchEngineViewState extends State<MatchEngineView>
                 ),
               ),
             ),
+          // Shot effect
+          if (_shootEffectActive && _shootEffectPlayer != null)
+            _shootEffectOverlay(_shootEffectPlayer!, w, h),
           // GK save animation
           if (_gkSaveActive && _gkSavingPlayer != null)
             _gkSaveOverlay(_gkSavingPlayer!, w, h),
@@ -3405,6 +3595,64 @@ class _MatchEngineViewState extends State<MatchEngineView>
           color: Colors.white12,
         ),
       );
+
+  // ── SHOOT EFFECT OVERLAY ────────────────────────────────────────────────────
+  Widget _shootEffectOverlay(SimPlayer shooter, double w, double h) {
+    double tFrac = (_shootEffectTimer / 60.0).clamp(0.0, 1.0);
+    double pulse = sin(_shootEffectTimer * 0.32).abs();
+    double scale = 0.80 + pulse * 0.45;
+    double opacity = tFrac < 0.25 ? tFrac * 4 : 1.0;
+    return Positioned(
+      left: (shooter.pos.x * w - 40).clamp(0.0, w - 80),
+      top: (shooter.pos.y * h - 66).clamp(0.0, h - 84),
+      child: Opacity(
+        opacity: opacity.clamp(0.0, 1.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Transform.scale(
+              scale: scale,
+              child: const Text('⚽', style: TextStyle(fontSize: 30)),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF6D00), Color(0xFF7B1FA2)],
+                ),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orangeAccent.withOpacity(0.55 + pulse * 0.30),
+                    blurRadius: 16,
+                    spreadRadius: 3,
+                  ),
+                ],
+                border: Border.all(
+                    color: Colors.yellowAccent.withOpacity(0.75), width: 1.2),
+              ),
+              child: const Text(
+                'ŞUUUT!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2.0,
+                  shadows: [
+                    Shadow(
+                        color: Colors.black54,
+                        blurRadius: 5,
+                        offset: Offset(0.5, 0.5))
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   // ── GK SAVE OVERLAY ─────────────────────────────────────────────────────────
   Widget _gkSaveOverlay(SimPlayer gk, double w, double h) {
