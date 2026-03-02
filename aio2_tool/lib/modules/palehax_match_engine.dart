@@ -32,6 +32,60 @@ extension MatchSpeedExt on MatchSpeed {
 
 enum TacticStyle { attack, gegen, defensive, counter, tikiTaka, highPress }
 
+// =============================================================================
+// AI DIFFICULTY
+// =============================================================================
+
+enum AiDifficulty { easy, normal, hard }
+
+extension AiDifficultyExt on AiDifficulty {
+  String get label {
+    switch (this) {
+      case AiDifficulty.easy:
+        return 'KOLAY';
+      case AiDifficulty.normal:
+        return 'NORMAL';
+      case AiDifficulty.hard:
+        return 'ZOR';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case AiDifficulty.easy:
+        return Colors.greenAccent;
+      case AiDifficulty.normal:
+        return Colors.amber;
+      case AiDifficulty.hard:
+        return Colors.redAccent;
+    }
+  }
+
+  /// Opponent (AI) tackle threshold multiplier
+  double get aiTackleMult {
+    switch (this) {
+      case AiDifficulty.easy:
+        return 0.60;
+      case AiDifficulty.normal:
+        return 1.00;
+      case AiDifficulty.hard:
+        return 1.42;
+    }
+  }
+
+  /// Opponent (AI) shoot-chance multiplier
+  double get aiShootMult {
+    switch (this) {
+      case AiDifficulty.easy:
+        return 0.70;
+      case AiDifficulty.normal:
+        return 1.00;
+      case AiDifficulty.hard:
+        return 1.30;
+    }
+  }
+}
+
 extension TacticStyleExt on TacticStyle {
   String get label {
     switch (this) {
@@ -342,6 +396,7 @@ class MatchEngineView extends StatefulWidget {
   final Map<int, PlayerInstruction> playerInstructions;
   final bool isPlayerTeamAway;
   final void Function(MatchResult) onMatchEnd;
+  final AiDifficulty aiDifficulty;
 
   const MatchEngineView({
     super.key,
@@ -352,6 +407,7 @@ class MatchEngineView extends StatefulWidget {
     this.oppTactic = TacticStyle.tikiTaka,
     this.playerInstructions = const {},
     this.isPlayerTeamAway = true,
+    this.aiDifficulty = AiDifficulty.normal,
   });
 
   @override
@@ -486,6 +542,11 @@ class _MatchEngineViewState extends State<MatchEngineView>
   bool _lastShotWasPenalty = false;
   bool _lastShotWasLongRange = false;
 
+  // ── HEATMAP ───────────────────────────────────────────────────────────────
+  final List<List<int>> _heatGrid =
+      List.generate(20, (_) => List.generate(12, (_) => 0));
+  bool _showHeatmap = false;
+
   void _ensureInsight(SimPlayer p) =>
       _insights.putIfAbsent(p.data.name, () => _PlayerInsight());
 
@@ -589,6 +650,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
     _lastShotFromCorner = false;
     _lastShotWasPenalty = false;
     _lastShotWasLongRange = false;
+    // Reset heatmap
+    for (var row in _heatGrid) for (int i = 0; i < row.length; i++) row[i] = 0;
     for (var p in [...homeTeam, ...awayTeam]) _ensureInsight(p);
   }
 
@@ -910,6 +973,13 @@ class _MatchEngineViewState extends State<MatchEngineView>
   void _onTick() {
     tick++;
     matchMinute = (tick / speed.totalTicks * 90.0).clamp(0, 90);
+
+    // ─ Heatmap: top konumunu ızgara hücresine yaz ─
+    {
+      int gx = (ball.pos.x * 20).clamp(0, 19).toInt();
+      int gy = (ball.pos.y * 12).clamp(0, 11).toInt();
+      _heatGrid[gx][gy]++;
+    }
 
     // ─ Momentum yavaş dengeye çekme ─
     if (tick % 15 == 0) {
@@ -1748,7 +1818,10 @@ class _MatchEngineViewState extends State<MatchEngineView>
           teamPowerAdv: pAdv, is1v1: is1v1);
       // Tempo yüksekse daha direkt şut
       double tempoBoost = _tempoVal * 12;
-      int finalShootChance = min(97, shootChance + 15 + tempoBoost.round());
+      int finalShootChance = min(
+          97,
+          ((shootChance + 15 + tempoBoost.round()) * _diffShootMult(owner))
+              .round());
       if (_rng.nextInt(100) < finalShootChance) {
         _shoot(owner, gk);
         return;
@@ -2007,6 +2080,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
     if (is1v1) base += 18; // 1v1 with GK → strong shot urge
     base += (teamPowerAdv * 0.20).round().clamp(-8, 16);
     return base.clamp(18, 96);
+  }
+
+  /// AI zorluk: şut yapan oyuncu AI takımındansa zorluk çarpanı döndürür.
+  double _diffShootMult(SimPlayer p) {
+    bool isAI = p.isHome == widget.isPlayerTeamAway;
+    return isAI ? widget.aiDifficulty.aiShootMult : 1.0;
   }
 
   TacticStyle _myTactic(bool isHome) {
@@ -3123,8 +3202,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
     String celebPrefix = isQuickReply
         ? '⚡ HIZLI CEVAP! '
         : _goalComments[_rng.nextInt(_goalComments.length)];
-    goalCelebText =
-        '⚽ GOOOL!\n$scorer$goalType\n${homeScore} - ${awayScore}';
+    goalCelebText = '⚽ GOOOL!\n$scorer$goalType\n${homeScore} - ${awayScore}';
     _log('${celebPrefix}$scorer$goalType  $homeScore-$awayScore',
         Colors.yellowAccent);
 
@@ -3201,6 +3279,53 @@ class _MatchEngineViewState extends State<MatchEngineView>
     }
 
     if (ball.owner != null) ball.owner!.isCornering = false;
+
+    // ─── KORNER RUTİNİ SEÇ (0=normal başlık, 1=yakın direk flick, 2=kısa korner) ───
+    int routine = _rng.nextInt(100);
+    if (routine < 25 && recv.length >= 2) {
+      // ─── RUTİN 1: Yakın Direk Flick ──────────────────────────────────────
+      bool goRight = ball.cornerForHome;
+      double nearPostX = goRight ? 0.88 : 0.12;
+      double nearPostY = ball.pos.y < 0.5 ? 0.32 : 0.68;
+      SimPlayer flickTarget = recv.reduce(
+          (a, b) => (a.stats['Hız'] ?? 10) > (b.stats['Hız'] ?? 10) ? a : b);
+      flickTarget.moveTarget = Pos(nearPostX, nearPostY);
+      flickTarget.shootOnReceive = true;
+      _log(
+          '🌟 Yakın direk flick! ${ball.owner?.data.name ?? ''} → ${flickTarget.data.name}',
+          Colors.amberAccent);
+      ball.owner = null;
+      ball.phase = BallPhase.passFlight;
+      ball.passFrom.set(ball.pos);
+      ball.passTo.set(Pos(nearPostX, nearPostY));
+      ball.passTarget = flickTarget;
+      ball.passTicksTotal = max(18, (40 * _passTicksMult()).round());
+      ball.passTicksRemaining = ball.passTicksTotal;
+      return;
+    } else if (routine < 45 && recv.length >= 2) {
+      // ─── RUTİN 2: Kısa Korner ────────────────────────────────────────────
+      bool goRight = ball.cornerForHome;
+      double shortX = goRight ? 0.80 : 0.20;
+      double shortY =
+          (ball.pos.y + (ball.pos.y < 0.5 ? 0.13 : -0.13)).clamp(0.04, 0.96);
+      SimPlayer shortRcv = recv.reduce((a, b) {
+        double dA = a.pos.dist(Pos(shortX, shortY));
+        double dB = b.pos.dist(Pos(shortX, shortY));
+        return dA < dB ? a : b;
+      });
+      shortRcv.moveTarget = Pos(shortX, shortY);
+      _log(
+          '🔄 Kısa korner! ${ball.owner?.data.name ?? ''} → ${shortRcv.data.name}',
+          Colors.cyanAccent);
+      ball.owner = null;
+      ball.phase = BallPhase.passFlight;
+      ball.passFrom.set(ball.pos);
+      ball.passTo.set(Pos(shortX, shortY));
+      ball.passTarget = shortRcv;
+      ball.passTicksTotal = max(14, (32 * _passTicksMult()).round());
+      ball.passTicksRemaining = ball.passTicksTotal;
+      return;
+    }
 
     // ─── KAFA DÜELLOSU: en iyi başlık yapan atakçı vs defansçı ──────────────
     SimPlayer atkHeader = recv.reduce((a, b) {
@@ -3309,7 +3434,11 @@ class _MatchEngineViewState extends State<MatchEngineView>
   // ─── TACKLE ─────────────────────────────────────────────────────────────────
 
   void _beenTackled(SimPlayer owner, SimPlayer tackler) {
-    if (_rng.nextInt(100) < max(15, tackler.defStat - owner.dribbleStat + 38)) {
+    // AI zorluk: rakip takım yapan oyuncu ise defans statına çarpan uygulanır
+    bool tacklerIsAI = tackler.isHome == widget.isPlayerTeamAway;
+    double diffMult = tacklerIsAI ? widget.aiDifficulty.aiTackleMult : 1.0;
+    int effectiveDef = (tackler.defStat * diffMult).round();
+    if (_rng.nextInt(100) < max(15, effectiveDef - owner.dribbleStat + 38)) {
       // Foul chance: sert müdahale veya düşük defans statı
       int foulChance = max(5, 30 - tackler.defStat ~/ 5);
       if (!_isFreeKick && _rng.nextInt(100) < foulChance) {
@@ -3431,8 +3560,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
       // ─ DİREK SERBEST VURUŞ: iyi açıdan kaleyeyakın pozisyonlarda %38 olasılık ─
       bool fkGoRight = _freeKickForHome;
-      double dToGoal =
-          fkGoRight ? (1.0 - _freeKickPos.x) : _freeKickPos.x;
+      double dToGoal = fkGoRight ? (1.0 - _freeKickPos.x) : _freeKickPos.x;
       bool fkGoodAngle = _freeKickPos.y > 0.22 && _freeKickPos.y < 0.78;
       bool fkDangerZone = dToGoal < 0.44 && dToGoal > 0.09;
       if (fkGoodAngle && fkDangerZone && _rng.nextInt(100) < 38) {
@@ -3997,10 +4125,6 @@ class _MatchEngineViewState extends State<MatchEngineView>
         bool isLeftWing = p.playerIndex == 4;
         double homeY = isLeftWing ? 0.06 : 0.94;
 
-        // Maçta hâlâ köşe triki planı varsa kanat o köşeye yönelsin
-        int _wTricksLeft = p.isHome
-            ? (_homeCornerTricksMax - _homeCornerTricksDone)
-            : (_awayCornerTricksMax - _awayCornerTricksDone);
         // Rakip yarısına girer girmez touchline'a yaslan ve köşeye sprint at
         bool _wDeepEnough = goRight ? p.pos.x > 0.46 : p.pos.x < 0.54;
         if (_wDeepEnough && !ball.isCornerTrick) {
@@ -4675,6 +4799,39 @@ class _MatchEngineViewState extends State<MatchEngineView>
         double w = box.maxWidth, h = box.maxHeight;
         return Stack(clipBehavior: Clip.hardEdge, children: [
           CustomPaint(size: Size(w, h), painter: _PitchPainter()),
+          // ── Heatmap overlay (toggle ile) ───────────────────────────────
+          if (_showHeatmap)
+            Opacity(
+              opacity: 0.70,
+              child: CustomPaint(
+                  size: Size(w, h), painter: _HeatmapPainter(_heatGrid, w, h)),
+            ),
+          // Heatmap toggle button (top-left)
+          Positioned(
+            top: 6,
+            left: 8,
+            child: GestureDetector(
+              onTap: () => setState(() => _showHeatmap = !_showHeatmap),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _showHeatmap
+                      ? Colors.deepOrange.withOpacity(0.7)
+                      : Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                      color:
+                          _showHeatmap ? Colors.orangeAccent : Colors.white24,
+                      width: 1),
+                ),
+                child: Text('🌡 HEATMAP',
+                    style: TextStyle(
+                        color: _showHeatmap ? Colors.white : Colors.white38,
+                        fontSize: 7.5,
+                        fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ),
           // Goals
           Positioned(
               left: 0, top: h * 0.36, child: _goalBox(w * 0.025, h * 0.28)),
@@ -4926,8 +5083,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.deepOrange
-                        .withOpacity(0.55 + pulse * 0.30),
+                    color: Colors.deepOrange.withOpacity(0.55 + pulse * 0.30),
                     blurRadius: 16,
                     spreadRadius: 3,
                   ),
@@ -4999,9 +5155,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
                 color: Colors.white,
                 fontSize: 17,
                 letterSpacing: 1.6,
-                shadows: const [
-                  Shadow(color: Colors.black54, blurRadius: 7)
-                ],
+                shadows: const [Shadow(color: Colors.black54, blurRadius: 7)],
               ),
             ),
           ),
@@ -5017,8 +5171,16 @@ class _MatchEngineViewState extends State<MatchEngineView>
     double oppMom = playerHome ? _awayMomentum : _homeMomentum;
     double total = myMom + oppMom;
     double myRatio = total > 0 ? (myMom / total).clamp(0.05, 0.95) : 0.5;
-    String myEmoji = myMom >= 68 ? '🔥' : myMom >= 50 ? '↗' : '↘';
-    String oppEmoji = oppMom >= 68 ? '🔥' : oppMom >= 50 ? '↗' : '↘';
+    String myEmoji = myMom >= 68
+        ? '🔥'
+        : myMom >= 50
+            ? '↗'
+            : '↘';
+    String oppEmoji = oppMom >= 68
+        ? '🔥'
+        : oppMom >= 50
+            ? '↗'
+            : '↘';
     Color myC = myMom >= 68
         ? Colors.greenAccent
         : myMom >= 50
@@ -5048,10 +5210,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
                 child: Container(
                   height: 5,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [
-                      myC.withOpacity(0.9),
-                      myC.withOpacity(0.55)
-                    ]),
+                    gradient: LinearGradient(
+                        colors: [myC.withOpacity(0.9), myC.withOpacity(0.55)]),
                   ),
                 ),
               ),
@@ -5118,8 +5278,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
               Expanded(
                 flex: (myRatio * 100).round().clamp(1, 99),
                 child: Container(
-                    height: 6,
-                    color: Colors.purpleAccent.withOpacity(0.82)),
+                    height: 6, color: Colors.purpleAccent.withOpacity(0.82)),
               ),
               Expanded(
                 flex: ((1 - myRatio) * 100).round().clamp(1, 99),
@@ -5133,7 +5292,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
     );
   }
 
-SimPlayer p, Color base, double w, double h,
+  Widget _playerDot(SimPlayer p, Color base, double w, double h,
       {bool isMyTeam = false}) {
     bool hasBall = (ball.owner == p);
     bool isMarking = (p.markTarget != null);
@@ -5466,22 +5625,211 @@ SimPlayer p, Color base, double w, double h,
             ? Colors.amber
             : Colors.redAccent;
 
+    // Top 3 player ratings
+    var allInsights = _insights.entries.toList()
+      ..sort((a, b) => b.value.rating.compareTo(a.value.rating));
+    var top3 = allInsights.take(3).toList();
+
+    // Goal log highlights
+    var goalLogs = logs
+        .where((e) => e.msg.contains('⚽') || e.msg.contains('🎯'))
+        .take(5)
+        .toList();
+
+    // xG
+    double myxG = playerHome ? _homexG : _awayxG;
+    double oppxG = playerHome ? _awayxG : _homexG;
+    double xgTotal = myxG + oppxG;
+    double myxGRatio = xgTotal > 0 ? (myxG / xgTotal).clamp(0.04, 0.96) : 0.5;
+
     return Container(
-      color: Colors.black.withOpacity(0.70),
+      color: Colors.black.withOpacity(0.84),
       child: Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(result,
-              style: GoogleFonts.russoOne(
-                  fontSize: 44,
-                  color: rc,
-                  shadows: [Shadow(color: rc, blurRadius: 20)])),
-          const SizedBox(height: 8),
-          Text('$myG - $oppG',
-              style: GoogleFonts.orbitron(
-                  fontSize: 32,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold)),
-        ]),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            // ─── Sonuç Başlığı ───────────────────────────────────────────
+            Text(result,
+                style: GoogleFonts.russoOne(
+                    fontSize: 36,
+                    color: rc,
+                    shadows: [Shadow(color: rc, blurRadius: 20)])),
+            const SizedBox(height: 4),
+            Text('$myG  –  $oppG',
+                style: GoogleFonts.orbitron(
+                    fontSize: 44,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+
+            // ─── xG Bandı ────────────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                  color: const Color(0xFF0E0E26),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white12)),
+              child: Column(children: [
+                Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(myxG.toStringAsFixed(2),
+                          style: const TextStyle(
+                              color: Colors.purpleAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14)),
+                      Text('xG',
+                          style: GoogleFonts.orbitron(
+                              color: Colors.white38,
+                              fontSize: 9,
+                              letterSpacing: 1.5)),
+                      Text(oppxG.toStringAsFixed(2),
+                          style: const TextStyle(
+                              color: Colors.pinkAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14)),
+                    ]),
+                const SizedBox(height: 5),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: Row(children: [
+                    Expanded(
+                        flex: (myxGRatio * 100).round(),
+                        child: Container(
+                            height: 8,
+                            color: Colors.purpleAccent.withOpacity(0.85))),
+                    Expanded(
+                        flex: ((1 - myxGRatio) * 100).round(),
+                        child: Container(
+                            height: 8,
+                            color: Colors.pinkAccent.withOpacity(0.7))),
+                  ]),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 10),
+
+            // ─── Top 3 Oyuncu Notu ────────────────────────────────────────
+            if (top3.isNotEmpty) ...[
+              Text('EN İYİ OYUNCULAR',
+                  style: GoogleFonts.orbitron(
+                      color: Colors.white24,
+                      fontSize: 7.5,
+                      letterSpacing: 1.5)),
+              const SizedBox(height: 5),
+              ...top3.asMap().entries.map((entry) {
+                int idx = entry.key;
+                var e = entry.value;
+                Color rc2 = idx == 0
+                    ? Colors.amber
+                    : idx == 1
+                        ? Colors.white70
+                        : Colors.orangeAccent;
+                String medal = idx == 0
+                    ? '🥇'
+                    : idx == 1
+                        ? '🥈'
+                        : '🥉';
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(children: [
+                    Text(medal, style: const TextStyle(fontSize: 14)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                        child: Text(e.key,
+                            style: TextStyle(
+                                color: rc2,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold))),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: rc2.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: rc2.withOpacity(0.4))),
+                      child: Text(e.value.rating.toStringAsFixed(1),
+                          style: TextStyle(
+                              color: rc2,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ]),
+                );
+              }),
+              const SizedBox(height: 10),
+            ],
+
+            // ─── Gol Anları ───────────────────────────────────────────────
+            if (goalLogs.isNotEmpty) ...[
+              Text('GOL ANLARI',
+                  style: GoogleFonts.orbitron(
+                      color: Colors.white24,
+                      fontSize: 7.5,
+                      letterSpacing: 1.5)),
+              const SizedBox(height: 5),
+              ...goalLogs.map((e) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                            color: Colors.amber.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(4)),
+                        child: Text("${e.minute}'",
+                            style: const TextStyle(
+                                color: Colors.amber,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                          child: Text(e.msg,
+                              style: TextStyle(
+                                  color: Colors.white70, fontSize: 9.5),
+                              overflow: TextOverflow.ellipsis)),
+                    ]),
+                  )),
+              const SizedBox(height: 12),
+            ],
+
+            // ─── Yeniden Oyna butonu ──────────────────────────────────────
+            GestureDetector(
+              onTap: () => setState(() {
+                _ticker?.stop();
+                _ticker?.dispose();
+                _ticker = null;
+                isMatchOver = false;
+                isStarted = false;
+                isGoal = false;
+                homeScore = 0;
+                awayScore = 0;
+                matchMinute = 0;
+                tick = 0;
+                logs.clear();
+                _ballTrail.clear();
+                _shotParticles.clear();
+                _initGame();
+                _startMatch();
+              }),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [Color(0xFF0066FF), Color(0xFF00E5FF)]),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text('🔁 YENİDEN OYNA',
+                    style: GoogleFonts.orbitron(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }
@@ -6881,4 +7229,331 @@ class _SoccerBallPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_) => false;
+}
+
+// ─── HEATMAP PAINTER ─────────────────────────────────────────────────────────
+
+class _HeatmapPainter extends CustomPainter {
+  final List<List<int>> grid; // 20 × 12
+  final double w, h;
+  _HeatmapPainter(this.grid, this.w, this.h);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    int maxVal = 0;
+    for (var col in grid) for (int v in col) if (v > maxVal) maxVal = v;
+    if (maxVal == 0) return;
+
+    double cw = w / 20;
+    double ch = h / 12;
+
+    for (int gx = 0; gx < 20; gx++) {
+      for (int gy = 0; gy < 12; gy++) {
+        int v = grid[gx][gy];
+        if (v == 0) continue;
+        double ratio = (v / maxVal).clamp(0.0, 1.0);
+        Color cell;
+        if (ratio < 0.15) {
+          cell = Colors.blue.withOpacity(ratio * 2.2);
+        } else if (ratio < 0.50) {
+          cell = Color.lerp(Colors.blue.withOpacity(0.35),
+              Colors.yellowAccent.withOpacity(0.65), ratio / 0.50)!;
+        } else {
+          cell = Color.lerp(Colors.yellowAccent.withOpacity(0.65),
+              Colors.redAccent.withOpacity(0.92), (ratio - 0.50) * 2.0)!;
+        }
+        final paint = Paint()
+          ..color = cell
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5.0);
+        canvas.drawRect(Rect.fromLTWH(gx * cw, gy * ch, cw + 1, ch + 1), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_HeatmapPainter old) => true;
+}
+
+// =============================================================================
+// PRE-MATCH SELECTION VIEW
+// =============================================================================
+
+/// Maç başlamadan önce oyuncunun kadrosundan 7 oyuncu seçmesini,
+/// taktik ve AI zorluğunu belirlemesini sağlar.
+class PreMatchView extends StatefulWidget {
+  final List<Player> squad;
+  final TacticStyle initialTactic;
+  final AiDifficulty initialDifficulty;
+  final void Function(
+    List<Player> selected,
+    TacticStyle tactic,
+    AiDifficulty difficulty,
+  ) onConfirm;
+
+  const PreMatchView({
+    super.key,
+    required this.squad,
+    required this.onConfirm,
+    this.initialTactic = TacticStyle.tikiTaka,
+    this.initialDifficulty = AiDifficulty.normal,
+  });
+
+  @override
+  State<PreMatchView> createState() => _PreMatchViewState();
+}
+
+class _PreMatchViewState extends State<PreMatchView> {
+  final Set<int> _selected = {};
+  late TacticStyle _tactic;
+  late AiDifficulty _difficulty;
+
+  static const int _maxSelect = 7;
+
+  @override
+  void initState() {
+    super.initState();
+    _tactic = widget.initialTactic;
+    _difficulty = widget.initialDifficulty;
+    for (int i = 0;
+        i < widget.squad.length && _selected.length < _maxSelect;
+        i++) {
+      _selected.add(i);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    bool ready = _selected.length == _maxSelect;
+    return Scaffold(
+      backgroundColor: const Color(0xFF08080F),
+      body: SafeArea(
+        child: Column(children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            color: const Color(0xFF0A1620),
+            child: Row(children: [
+              Expanded(
+                child: Text('KADRO SEÇ  (${_selected.length}/$_maxSelect)',
+                    style: GoogleFonts.orbitron(
+                        color: Colors.cyanAccent,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold)),
+              ),
+              if (ready)
+                GestureDetector(
+                  onTap: _confirm,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFF00C853), Color(0xFF00E5FF)]),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text('BAŞLAT ▶',
+                        style: GoogleFonts.orbitron(
+                            color: Colors.black,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold)),
+                  ),
+                ),
+            ]),
+          ),
+          // Tactic row
+          Container(
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            color: const Color(0xFF0E0E18),
+            child: Row(children: [
+              const Text('TAKTİK: ',
+                  style: TextStyle(color: Colors.white38, fontSize: 10)),
+              Expanded(
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: TacticStyle.values.map((t) {
+                    bool active = _tactic == t;
+                    return GestureDetector(
+                      onTap: () => setState(() => _tactic = t),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 2, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: active
+                              ? t.color.withOpacity(0.22)
+                              : Colors.transparent,
+                          border: Border.all(
+                              color: active ? t.color : Colors.white12,
+                              width: 1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(t.label,
+                            style: TextStyle(
+                                color: active ? t.color : Colors.white38,
+                                fontSize: 8,
+                                fontWeight: active
+                                    ? FontWeight.bold
+                                    : FontWeight.normal)),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ]),
+          ),
+          // Difficulty row
+          Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            color: const Color(0xFF0A0A14),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('ZORLUK: ',
+                    style: TextStyle(color: Colors.white38, fontSize: 10)),
+                ...AiDifficulty.values.map((d) {
+                  bool active = _difficulty == d;
+                  return GestureDetector(
+                    onTap: () => setState(() => _difficulty = d),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      margin: const EdgeInsets.symmetric(horizontal: 5),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: active
+                            ? d.color.withOpacity(0.18)
+                            : Colors.transparent,
+                        border: Border.all(
+                            color: active ? d.color : Colors.white12,
+                            width: 1.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(d.label,
+                          style: TextStyle(
+                              color: active ? d.color : Colors.white38,
+                              fontSize: 10,
+                              fontWeight: active
+                                  ? FontWeight.bold
+                                  : FontWeight.normal)),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          Container(height: 1, color: const Color(0xFF1E3A6E)),
+          // Squad list
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              itemCount: widget.squad.length,
+              itemBuilder: (ctx, i) {
+                var p = widget.squad[i];
+                bool sel = _selected.contains(i);
+                return GestureDetector(
+                  onTap: () => setState(() {
+                    if (sel) {
+                      _selected.remove(i);
+                    } else if (_selected.length < _maxSelect) {
+                      _selected.add(i);
+                    }
+                  }),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.symmetric(vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: sel
+                          ? const Color(0xFF0066FF).withOpacity(0.18)
+                          : const Color(0xFF0E0E1A),
+                      border: Border.all(
+                          color: sel
+                              ? Colors.cyanAccent.withOpacity(0.6)
+                              : Colors.white12,
+                          width: sel ? 1.5 : 1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(children: [
+                      Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: sel
+                              ? Colors.cyanAccent.withOpacity(0.85)
+                              : Colors.white12,
+                          border: Border.all(
+                              color: sel ? Colors.cyanAccent : Colors.white24,
+                              width: 1.5),
+                        ),
+                        child: sel
+                            ? const Icon(Icons.check,
+                                size: 13, color: Colors.black)
+                            : null,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(p.name,
+                            style: TextStyle(
+                                color: sel ? Colors.white : Colors.white70,
+                                fontSize: 12,
+                                fontWeight:
+                                    sel ? FontWeight.bold : FontWeight.normal)),
+                      ),
+                      _statChip(
+                          'ŞT', p.stats['Şut'] ?? 10, Colors.orangeAccent),
+                      const SizedBox(width: 4),
+                      _statChip('PS', p.stats['Pas'] ?? 10, Colors.cyanAccent),
+                      const SizedBox(width: 4),
+                      _statChip('HZ', p.stats['Hız'] ?? 10, Colors.greenAccent),
+                      const SizedBox(width: 4),
+                      _statChip(
+                          'DF', p.stats['Defans'] ?? 10, Colors.blueAccent),
+                    ]),
+                  ),
+                );
+              },
+            ),
+          ),
+          // Footer hint
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            alignment: Alignment.center,
+            color: const Color(0xFF0A0A14),
+            child: Text(
+              ready
+                  ? '✅ Kadro hazır! Başlatmak için ▶ düğmesine bas.'
+                  : '${_maxSelect - _selected.length} oyuncu daha seç',
+              style: TextStyle(
+                  color: ready ? Colors.greenAccent : Colors.white38,
+                  fontSize: 10),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _statChip(String label, int val, Color c) {
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Text(label, style: TextStyle(color: c.withOpacity(0.55), fontSize: 7)),
+      Text('$val',
+          style:
+              TextStyle(color: c, fontSize: 10, fontWeight: FontWeight.bold)),
+    ]);
+  }
+
+  void _confirm() {
+    final sorted = _selected.toList()..sort();
+    widget.onConfirm(
+      sorted.map((i) => widget.squad[i]).toList(),
+      _tactic,
+      _difficulty,
+    );
+  }
 }
