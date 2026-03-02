@@ -156,6 +156,9 @@ class SimPlayer {
   bool isDribbling = false;
   int dribbleTimer = 0;
 
+  // Corner trick support: when true, player shoots immediately on ball receipt
+  bool shootOnReceive = false;
+
   // FM26-style smooth movement
   double vx = 0, vy = 0;
   // Stamina: 1.0 = fresh → 0.72 = tired late game
@@ -277,6 +280,12 @@ class Ball {
   SimPlayer? wallPullRunner;
   int wallPullBouncesLeft = 0; // kalan sekme sayısı (1 veya 2)
 
+  // Corner Wall Trick state – haxball köşe duvar triki
+  bool isCornerTrick = false;
+  SimPlayer? cornerTrickRunner;
+  int cornerTrickPhase = 0; // 1=top duvara uçuş, 2=oyuncuya geri dönüş
+  int cornerTrickDirection = 0; // -1=üst köşe (y→0), +1=alt köşe (y→1)
+
   // Shot-flight state
   bool shotWillGoal = false;
   bool shotOnTarget = false;
@@ -385,6 +394,10 @@ class _MatchEngineViewState extends State<MatchEngineView>
   int _awayLane = 1;
   int _homeConsecLane = 0;
   int _awayConsecLane = 0;
+
+  // Köşe duvar triki planlama (her maç en az 1, bazen 2-3)
+  int _homeCornerTricksDone = 0, _awayCornerTricksDone = 0;
+  int _homeCornerTricksMax = 1, _awayCornerTricksMax = 1;
 
   // Cached team power (0-100): recalculated at init
   double _homePower = 50;
@@ -516,6 +529,10 @@ class _MatchEngineViewState extends State<MatchEngineView>
     _awayYellows = 0;
     _homeTackles = 0;
     _awayTackles = 0;
+    _homeCornerTricksDone = 0;
+    _awayCornerTricksDone = 0;
+    _homeCornerTricksMax = 2 + _rng.nextInt(3); // her maç 2, 3 veya 4 tane
+    _awayCornerTricksMax = 2 + _rng.nextInt(3);
     for (var p in [...homeTeam, ...awayTeam]) _ensureInsight(p);
   }
 
@@ -639,6 +656,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
       p.markTarget = null;
       p.isDribbling = false;
       p.dribbleTimer = 0;
+      p.shootOnReceive = false;
     }
 
     // Reset ball to center
@@ -658,6 +676,10 @@ class _MatchEngineViewState extends State<MatchEngineView>
     ball.isWallPull = false;
     ball.wallPullRunner = null;
     ball.wallPullBouncesLeft = 0;
+    ball.isCornerTrick = false;
+    ball.cornerTrickRunner = null;
+    ball.cornerTrickPhase = 0;
+    ball.cornerTrickDirection = 0;
     _shotSlowMoTicks = 0;
     _rocketFreezeTicks = 0;
     _shotParticles.clear();
@@ -958,6 +980,18 @@ class _MatchEngineViewState extends State<MatchEngineView>
       return;
     }
 
+    // ── KÖŞE TRİKİ İÇ PAS ALINDI: direkt şut ──
+    if (owner.shootOnReceive) {
+      owner.shootOnReceive = false;
+      var _oppForShoot = owner.isHome ? awayTeam : homeTeam;
+      var _gkForShoot = _oppForShoot.firstWhereOrNull((pl) => pl.role == 'GK');
+      if (_gkForShoot != null) {
+        _log('💥 ${owner.data.name} gelişine VURDU!', const Color(0xFFFFD600));
+        _shoot(owner, _gkForShoot);
+        return;
+      }
+    }
+
     bool goRight = owner.isHome;
     double goalX = goRight ? 0.97 : 0.03;
     var opp = owner.isHome ? awayTeam : homeTeam;
@@ -1024,7 +1058,9 @@ class _MatchEngineViewState extends State<MatchEngineView>
         targetY.clamp(0.04, 0.96),
       );
     } else {
-      double sideStep = _rng.nextBool() ? 0.07 : -0.07;
+      // Engel etrafında yavaş, düzgün sinüsoidal sürüş – rastgele sallanmak yerine
+      // oyuncu yavaşça bir yöne doğru ilerler, aniden geri dönmez.
+      double sideStep = sin(tick * 0.065 + owner.playerIndex * 2.09) * 0.048;
       owner.moveTarget = Pos(
         (owner.pos.x + (goRight ? 0.003 : -0.003)).clamp(0.04, 0.96),
         (owner.pos.y + sideStep).clamp(0.04, 0.96),
@@ -1070,7 +1106,10 @@ class _MatchEngineViewState extends State<MatchEngineView>
     // ── 1v1 KALECİ: defans aşıldıysa şut (derin rakip sahasında) ──
     if (!owner.instruction.passOnly && owner.role != 'GK') {
       bool inDeepAtt = goRight ? owner.pos.x > 0.62 : owner.pos.x < 0.38;
-      if (inDeepAtt) {
+      // Kanattan köşeye gidiyorsa bu erken şutu atla
+      bool _wingHeadingCorner =
+          owner.role == 'WING' && (owner.pos.y < 0.22 || owner.pos.y > 0.78);
+      if (inDeepAtt && !_wingHeadingCorner) {
         // Kendi ile kale arasında rakip DEF var mı?
         bool noDefBetween = opp
             .where((o) =>
@@ -1116,6 +1155,30 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
     }
 
+    // ── WING KÖŞE YAKLAŞIMI: touchline’da rakip sahasındayken köşeye zorla dribble ──
+    if (owner.role == 'WING' && !owner.instruction.passOnly) {
+      bool _wingInAttHalf = goRight ? owner.pos.x > 0.50 : owner.pos.x < 0.50;
+      bool _wingOnLine = owner.pos.y < 0.22 || owner.pos.y > 0.78;
+      bool _wingAtCorner = goRight ? owner.pos.x > 0.76 : owner.pos.x < 0.24;
+      if (_wingInAttHalf &&
+          _wingOnLine &&
+          !_wingAtCorner &&
+          pressers.length < 2) {
+        double _cx = (owner.pos.x + (goRight ? 0.09 : -0.09)).clamp(0.04, 0.96);
+        double _cy = owner.pos.y < 0.5
+            ? owner.pos.y.clamp(0.04, 0.18)
+            : owner.pos.y.clamp(0.82, 0.96);
+        owner.moveTarget = Pos(_cx, _cy);
+        if (!owner.isDribbling) {
+          owner.isDribbling = true;
+          owner.dribbleTimer = 30 + _rng.nextInt(20);
+          _log(
+              '🏃 ${owner.data.name} köşeye sürüyor!', const Color(0xFF00BCD4));
+        }
+        return;
+      }
+    }
+
     // ── DUVAR PAS: sadece RAKIP sahasında, kenar çizgisine yakınken içe pas ──
     bool nearSideWall = owner.pos.y < 0.08 || owner.pos.y > 0.92;
     bool notInBox = goRight ? owner.pos.x < 0.78 : owner.pos.x > 0.22;
@@ -1123,6 +1186,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
     if (nearSideWall &&
         notInBox &&
         !inOwnHalfForWall && // kendi sahasında duvar pas yok
+        owner.role != 'WING' && // kanat bu blokla köşe gidişini kaybetmez
         pressers.isEmpty &&
         _rng.nextInt(100) < 35) {
       var closeMates = team
@@ -1153,6 +1217,44 @@ class _MatchEngineViewState extends State<MatchEngineView>
           atk.sort((a, b) =>
               (goRight ? b.pos.x - a.pos.x : a.pos.x - b.pos.x).toInt());
           _execPass(owner, atk.first);
+          return;
+        }
+      }
+    }
+
+    // ── KÖŞE SERVİSİ: topu rakip köşedeki kanada ilet (trick planlandıysa) ──
+    if (owner.role != 'GK' && !owner.instruction.passOnly) {
+      int _tricksLeft = owner.isHome
+          ? (_homeCornerTricksMax - _homeCornerTricksDone)
+          : (_awayCornerTricksMax - _awayCornerTricksDone);
+      bool _inOffHalf = goRight ? owner.pos.x > 0.46 : owner.pos.x < 0.54;
+      if (_tricksLeft > 0 && _inOffHalf && !ball.isCornerTrick) {
+        // Köşe koridorunda (touchline boyunca) bekleyen/ilerleyen WING var mı?
+        var _cornerWing = team.firstWhereOrNull((t) =>
+            t != owner &&
+            t.role == 'WING' &&
+            (goRight ? t.pos.x > 0.60 : t.pos.x < 0.40) &&
+            (t.pos.y < 0.22 || t.pos.y > 0.78) &&
+            opp.every((o) => o.pos.dist(t.pos) > 0.12));
+        if (_cornerWing != null && _rng.nextInt(100) < 68) {
+          _log(
+              '📢 ${owner.data.name} → kanat koridoru! (${_cornerWing.data.name})',
+              const Color(0xFF40C4FF));
+          _execPass(owner, _cornerWing);
+          return;
+        }
+        // Kanat henüz koridorda değil ama yolda → öne pas at, koştur
+        var _approachWing = team.firstWhereOrNull((t) =>
+            t != owner &&
+            t.role == 'WING' &&
+            (goRight ? t.pos.x > 0.50 : t.pos.x < 0.50) &&
+            (t.pos.y < 0.28 || t.pos.y > 0.72) &&
+            opp.every((o) => o.pos.dist(t.pos) > 0.16));
+        if (_approachWing != null && _rng.nextInt(100) < 42) {
+          _log(
+              '📡 ${owner.data.name} → kanada yönlendirme! (${_approachWing.data.name})',
+              const Color(0xFF0091EA));
+          _execPass(owner, _approachWing);
           return;
         }
       }
@@ -1202,9 +1304,76 @@ class _MatchEngineViewState extends State<MatchEngineView>
         return;
       }
 
+      // ── HaxBall KÖŞE DUVAR TRİKİ: rakip köşesinde birleşik duvar+iç pas ──
+      int _tLeft = owner.isHome
+          ? (_homeCornerTricksMax - _homeCornerTricksDone)
+          : (_awayCornerTricksMax - _awayCornerTricksDone);
+      bool _veryDeep = goRight ? owner.pos.x > 0.76 : owner.pos.x < 0.24;
+      bool _cornerLine = owner.pos.y < 0.22 || owner.pos.y > 0.78;
+
+      // ── DOĞRUDAN İÇ PAS: köşe bölgesinde açık CAM/ST varsa duvar numarası
+      //    yapmak yerine direkt içeri at, o da gelişine vursun ──
+      if (_veryDeep &&
+          _cornerLine &&
+          pressers.isEmpty &&
+          !owner.instruction.passOnly) {
+        var _innerCut = team.firstWhereOrNull((t) =>
+            t != owner &&
+            (t.role == 'CAM' || t.role == 'ST' || t.role == 'FWD') &&
+            (goRight ? t.pos.x > 0.60 : t.pos.x < 0.40) &&
+            t.pos.y > 0.26 &&
+            t.pos.y < 0.74 &&
+            opp.every((o) => o.pos.dist(t.pos) > 0.13));
+        if (_innerCut != null && _rng.nextInt(100) < 62) {
+          _innerCut.shootOnReceive = true;
+          _log(
+              '⚡ ${owner.data.name} → ${_innerCut.data.name} iç pas, gelişine vur!',
+              const Color(0xFFFFD600));
+          _execPass(owner, _innerCut);
+          return;
+        }
+      }
+
+      if (_tLeft > 0 &&
+          _veryDeep &&
+          _cornerLine &&
+          pressers.isEmpty &&
+          !ball.isCornerTrick &&
+          !ball.isWallRunActive &&
+          !ball.isWallPull &&
+          !owner.instruction.passOnly &&
+          _rng.nextInt(100) < 55) {
+        _startCornerTrick(owner);
+        return;
+      }
+
+      // ── KÖŞE YAKLAŞIMI: touchline boyunca rakip köşeye doğru dribling ile sür ──
+      bool _cornerApproach = goRight
+          ? (owner.pos.x > 0.56 && owner.pos.x < 0.76)
+          : (owner.pos.x < 0.44 && owner.pos.x > 0.24);
+      bool _huggingLine = owner.pos.y < 0.20 || owner.pos.y > 0.80;
+      if (_cornerApproach &&
+          _huggingLine &&
+          pressers.isEmpty &&
+          !owner.isDribbling &&
+          !owner.instruction.passOnly &&
+          _rng.nextInt(100) < 74) {
+        owner.isDribbling = true;
+        owner.dribbleTimer = 26 + _rng.nextInt(16);
+        double _dribX =
+            (owner.pos.x + (goRight ? 0.10 : -0.10)).clamp(0.04, 0.96);
+        double _dribY = owner.pos.y < 0.5
+            ? (owner.pos.y - 0.02).clamp(0.04, 0.15)
+            : (owner.pos.y + 0.02).clamp(0.85, 0.96);
+        owner.moveTarget = Pos(_dribX, _dribY);
+        _log(
+            '🎭 ${owner.data.name} köşeye koşuyor...', const Color(0xFF00BCD4));
+      }
+
       // Diagonal cut-inside when not hugging touchline
       bool midWide = owner.pos.y < 0.24 || owner.pos.y > 0.76;
       if (midWide &&
+          !_huggingLine &&
           !owner.instruction.stayWide &&
           pressers.isEmpty &&
           _rng.nextInt(100) < 40) {
@@ -1237,7 +1406,10 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
     // ── ŞUT: ceza alanı içi ──
     bool inBox = goRight ? owner.pos.x > 0.76 : owner.pos.x < 0.24;
-    if (inBox && !owner.instruction.passOnly) {
+    // Kanat touchline'da köşeye ilerliyor – ceza alanında bile şut atma, trick’e bırak
+    bool _wingCornerRunning =
+        owner.role == 'WING' && (owner.pos.y < 0.22 || owner.pos.y > 0.78);
+    if (inBox && !owner.instruction.passOnly && !_wingCornerRunning) {
       // One-two / low cross combination: topa açık arkadaş varsa önce gönder
       bool hasOpenBoxMate = team.any((t) =>
           t != owner &&
@@ -1318,7 +1490,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
         double stepX =
             (owner.pos.x + (goRight ? 0.055 : -0.055)).clamp(0.04, 0.96);
         double stepY = owner.role == 'WING'
-            ? (owner.pos.y * 0.92 + owner.homeBase.y * 0.08).clamp(0.04, 0.96)
+            ? (owner.pos.y * 0.80 + owner.homeBase.y * 0.20).clamp(0.04, 0.96)
             : owner.pos.y; // düz ileri
         owner.moveTarget = Pos(stepX, stepY);
         if (owner.dribbleTimer == 0) owner.isDribbling = false;
@@ -1351,7 +1523,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
         double dribX =
             (owner.pos.x + (goRight ? 0.065 : -0.065)).clamp(0.04, 0.96);
         double dribY = owner.role == 'WING'
-            ? (owner.pos.y * 0.90 + owner.homeBase.y * 0.10).clamp(0.04, 0.96)
+            ? (owner.pos.y * 0.80 + owner.homeBase.y * 0.20).clamp(0.04, 0.96)
             : owner.pos.y;
         owner.moveTarget = Pos(dribX, dribY);
         _log('\u26bd ${owner.data.name} sürdü!', Colors.orangeAccent);
@@ -1703,6 +1875,54 @@ class _MatchEngineViewState extends State<MatchEngineView>
     _log('💨 ${runner.data.name} duvara koşuyor!', Colors.yellowAccent);
   }
 
+  // ─── HaxBall KÖŞE DUVAR TRİKİ ──────────────────────────────────────────────
+  // Kanat rakip köşesine ulaştığında:
+  //   Faz 1 → topu köşeye (x+y duvarına) vurur
+  //   Faz 2 → top çapraz geri sekip oyuncuya gelir
+  //   Karar → %75 iç pas (CAM/ST), %25 şut
+  void _startCornerTrick(SimPlayer runner) {
+    bool goRight = runner.isHome;
+    // Hangi köşe? Oyuncunun Y'sine göre belirle
+    bool isTopCorner = runner.pos.y < 0.5;
+    int direction = isTopCorner ? -1 : 1; // -1=üst köşe, +1=alt köşe
+
+    // Köşe noktası: hem x hem y duvarına yakın
+    double cornerX = goRight ? 0.975 : 0.025;
+    double cornerY = isTopCorner ? 0.018 : 0.982;
+
+    ball.isCornerTrick = true;
+    ball.cornerTrickRunner = runner;
+    ball.cornerTrickPhase = 1;
+    ball.cornerTrickDirection = direction;
+
+    // Topu köşeye gönder (passFlight, passTarget=null → duvara çarpacak)
+    ball.owner = null;
+    ball.phase = BallPhase.passFlight;
+    ball.passFrom.set(runner.pos);
+    ball.passTo = Pos(cornerX, cornerY);
+    ball.passTarget = null; // köşe duvarı
+    ball.passTicksTotal = max(
+        8,
+        (runner.pos.dist(Pos(cornerX, cornerY)) * 52 * _passTicksMult())
+            .round());
+    ball.passTicksRemaining = ball.passTicksTotal;
+    ball.pos.set(runner.pos);
+
+    // Oyuncu köşeye birlikte sprint atar
+    runner.moveTarget = Pos(
+      (goRight ? 0.88 : 0.12),
+      isTopCorner ? 0.06 : 0.94,
+    );
+
+    if (runner.isHome)
+      _homeCornerTricksDone++;
+    else
+      _awayCornerTricksDone++;
+
+    _log('🔵 ${runner.data.name} HaxBall köşe duvar triki!',
+        const Color(0xFF40C4FF));
+  }
+
   void _execPass(SimPlayer passer, SimPlayer target) {
     // Guard: cannot pass to yourself
     if (passer == target) return;
@@ -1877,6 +2097,102 @@ class _MatchEngineViewState extends State<MatchEngineView>
           _log('⚡ ${runner.data.name} topu aldı, ileri!', Colors.greenAccent);
         }
       }
+      return;
+    }
+
+    // ── KÖŞE DUVAR TRİKİ: iki fazlı (duvara uçuş + oyuncuya geri) ──
+    if (ball.isCornerTrick) {
+      var _tr = ball.cornerTrickRunner;
+      if (_tr == null) {
+        ball.isCornerTrick = false;
+        ball.cornerTrickPhase = 0;
+        ball.phase = BallPhase.free;
+        return;
+      }
+      bool _goRight = _tr.isHome;
+
+      if (ball.cornerTrickPhase == 1) {
+        // FAZ 1 tamamlandı: top köşeye çarptı → oyuncuya geri sek
+        ball.cornerTrickPhase = 2;
+        // Geri sekme: köşeden çapraz olarak oyuncunun önüne
+        double _retX =
+            (_tr.pos.x + (_goRight ? -0.08 : 0.08)).clamp(0.08, 0.92);
+        double _retY = (ball.cornerTrickDirection < 0)
+            ? (_tr.pos.y + 0.13).clamp(0.04, 0.50)
+            : (_tr.pos.y - 0.13).clamp(0.50, 0.96);
+        Pos _retPos = Pos(_retX, _retY);
+        ball.passFrom.set(ball.pos);
+        ball.passTo.set(_retPos);
+        ball.passTarget = _tr;
+        ball.passTicksTotal =
+            max(7, (ball.pos.dist(_retPos) * 60 * _passTicksMult()).round());
+        ball.passTicksRemaining = ball.passTicksTotal;
+        _tr.moveTarget.set(_retPos);
+        _log('💫 Köşeden geri döndü → ${_tr.data.name}',
+            const Color(0xFF40C4FF));
+        return;
+      }
+
+      if (ball.cornerTrickPhase == 2) {
+        // FAZ 2 tamamlandı: oyuncu topu aldı → içe dön + karar ver
+        ball.isCornerTrick = false;
+        ball.cornerTrickRunner = null;
+        ball.cornerTrickPhase = 0;
+        ball.cornerTrickDirection = 0;
+        ball.owner = _tr;
+        ball.phase = BallPhase.owned;
+        ball.passTarget = null;
+        ball.pos.set(_tr.pos);
+        _log('↩ ${_tr.data.name} içe döndü!', const Color(0xFF40C4FF));
+
+        var _tTeam = _tr.isHome ? homeTeam : awayTeam;
+        var _tOpp = _tr.isHome ? awayTeam : homeTeam;
+        var _tGk = _tOpp.firstWhereOrNull((pl) => pl.role == 'GK');
+
+        // 40% şut, 60% içeri pas – içe dönerek karar ver
+        // Önce GK'ya açık bakış var mı kontrol et
+        bool _hasLane = _tOpp
+            .where((o) =>
+                o.role != 'GK' &&
+                (_goRight ? o.pos.x > _tr.pos.x : o.pos.x < _tr.pos.x) &&
+                o.pos.dist(_tr.pos) < 0.28 &&
+                (o.pos.y - _tr.pos.y).abs() < 0.14)
+            .isEmpty;
+        // Köşe triki sonrası: çoğunlukla iç pas tercih et (gelişine vursun),
+        // açık hat yoksa ya da şans tutarsa direkt şut.
+        if (_tGk != null && (_rng.nextInt(100) < (_hasLane ? 26 : 14))) {
+          _log('🎯 ${_tr.data.name} köşeden şut!', const Color(0xFFFF5722));
+          _shoot(_tr, _tGk);
+        } else {
+          // İç pas: CAM / ST / FWD – merkez bölgesindeki oyuncuya
+          var _inner = _tTeam
+              .where((t) =>
+                  t != _tr &&
+                  t.role != 'GK' &&
+                  (t.role == 'CAM' || t.role == 'ST' || t.role == 'FWD') &&
+                  (_goRight ? t.pos.x > 0.52 : t.pos.x < 0.48) &&
+                  t.pos.y > 0.24 &&
+                  t.pos.y < 0.76)
+              .toList();
+          if (_inner.isNotEmpty) {
+            _inner.sort((a, b) =>
+                (_goRight ? b.pos.x - a.pos.x : a.pos.x - b.pos.x).toInt());
+            _log('📩 ${_tr.data.name} → ${_inner.first.data.name} (iç pas!)',
+                const Color(0xFF40C4FF));
+            _inner.first.shootOnReceive = true; // gelince vursun!
+            _execPass(_tr, _inner.first);
+          } else if (_tGk != null) {
+            _log('🎯 ${_tr.data.name} zoraki şut!', const Color(0xFFFF5722));
+            _shoot(_tr, _tGk);
+          } else {
+            _tryPass(_tr, _tTeam, preferFwd: true);
+          }
+        }
+        return;
+      }
+      // Beklenmedik faz → serbest bırak
+      ball.isCornerTrick = false;
+      ball.phase = BallPhase.free;
       return;
     }
 
@@ -2797,7 +3113,10 @@ class _MatchEngineViewState extends State<MatchEngineView>
     // Use ball.pos as reference during flights too
     Pos ballRef = ball.pos;
     bool ownTeamHasBall =
-        ball.owner != null && (ball.owner!.isHome == p.isHome);
+        (ball.owner != null && (ball.owner!.isHome == p.isHome)) ||
+            (ball.isCornerTrick &&
+                ball.cornerTrickRunner != null &&
+                ball.cornerTrickRunner!.isHome == p.isHome);
     SimPlayer? bo = ball.owner;
 
     // ── YÜKLEME BASKISI: rakip kendi sahasında topla – hücum oyuncuları presler ──
@@ -2891,16 +3210,112 @@ class _MatchEngineViewState extends State<MatchEngineView>
       // Recompute target every 4 ticks per player – stable yet responsive
       bool shouldUpdate = (tick % 4 == p.playerIndex % 4);
 
-      // ── WING: sürekli ileriye koşu – her 20 tickte yeni hedef ──────────────
+      // ── KÖŞE DESTEK: takımın WING'i touchline’da köşeye koşuyor veya
+      //    cornerTrick aktifte – ST/CAM/FWD/diğer WING kutuya girerek pas bekle ──
+      SimPlayer? _activeBo =
+          bo ?? (ball.isCornerTrick ? ball.cornerTrickRunner : null);
+      bool _friendlyWingOnCornerRun = _activeBo != null &&
+          _activeBo.isHome == p.isHome &&
+          _activeBo.role == 'WING' &&
+          (_activeBo.pos.y < 0.22 || _activeBo.pos.y > 0.78) &&
+          (goRight ? _activeBo.pos.x > 0.52 : _activeBo.pos.x < 0.48);
+      bool _cornerSupportNeeded =
+          _friendlyWingOnCornerRun || ball.isCornerTrick;
+      bool _isSupportRole = p.role == 'ST' ||
+          p.role == 'CAM' ||
+          p.role == 'FWD' ||
+          (p.role == 'WING' && (bo == null || bo != p));
+      if (_cornerSupportNeeded &&
+          _isSupportRole &&
+          p.role != 'GK' &&
+          (tick % 3 == p.playerIndex % 3)) {
+        // Her destek oyuncusu kutunun FARKLI çeyreğine koşsun
+        // – sıkışmadan paş alabilsin
+        double _supX, _supY;
+        // Aktif WING hangi kenarda?
+        SimPlayer? _activeWing = _activeBo != null &&
+                _activeBo.isHome == p.isHome &&
+                _activeBo.role == 'WING'
+            ? _activeBo
+            : ball.cornerTrickRunner;
+        bool _wingTop = _activeWing != null ? _activeWing.pos.y < 0.5 : true;
+        switch (p.playerIndex % 4) {
+          case 0: // Kutu merkezi – direkt şut pozisyonu
+            _supX = (goRight
+                    ? 0.72 + _rng.nextDouble() * 0.14
+                    : 0.14 + _rng.nextDouble() * 0.14)
+                .clamp(0.06, 0.94);
+            _supY = 0.38 + _rng.nextDouble() * 0.24;
+            break;
+          case 1: // Yakın direk
+            _supX = (goRight
+                    ? 0.78 + _rng.nextDouble() * 0.10
+                    : 0.12 + _rng.nextDouble() * 0.10)
+                .clamp(0.06, 0.94);
+            _supY = _wingTop
+                ? 0.54 + _rng.nextDouble() * 0.18
+                : 0.28 + _rng.nextDouble() * 0.18;
+            break;
+          case 2: // Ceza alanı başı
+            _supX = (goRight
+                    ? 0.64 + _rng.nextDouble() * 0.10
+                    : 0.26 + _rng.nextDouble() * 0.10)
+                .clamp(0.06, 0.94);
+            _supY = 0.32 + _rng.nextDouble() * 0.36;
+            break;
+          default: // Uzak direk
+            _supX = (goRight
+                    ? 0.76 + _rng.nextDouble() * 0.12
+                    : 0.12 + _rng.nextDouble() * 0.12)
+                .clamp(0.06, 0.94);
+            _supY = _wingTop
+                ? 0.60 + _rng.nextDouble() * 0.20
+                : 0.20 + _rng.nextDouble() * 0.20;
+        }
+        p.moveTarget = Pos(_supX, _supY);
+        _applySeparation(p);
+        return;
+      }
+
+      // ── WING: kendi yolunda ilerle – köşe triki planlandıysa köşeye yönel ──
       if (p.role == 'WING' && (tick % 4 == p.playerIndex % 4)) {
         bool isLeftWing = p.playerIndex == 4;
         double homeY = isLeftWing ? 0.06 : 0.94;
+
+        // Maçta hâlâ köşe triki planı varsa kanat o köşeye yönelsin
+        int _wTricksLeft = p.isHome
+            ? (_homeCornerTricksMax - _homeCornerTricksDone)
+            : (_awayCornerTricksMax - _awayCornerTricksDone);
+        // Rakip yarısına girer girmez touchline'a yaslan ve köşeye sprint at
+        bool _wDeepEnough = goRight ? p.pos.x > 0.46 : p.pos.x < 0.54;
+        if (_wDeepEnough && !ball.isCornerTrick) {
+          // Kademeli yaklaşım: önce touchline'a çek, sonra köşeye sprint
+          bool _alreadyOnLine = (homeY < 0.5) ? p.pos.y < 0.22 : p.pos.y > 0.78;
+          double _cornerRunX;
+          double _cornerRunY;
+          if (!_alreadyOnLine) {
+            // Adım 1: Y'yi touchline'a yaklaştır
+            _cornerRunX =
+                (p.pos.x + (goRight ? 0.06 : -0.06)).clamp(0.04, 0.96);
+            _cornerRunY = homeY;
+          } else {
+            // Adım 2: X'i köşeye sprint at
+            _cornerRunX = (goRight
+                    ? 0.80 + _rng.nextDouble() * 0.12
+                    : 0.08 + _rng.nextDouble() * 0.12)
+                .clamp(0.04, 0.96);
+            _cornerRunY = homeY;
+          }
+          p.moveTarget = Pos(_cornerRunX, _cornerRunY);
+          _applySeparation(p);
+          return;
+        }
 
         // 3-fazlı çevrim: 0=kanat koşusu  1=içe çekilme  2=ay çizgisi sprint
         int phaseCycle = ((tick ~/ 22) + p.playerIndex * 7) % 3;
         switch (phaseCycle) {
           case 0:
-            // Kanattan ilerle – defansı geniş tut
+            // Kanattan ilerle – defansı geniş tut (homeY'den ayrılma)
             double wx = (goRight
                     ? 0.70 + sin(tick * 0.08 + p.playerIndex) * 0.16
                     : 0.30 - sin(tick * 0.08 + p.playerIndex) * 0.16)
@@ -2908,17 +3323,16 @@ class _MatchEngineViewState extends State<MatchEngineView>
             p.moveTarget = Pos(wx, homeY);
             break;
           case 1:
-            // Kanattan ileri sprint – geniş kal, defansı aç
+            // Kanattan ileri sprint – homeY'ye sıkı kal
             double inX = (goRight
                     ? 0.72 + _rng.nextDouble() * 0.14
                     : 0.14 + _rng.nextDouble() * 0.14)
                 .clamp(0.06, 0.94);
-            // homeY'ye yakın kal (touchline tarafı)
             p.moveTarget = Pos(
-                inX, (homeY + (isLeftWing ? 0.10 : -0.10)).clamp(0.04, 0.96));
+                inX, (homeY + (isLeftWing ? 0.06 : -0.06)).clamp(0.04, 0.96));
             break;
           default:
-            // Ay çizgisi sprint – geri pas için pozisyon
+            // Ay çizgisi sprint – geri pas için homeY pozisyon
             double ovX = (goRight
                     ? 0.84 + _rng.nextDouble() * 0.08
                     : 0.08 + _rng.nextDouble() * 0.08)
