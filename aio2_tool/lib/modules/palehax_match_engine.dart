@@ -460,6 +460,32 @@ class _MatchEngineViewState extends State<MatchEngineView>
   // ── PLAYER MATCH INSIGHTS ─────────────────────────────────────────────────
   final Map<String, _PlayerInsight> _insights = {};
 
+  // ── MOMENTUM (0-100; 50 = denge) ──────────────────────────────────────────
+  double _homeMomentum = 50.0, _awayMomentum = 50.0;
+
+  // ── xG (Beklenen Gol) ─────────────────────────────────────────────────────
+  double _homexG = 0.0, _awayxG = 0.0;
+
+  // ── DİREK / KALECİ ÇARPMASI ───────────────────────────────────────────────
+  bool _postHitActive = false;
+  int _postHitTimer = 0;
+  SimPlayer? _postHitShooter;
+
+  // ── BÜYÜK POZİSYON (Big Chance) ───────────────────────────────────────────
+  bool _bigChanceActive = false;
+  int _bigChanceTimer = 0;
+
+  // ── HERO PLAYER (son golü atan → altın aura) ──────────────────────────────
+  SimPlayer? _heroPlayer;
+  int _heroTimer = 0;
+
+  // ── ŞUT BAĞLAMI (gol türü tespiti için) ───────────────────────────────────
+  bool _lastShotWasInBox = false;
+  bool _lastShotWas1v1 = false;
+  bool _lastShotFromCorner = false;
+  bool _lastShotWasPenalty = false;
+  bool _lastShotWasLongRange = false;
+
   void _ensureInsight(SimPlayer p) =>
       _insights.putIfAbsent(p.data.name, () => _PlayerInsight());
 
@@ -547,6 +573,22 @@ class _MatchEngineViewState extends State<MatchEngineView>
     _awayCornerTricksDone = 0;
     _homeCornerTricksMax = 1 + _rng.nextInt(2); // her maç 1 veya 2 tane
     _awayCornerTricksMax = 1 + _rng.nextInt(2);
+    _homeMomentum = 50.0;
+    _awayMomentum = 50.0;
+    _homexG = 0.0;
+    _awayxG = 0.0;
+    _postHitActive = false;
+    _postHitTimer = 0;
+    _postHitShooter = null;
+    _bigChanceActive = false;
+    _bigChanceTimer = 0;
+    _heroPlayer = null;
+    _heroTimer = 0;
+    _lastShotWasInBox = false;
+    _lastShotWas1v1 = false;
+    _lastShotFromCorner = false;
+    _lastShotWasPenalty = false;
+    _lastShotWasLongRange = false;
     for (var p in [...homeTeam, ...awayTeam]) _ensureInsight(p);
   }
 
@@ -572,6 +614,66 @@ class _MatchEngineViewState extends State<MatchEngineView>
     if (tac == TacticStyle.gegen) power += 2;
     if (tac == TacticStyle.attack) power += 4;
     return power.clamp(20, 100);
+  }
+
+  // ─── xG HESAPLAMA ─────────────────────────────────────────────────────────
+  /// Konum, açı ve rol bazlı Beklenen Gol değeri (0.01 – 0.98).
+  double _calcXG(SimPlayer shooter, bool is1v1) {
+    bool goRight = shooter.isHome;
+    double goalX = goRight ? 1.0 : 0.0;
+    double dist = shooter.pos.dist(Pos(goalX, 0.5)).clamp(0.05, 1.4);
+    double anglePen = (shooter.pos.y - 0.5).abs().clamp(0.0, 0.5);
+    double distFactor = 1.0 - (dist / 1.4);
+    double angleFactor = 1.0 - (anglePen / 0.5) * 0.58;
+    double xg = distFactor * angleFactor;
+    if (is1v1) xg *= 1.45;
+    switch (shooter.role) {
+      case 'ST':
+        xg *= 1.18;
+        break;
+      case 'CAM':
+        xg *= 0.94;
+        break;
+      case 'WING':
+        xg *= 0.82;
+        break;
+      case 'DEF':
+        xg *= 0.52;
+        break;
+    }
+    return xg.clamp(0.01, 0.98);
+  }
+
+  // ─── DİREK / ÜST ÇIVI ÇARPMASI ──────────────────────────────────────────────
+  void _postHit(bool wasHome, String shooterName) {
+    _postHitActive = true;
+    _postHitTimer = 95;
+    _postHitShooter = [...homeTeam, ...awayTeam]
+        .firstWhereOrNull((p) => p.data.name == shooterName);
+
+    // Top ceza alanı içinde sekip serbest kalır
+    double bxPad = wasHome ? 0.91 : 0.09;
+    ball.pos = Pos(bxPad, 0.36 + _rng.nextDouble() * 0.28);
+    ball.owner = null;
+    ball.phase = BallPhase.free;
+    ball.isRocketShot = false;
+    ball.shotWillGoal = false;
+
+    // Momentum: şanssızlık kötü momentum
+    if (wasHome) {
+      _homeMomentum = (_homeMomentum - 6).clamp(0, 100);
+      _awayMomentum = (_awayMomentum + 4).clamp(0, 100);
+    } else {
+      _awayMomentum = (_awayMomentum - 6).clamp(0, 100);
+      _homeMomentum = (_homeMomentum + 4).clamp(0, 100);
+    }
+
+    _logVariant([
+      '⚫ DİREĞE! $shooterName kaçırdı!',
+      '🎯 ÜST ÇIVIYA! $shooterName mağlup!',
+      '⚫ KAZIK DİREK! Az kalsın gol! $shooterName',
+      '⚫ Direk titredi! $shooterName inanamıyor!',
+    ], const Color(0xFFFF9800));
   }
 
   void _buildTeam(
@@ -808,6 +910,33 @@ class _MatchEngineViewState extends State<MatchEngineView>
   void _onTick() {
     tick++;
     matchMinute = (tick / speed.totalTicks * 90.0).clamp(0, 90);
+
+    // ─ Momentum yavaş dengeye çekme ─
+    if (tick % 15 == 0) {
+      _homeMomentum = (_homeMomentum * 0.965 + 50.0 * 0.035).clamp(0, 100);
+      _awayMomentum = (_awayMomentum * 0.965 + 50.0 * 0.035).clamp(0, 100);
+    }
+
+    // ─ Direk çarpma zamanlayıcısı ─
+    if (_postHitTimer > 0) {
+      _postHitTimer--;
+      if (_postHitTimer == 0) {
+        _postHitActive = false;
+        _postHitShooter = null;
+      }
+    }
+
+    // ─ Büyük pozisyon zamanlayıcısı ─
+    if (_bigChanceTimer > 0) {
+      _bigChanceTimer--;
+      if (_bigChanceTimer == 0) _bigChanceActive = false;
+    }
+
+    // ─ Hero oyuncu zamanlayıcısı ─
+    if (_heroTimer > 0) {
+      _heroTimer--;
+      if (_heroTimer == 0) _heroPlayer = null;
+    }
 
     // ─ Update shot particles ─
     _shotParticles.removeWhere((sp) => sp.life <= 0);
@@ -1385,15 +1514,15 @@ class _MatchEngineViewState extends State<MatchEngineView>
           _onLine &&
           pressers.isEmpty &&
           !owner.instruction.passOnly) {
-        // Ön.1 – açık iç oyuncuya direkt iç pas (%74)
+        // Ön.1 – açık iç oyuncuya direkt iç pas (%88)
         var _innerCut = team.firstWhereOrNull((t) =>
             t != owner &&
             (t.role == 'CAM' || t.role == 'ST' || t.role == 'FWD') &&
-            (goRight ? t.pos.x > 0.60 : t.pos.x < 0.40) &&
-            t.pos.y > 0.24 &&
-            t.pos.y < 0.76 &&
-            opp.every((o) => o.pos.dist(t.pos) > 0.12));
-        if (_innerCut != null && _rng.nextInt(100) < 74) {
+            (goRight ? t.pos.x > 0.58 : t.pos.x < 0.42) &&
+            t.pos.y > 0.22 &&
+            t.pos.y < 0.78 &&
+            opp.every((o) => o.pos.dist(t.pos) > 0.11));
+        if (_innerCut != null && _rng.nextInt(100) < 88) {
           _innerCut.shootOnReceive = true;
           _log(
               '⚡ ${owner.data.name} → ${_innerCut.data.name} iç pas, gelişine vur!',
@@ -1401,15 +1530,15 @@ class _MatchEngineViewState extends State<MatchEngineView>
           _execPass(owner, _innerCut);
           return;
         }
-        // Ön.2 – kutu içinde herhangi açık oyuncu (%52)
+        // Ön.2 – kutu içinde herhangi açık oyuncu (%72)
         var _boxMate = team.firstWhereOrNull((t) =>
             t != owner &&
             t.role != 'GK' &&
-            (goRight ? t.pos.x > 0.68 : t.pos.x < 0.32) &&
-            t.pos.y > 0.22 &&
-            t.pos.y < 0.78 &&
-            opp.every((o) => o.pos.dist(t.pos) > 0.11));
-        if (_boxMate != null && _rng.nextInt(100) < 52) {
+            (goRight ? t.pos.x > 0.65 : t.pos.x < 0.35) &&
+            t.pos.y > 0.20 &&
+            t.pos.y < 0.80 &&
+            opp.every((o) => o.pos.dist(t.pos) > 0.10));
+        if (_boxMate != null && _rng.nextInt(100) < 72) {
           _boxMate.shootOnReceive = (_boxMate.role == 'ST' ||
               _boxMate.role == 'CAM' ||
               _boxMate.role == 'FWD');
@@ -1418,7 +1547,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
           _execPass(owner, _boxMate);
           return;
         }
-        // Ön.3 – köşe triki son çare (%18)
+        // Ön.3 – köşe triki son çare (%28)
         int _tLeft = owner.isHome
             ? (_homeCornerTricksMax - _homeCornerTricksDone)
             : (_awayCornerTricksMax - _awayCornerTricksDone);
@@ -1426,7 +1555,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
             !ball.isCornerTrick &&
             !ball.isWallRunActive &&
             !ball.isWallPull &&
-            _rng.nextInt(100) < 18) {
+            _rng.nextInt(100) < 28) {
           _startCornerTrick(owner);
           return;
         }
@@ -1447,7 +1576,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
             t.pos.y > 0.27 &&
             t.pos.y < 0.73 &&
             opp.every((o) => o.pos.dist(t.pos) > 0.14));
-        if (_earlyInner != null && _rng.nextInt(100) < 48) {
+        if (_earlyInner != null && _rng.nextInt(100) < 66) {
           _earlyInner.shootOnReceive = true;
           _log(
               '↪ ${owner.data.name} → ${_earlyInner.data.name} final third iç pas!',
@@ -1455,8 +1584,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
           _execPass(owner, _earlyInner);
           return;
         }
-        // %28: içe keserek ceza alanı girişine hücum
-        if (_rng.nextInt(100) < 28 && !owner.isDribbling) {
+        // %44: içe keserek ceza alanı girişine hücum
+        if (_rng.nextInt(100) < 44 && !owner.isDribbling) {
           owner.isDribbling = true;
           owner.dribbleTimer = 16 + _rng.nextInt(12);
           owner.moveTarget = Pos(
@@ -1473,16 +1602,16 @@ class _MatchEngineViewState extends State<MatchEngineView>
         }
       }
 
-      // ── 4. DUVAR ÇEKMESİ: mid-range duvara yakın (nadir) ─────────────────
-      bool wingNearSide = owner.pos.y < 0.17 || owner.pos.y > 0.83;
-      bool wingNotTooDeep = goRight ? owner.pos.x < 0.70 : owner.pos.x > 0.30;
+      // ── 4. DUVAR ÇEKMESİ: duvara yaslanıp içeri çek ─────────────────────
+      bool wingNearSide = owner.pos.y < 0.19 || owner.pos.y > 0.81;
+      bool wingNotTooDeep = goRight ? owner.pos.x < 0.72 : owner.pos.x > 0.28;
       if (wingNearSide &&
           wingNotTooDeep &&
           pressers.isEmpty &&
           !ball.isWallRunActive &&
           !ball.isWallPull &&
           !owner.instruction.passOnly &&
-          _rng.nextInt(100) < 18) {
+          _rng.nextInt(100) < 42) {
         _startWallPull(owner);
         return;
       }
@@ -1502,28 +1631,28 @@ class _MatchEngineViewState extends State<MatchEngineView>
             t.pos.y > 0.26 &&
             t.pos.y < 0.74 &&
             opp.every((o) => o.pos.dist(t.pos) > 0.13));
-        if (_rocketInner != null && _rng.nextInt(100) < 60) {
+        if (_rocketInner != null && _rng.nextInt(100) < 80) {
           _rocketInner.shootOnReceive = true;
           _log(
-              '⚡ ${owner.data.name} → ${_rocketInner.data.name} (rocket yerine iç pas)!',
+              '⚡ ${owner.data.name} → ${_rocketInner.data.name} (duvar yerine iç pas)!',
               const Color(0xFFFFD600));
           _execPass(owner, _rocketInner);
           return;
         }
-        if (_rng.nextInt(100) < 55) {
+        if (_rng.nextInt(100) < 50) {
           _startWallRun(owner);
           return;
         }
       }
 
-      // ── 6. KÖŞE YAKLAŞIM: mid-approach + touchline → %36 içe / %64 sür ──
+      // ── 6. KÖŞE YAKLAŞIM: mid-approach + touchline → %42 içe / %58 sür ──
       if (_midApproach &&
           _huggingLine &&
           pressers.isEmpty &&
           !owner.isDribbling &&
           !owner.instruction.passOnly &&
-          _rng.nextInt(100) < 68) {
-        if (_rng.nextInt(100) < 36) {
+          _rng.nextInt(100) < 84) {
+        if (_rng.nextInt(100) < 42) {
           // İçe keserek ceza alanı girişine git
           owner.isDribbling = true;
           owner.dribbleTimer = 18 + _rng.nextInt(12);
@@ -1554,12 +1683,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
 
       // ── 7. ÇAPRAZ İÇE KESİLME: geniş ama touchline'a tam yaslanmamış ──────
-      bool midWide = owner.pos.y < 0.24 || owner.pos.y > 0.76;
+      bool midWide = owner.pos.y < 0.26 || owner.pos.y > 0.74;
       if (midWide &&
           !_huggingLine &&
           !owner.instruction.stayWide &&
           pressers.isEmpty &&
-          _rng.nextInt(100) < 40) {
+          _rng.nextInt(100) < 52) {
         owner.moveTarget = Pos(
           (owner.pos.x + (goRight ? 0.07 : -0.07)).clamp(0.05, 0.95),
           0.30 + _rng.nextDouble() * 0.40,
@@ -1670,10 +1799,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
         owner.dribbleTimer--;
         // Her tick hedefi mevcut konumdan sabit bir adım önde tut
         // → takılma yok, sürekli akış
+        // Kanatlar hat boyunu koruyarak daha hızlı adım atar
+        double stepSize = owner.role == 'WING' ? 0.068 : 0.055;
         double stepX =
-            (owner.pos.x + (goRight ? 0.055 : -0.055)).clamp(0.04, 0.96);
+            (owner.pos.x + (goRight ? stepSize : -stepSize)).clamp(0.04, 0.96);
         double stepY = owner.role == 'WING'
-            ? (owner.pos.y * 0.80 + owner.homeBase.y * 0.20).clamp(0.04, 0.96)
+            ? (owner.pos.y * 0.82 + owner.homeBase.y * 0.18).clamp(0.04, 0.96)
             : owner.pos.y; // düz ileri
         owner.moveTarget = Pos(stepX, stepY);
         if (owner.dribbleTimer == 0) owner.isDribbling = false;
@@ -1694,19 +1825,24 @@ class _MatchEngineViewState extends State<MatchEngineView>
           o.pos.dist(owner.pos) < 0.17));
       // DEF carries less eagerly; wingers most eager to drive forward
       int carryChance = owner.role == 'DEF'
-          ? 38
+          ? 42
           : owner.role == 'WING'
-              ? 88
-              : owner.role == 'MID'
-                  ? 55
-                  : 65;
+              ? 94
+              : owner.role == 'CAM'
+                  ? 72
+                  : owner.role == 'MID'
+                      ? 62
+                      : 68;
       if (spaceAhead && _rng.nextInt(100) < carryChance) {
         owner.isDribbling = true;
-        owner.dribbleTimer = 36 + _rng.nextInt(20);
+        // Kanatlar daha uzun sürdürür
+        owner.dribbleTimer = owner.role == 'WING'
+            ? 52 + _rng.nextInt(24)
+            : 36 + _rng.nextInt(20);
         double dribX =
             (owner.pos.x + (goRight ? 0.065 : -0.065)).clamp(0.04, 0.96);
         double dribY = owner.role == 'WING'
-            ? (owner.pos.y * 0.80 + owner.homeBase.y * 0.20).clamp(0.04, 0.96)
+            ? (owner.pos.y * 0.82 + owner.homeBase.y * 0.18).clamp(0.04, 0.96)
             : owner.pos.y;
         owner.moveTarget = Pos(dribX, dribY);
         _log('\u26bd ${owner.data.name} sürdü!', Colors.orangeAccent);
@@ -1752,6 +1888,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
             : myTac == TacticStyle.highPress
                 ? 12
                 : 16;
+    // Kanatlar pas atmadan önce çok daha uzun süre topla ilerler
+    if (owner.role == 'WING') basePassEvery += 6;
     int passEvery =
         _scaledPassEvery(max(3, basePassEvery - consecBonus - tempoBonus));
     if (tick % passEvery == 0) {
@@ -1768,7 +1906,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
               t.pos.y > 0.26 &&
               t.pos.y < 0.74 &&
               opp.every((o) => o.pos.dist(t.pos) > 0.13));
-          if (_ftInner != null && _rng.nextInt(100) < 44) {
+          if (_ftInner != null && _rng.nextInt(100) < 65) {
             _ftInner.shootOnReceive = true;
             _log(
                 '📮 ${owner.data.name} → ${_ftInner.data.name} final third iç pas!',
@@ -2153,6 +2291,10 @@ class _MatchEngineViewState extends State<MatchEngineView>
     // Error chance scales with pass stat: low stat → higher error
     // passStat 75 → ~10%, 50 → ~21%, 25 → ~32%
     int errChance = max(3, ((100 - psk) * 0.42).round());
+    // Geç maç yorgunluğu: 80+ dakika pas hataları artar
+    if (matchMinute > 80)
+      errChance = (errChance * 1.20).round();
+    else if (matchMinute > 70) errChance = (errChance * 1.09).round();
 
     if (_rng.nextInt(100) < errChance) {
       var opp = passer.isHome ? awayTeam : homeTeam;
@@ -2511,6 +2653,13 @@ class _MatchEngineViewState extends State<MatchEngineView>
     // Shoot diagonally to opposite post from shooter's Y
     double goalY = shooter.pos.y < 0.5 ? 0.62 : 0.38;
 
+    // ─ Roket Şut için xG hesapla (yakın duvar + iyi açı → yüksek xG) ─
+    double rktXG = _calcXG(shooter, true) * 1.25;
+    if (shooter.isHome)
+      _homexG += rktXG;
+    else
+      _awayxG += rktXG;
+
     int shotSk = shooter.shootStat;
     // Rocket is highly precise – almost always on target
     bool onTarget = _rng.nextInt(100) >= max(1, 96 - shotSk);
@@ -2616,6 +2765,33 @@ class _MatchEngineViewState extends State<MatchEngineView>
     bool isVolley =
         (ball.phase == BallPhase.passFlight || ball.passTicksRemaining > 0);
     int shotSk = shooter.shootStat;
+
+    // ─ Şut bağlamını kaydet (gol türü tespiti + xG) ─
+    bool goRightCtx = shooter.isHome;
+    _lastShotWasInBox =
+        goRightCtx ? shooter.pos.x > 0.76 : shooter.pos.x < 0.24;
+    _lastShotWasLongRange = goRightCtx
+        ? (shooter.pos.x > 0.56 && shooter.pos.x < 0.76)
+        : (shooter.pos.x > 0.24 && shooter.pos.x < 0.44);
+    _lastShotFromCorner = ball.isCornerTrick;
+    _lastShotWasPenalty = false; // penaltı handler'ı açıkça true yapar
+    // 1v1: shooter'ın etrafında DEF yok
+    _lastShotWas1v1 = (shooter.isHome ? homeTeam : awayTeam)
+        .where((p) => p.role == 'DEF' && p.pos.dist(shooter.pos) < 0.18)
+        .isEmpty;
+
+    // ─ xG hesapla ve birikimli xG'ye ekle ─
+    double xg = _calcXG(shooter, _lastShotWas1v1);
+    if (shooter.isHome)
+      _homexG += xg;
+    else
+      _awayxG += xg;
+
+    // ─ Büyük pozisyon overlay: kutu + 1v1 ─
+    if (_lastShotWasInBox && _lastShotWas1v1 && !_bigChanceActive) {
+      _bigChanceActive = true;
+      _bigChanceTimer = 120;
+    }
 
     // Error formulas per spec:
     //  Normal: errorChance = 100 - shootStat   (90→10% error)
@@ -2778,7 +2954,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
     // Shot arrived – resolve
     if (ball.shotWillGoal) {
-      _goal(ball.shotIsHome, ball.shotShooterName);
+      // ~8% of non-rocket would-be goals hit the post/crossbar (realism)
+      if (!ball.isRocketShot && _rng.nextInt(100) < 8) {
+        _postHit(ball.shotIsHome, ball.shotShooterName);
+      } else {
+        _goal(ball.shotIsHome, ball.shotShooterName);
+      }
     } else {
       SimPlayer? gk = ball.shotGk;
       bool goRight = ball.shotIsHome;
@@ -2824,6 +3005,15 @@ class _MatchEngineViewState extends State<MatchEngineView>
     _gkSaveTimer = 72;
     _insight(gk).update(tackle: true);
     _insight(gk).rating = (_insight(gk).rating + 0.55).clamp(4.0, 10.0);
+
+    // ─ Kurtarış momentum bonusu ─
+    if (gk.isHome) {
+      _homeMomentum = (_homeMomentum + 7).clamp(0, 100);
+      _awayMomentum = (_awayMomentum - 4).clamp(0, 100);
+    } else {
+      _awayMomentum = (_awayMomentum + 7).clamp(0, 100);
+      _homeMomentum = (_homeMomentum - 4).clamp(0, 100);
+    }
 
     int outcome = _rng.nextInt(100);
 
@@ -2895,6 +3085,37 @@ class _MatchEngineViewState extends State<MatchEngineView>
       awayScore++;
       _awayLastGoalTick = tick;
     }
+
+    // ─ Gol türü etiketi ─────────────────────────────────────────────────────
+    String goalType = _lastShotWasPenalty
+        ? ' (Penaltı 🟥)'
+        : ball.isRocketShot
+            ? ' (Duvar Roketi 🚀)'
+            : _lastShotFromCorner
+                ? ' (Korner 🚩)'
+                : _lastShotWas1v1
+                    ? ' (1v1 ⚡)'
+                    : _lastShotWasLongRange
+                        ? ' (Uzaktan 💥)'
+                        : '';
+
+    // ─ Momentum büyük sıçrama ────────────────────────────────────────────────
+    if (homeScored) {
+      _homeMomentum = (_homeMomentum + 22).clamp(0, 100);
+      _awayMomentum = (_awayMomentum - 14).clamp(0, 100);
+    } else {
+      _awayMomentum = (_awayMomentum + 22).clamp(0, 100);
+      _homeMomentum = (_homeMomentum - 14).clamp(0, 100);
+    }
+
+    // ─ Hero player: golcüye altın aura ──────────────────────────────────────
+    var scorerP = [...homeTeam, ...awayTeam]
+        .firstWhereOrNull((p) => p.data.name == scorer);
+    if (scorerP != null) {
+      _heroPlayer = scorerP;
+      _heroTimer = 320; // ~5.3 saniye
+    }
+
     // ── Hızlı gol tespiti: rakip golünden kısa süre sonra gol geldi mi? ──────
     int oppLastGoalTick = homeScored ? _awayLastGoalTick : _homeLastGoalTick;
     bool isQuickReply = oppLastGoalTick > 0 && (tick - oppLastGoalTick) < 180;
@@ -2902,8 +3123,10 @@ class _MatchEngineViewState extends State<MatchEngineView>
     String celebPrefix = isQuickReply
         ? '⚡ HIZLI CEVAP! '
         : _goalComments[_rng.nextInt(_goalComments.length)];
-    goalCelebText = '⚽ GOOOL!\n$scorer\n${homeScore} - ${awayScore}';
-    _log('${celebPrefix}$scorer  $homeScore-$awayScore', Colors.yellowAccent);
+    goalCelebText =
+        '⚽ GOOOL!\n$scorer$goalType\n${homeScore} - ${awayScore}';
+    _log('${celebPrefix}$scorer$goalType  $homeScore-$awayScore',
+        Colors.yellowAccent);
 
     // Scorer insight
     var scorerPlayer = [...homeTeam, ...awayTeam]
@@ -3205,6 +3428,24 @@ class _MatchEngineViewState extends State<MatchEngineView>
       ball.owner = taker;
       ball.pos.set(_freeKickPos);
       ball.phase = BallPhase.owned;
+
+      // ─ DİREK SERBEST VURUŞ: iyi açıdan kaleyeyakın pozisyonlarda %38 olasılık ─
+      bool fkGoRight = _freeKickForHome;
+      double dToGoal =
+          fkGoRight ? (1.0 - _freeKickPos.x) : _freeKickPos.x;
+      bool fkGoodAngle = _freeKickPos.y > 0.22 && _freeKickPos.y < 0.78;
+      bool fkDangerZone = dToGoal < 0.44 && dToGoal > 0.09;
+      if (fkGoodAngle && fkDangerZone && _rng.nextInt(100) < 38) {
+        var defTeamFK = _freeKickForHome ? awayTeam : homeTeam;
+        var fkGk = defTeamFK.firstWhereOrNull((p) => p.role == 'GK');
+        if (fkGk != null) {
+          _log('🎯 ${taker.data.name} direk serbest vuruş!',
+              Colors.orangeAccent);
+          _shoot(taker, fkGk);
+          return;
+        }
+      }
+
       _log('⚡ ${taker.data.name} serbest vuruş kullandı',
           Colors.lightBlueAccent);
     });
@@ -3300,6 +3541,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
           '💥 PENALTI GOLÜ! ${taker.data.name} atmadı mı?',
           '🎯 SOĞUKKANLILIĞA BAKTI! ${taker.data.name}',
         ], Colors.yellowAccent);
+        _lastShotWasPenalty = true;
         _goal(forHome, taker.data.name);
       } else {
         _logVariant([
@@ -3820,7 +4062,28 @@ class _MatchEngineViewState extends State<MatchEngineView>
       // ── ST: kutuda sürekli hareketli – her 20 tickte pozisyon değiştir ───────
       if ((p.role == 'ST' || p.role == 'FWD') &&
           (tick % 4 == p.playerIndex % 4)) {
-        // 3 tip koşu sürekli dönüşümlü
+        // Dost kanat derin touchline'daysa → ST diagonal arka-direk koşusu yap
+        var _ownTeamST = p.isHome ? homeTeam : awayTeam;
+        SimPlayer? _deepWing = _ownTeamST.firstWhereOrNull((w) =>
+            w.role == 'WING' &&
+            (goRight ? w.pos.x > 0.66 : w.pos.x < 0.34) &&
+            (w.pos.y < 0.20 || w.pos.y > 0.80));
+        if (_deepWing != null) {
+          // Kanat hangi çizgideyse ST zıt direğe koşar (cross'u bitmek için)
+          bool wingTop = _deepWing.pos.y < 0.5;
+          double tx = (goRight
+                  ? 0.82 + _rng.nextDouble() * 0.10
+                  : 0.08 + _rng.nextDouble() * 0.10)
+              .clamp(0.52, 0.96);
+          double ty = wingTop
+              ? 0.54 + _rng.nextDouble() * 0.20 // kanat üstte → ST uzak direğe
+              : 0.26 +
+                  _rng.nextDouble() * 0.20; // kanat altta → ST yakın direğe
+          p.moveTarget = Pos(tx, ty);
+          _applySeparation(p);
+          return;
+        }
+        // Normal 3 tip koşu dönüşümü
         int runType = ((tick ~/ 28) + p.playerIndex * 9) % 3;
         double tx, ty;
         switch (runType) {
@@ -3836,14 +4099,14 @@ class _MatchEngineViewState extends State<MatchEngineView>
                     ? 0.83 + _rng.nextDouble() * 0.10
                     : 0.07 + _rng.nextDouble() * 0.10)
                 .clamp(0.52, 0.96);
-            ty = 0.30 + _rng.nextDouble() * 0.14;
+            ty = 0.28 + _rng.nextDouble() * 0.16;
             break;
           default: // Uzak direk koşusu
             tx = (goRight
                     ? 0.81 + _rng.nextDouble() * 0.10
                     : 0.09 + _rng.nextDouble() * 0.10)
                 .clamp(0.52, 0.96);
-            ty = 0.56 + _rng.nextDouble() * 0.14;
+            ty = 0.56 + _rng.nextDouble() * 0.16;
             break;
         }
         p.moveTarget = Pos(tx, ty);
@@ -3857,10 +4120,10 @@ class _MatchEngineViewState extends State<MatchEngineView>
         // Faster cycle (every 22 ticks) so CAM stays very dynamic
         int camCycle = ((tick ~/ 22) + p.playerIndex * 5) % 4;
         switch (camCycle) {
-          case 0: // Between midfield & attack – classic #10 position
+          case 0: // Between midfield & attack – classic #10 position (daha ileri)
             double camX = (goRight
-                    ? 0.52 + _rng.nextDouble() * 0.22
-                    : 0.26 + _rng.nextDouble() * 0.22)
+                    ? 0.62 + _rng.nextDouble() * 0.20
+                    : 0.18 + _rng.nextDouble() * 0.20)
                 .clamp(0.10, 0.90);
             // Lean toward ball Y
             double cy0 =
@@ -3869,31 +4132,31 @@ class _MatchEngineViewState extends State<MatchEngineView>
             break;
           case 1: // Penetrating run into box – second striker
             double atkX = (goRight
-                    ? 0.70 + _rng.nextDouble() * 0.16
-                    : 0.14 + _rng.nextDouble() * 0.16)
+                    ? 0.74 + _rng.nextDouble() * 0.16
+                    : 0.10 + _rng.nextDouble() * 0.16)
                 .clamp(0.10, 0.90);
-            p.moveTarget = Pos(atkX, 0.30 + _rng.nextDouble() * 0.40);
+            p.moveTarget = Pos(atkX, 0.28 + _rng.nextDouble() * 0.44);
             break;
-          case 2: // Drop deep to receive & distribute
+          case 2: // Drop deep to receive & distribute (daha az sık)
             double linkX = (goRight
-                    ? 0.38 + _rng.nextDouble() * 0.18
-                    : 0.44 + _rng.nextDouble() * 0.18)
+                    ? 0.44 + _rng.nextDouble() * 0.16
+                    : 0.40 + _rng.nextDouble() * 0.16)
                 .clamp(0.10, 0.90);
             p.moveTarget = Pos(
                 linkX,
                 (ball.pos.y * 0.5 + 0.25 + _rng.nextDouble() * 0.50 * 0.5)
                     .clamp(0.08, 0.92));
             break;
-          default: // Wide support run – open a channel
+          default: // Hücum kanalı aç – kanat arka
             double wideX = (goRight
-                    ? 0.58 + _rng.nextDouble() * 0.20
-                    : 0.22 + _rng.nextDouble() * 0.20)
+                    ? 0.66 + _rng.nextDouble() * 0.18
+                    : 0.16 + _rng.nextDouble() * 0.18)
                 .clamp(0.06, 0.94);
             p.moveTarget = Pos(
                 wideX,
                 _rng.nextBool()
-                    ? 0.12 + _rng.nextDouble() * 0.16
-                    : 0.72 + _rng.nextDouble() * 0.16);
+                    ? 0.16 + _rng.nextDouble() * 0.16
+                    : 0.68 + _rng.nextDouble() * 0.16);
             break;
         }
         _applySeparation(p);
@@ -4238,6 +4501,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
         Column(children: [
           _scoreBar(),
           _liveStatsBand(),
+          _momentumBar(),
           _speedBar(),
           Expanded(child: _pitch()),
           _logPanel(),
@@ -4498,6 +4762,11 @@ class _MatchEngineViewState extends State<MatchEngineView>
             _gkSaveOverlay(_gkSavingPlayer!, w, h),
           // Goal flash
           if (isGoal) _goalFlash(),
+          // Post hit (direk / üst çıvı) overlay
+          if (_postHitActive && _postHitShooter != null)
+            _postHitOverlay(_postHitShooter!, w, h),
+          // Büyük pozisyon overlay
+          if (_bigChanceActive) _bigChanceOverlay(w, h),
           // Match over overlay
           if (isMatchOver) _matchOverlay(),
         ]);
@@ -4634,10 +4903,241 @@ class _MatchEngineViewState extends State<MatchEngineView>
   // Jersey numbers: GK(1) DEF-L(2) DEF-R(3) CAM(10) WING-L(7) WING-R(11) ST(9)
   static const _jerseyNums = [1, 2, 3, 10, 7, 11, 9];
 
-  Widget _playerDot(SimPlayer p, Color base, double w, double h,
+  // ── POST HIT OVERLAY ────────────────────────────────────────────────────────
+  Widget _postHitOverlay(SimPlayer shooter, double w, double h) {
+    double tFrac = (_postHitTimer / 95.0).clamp(0.0, 1.0);
+    double pulse = sin(_postHitTimer * 0.25).abs();
+    double opacity = tFrac < 0.22 ? tFrac * 4.5 : 1.0;
+    return Positioned(
+      left: (shooter.pos.x * w - 46).clamp(0.0, w - 92),
+      top: (shooter.pos.y * h - 72).clamp(0.0, h - 88),
+      child: Opacity(
+        opacity: opacity.clamp(0.0, 1.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('⚫', style: TextStyle(fontSize: 28)),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [Color(0xFFFF6D00), Color(0xFFBF360C)]),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.deepOrange
+                        .withOpacity(0.55 + pulse * 0.30),
+                    blurRadius: 16,
+                    spreadRadius: 3,
+                  ),
+                ],
+                border: Border.all(
+                    color: Colors.orangeAccent.withOpacity(0.70), width: 1.2),
+              ),
+              child: const Text(
+                'DİREĞE!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2.2,
+                  shadows: [
+                    Shadow(
+                        color: Colors.black54,
+                        blurRadius: 5,
+                        offset: Offset(0.5, 0.5))
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── BÜYÜK POZİSYON OVERLAY ──────────────────────────────────────────────────
+  Widget _bigChanceOverlay(double w, double h) {
+    double tFrac = (_bigChanceTimer / 120.0).clamp(0.0, 1.0);
+    double pulse = sin(_bigChanceTimer * 0.22).abs();
+    double opacity = tFrac < 0.18
+        ? tFrac * 5.5
+        : tFrac > 0.85
+            ? ((1 - tFrac) / 0.15).clamp(0.0, 1.0)
+            : 1.0;
+    return Positioned(
+      top: h * 0.10,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Opacity(
+          opacity: opacity.clamp(0.0, 0.94),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFFFF1744).withOpacity(0.92),
+                  const Color(0xFFFF6D00).withOpacity(0.92),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.red.withOpacity(0.55 + pulse * 0.25),
+                  blurRadius: 24,
+                  spreadRadius: 5,
+                ),
+              ],
+              border: Border.all(
+                  color: Colors.yellowAccent.withOpacity(0.72), width: 1.8),
+            ),
+            child: Text(
+              '🔥 BÜYÜK POZİSYON!',
+              style: GoogleFonts.russoOne(
+                color: Colors.white,
+                fontSize: 17,
+                letterSpacing: 1.6,
+                shadows: const [
+                  Shadow(color: Colors.black54, blurRadius: 7)
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── MOMENTUM BAR ─────────────────────────────────────────────────────────────
+  Widget _momentumBar() {
+    bool playerHome = !widget.isPlayerTeamAway;
+    double myMom = playerHome ? _homeMomentum : _awayMomentum;
+    double oppMom = playerHome ? _awayMomentum : _homeMomentum;
+    double total = myMom + oppMom;
+    double myRatio = total > 0 ? (myMom / total).clamp(0.05, 0.95) : 0.5;
+    String myEmoji = myMom >= 68 ? '🔥' : myMom >= 50 ? '↗' : '↘';
+    String oppEmoji = oppMom >= 68 ? '🔥' : oppMom >= 50 ? '↗' : '↘';
+    Color myC = myMom >= 68
+        ? Colors.greenAccent
+        : myMom >= 50
+            ? Colors.cyanAccent
+            : Colors.blueGrey;
+    Color oppC = oppMom >= 68
+        ? Colors.redAccent
+        : oppMom >= 50
+            ? Colors.orangeAccent
+            : Colors.blueGrey;
+
+    return Container(
+      height: 21,
+      color: const Color(0xFF070710),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(children: [
+        Text('MOM $myEmoji',
+            style: TextStyle(
+                color: myC, fontSize: 7.5, fontWeight: FontWeight.bold)),
+        const SizedBox(width: 6),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: Row(children: [
+              Expanded(
+                flex: (myRatio * 100).round().clamp(5, 95),
+                child: Container(
+                  height: 5,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      myC.withOpacity(0.9),
+                      myC.withOpacity(0.55)
+                    ]),
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: ((1 - myRatio) * 100).round().clamp(5, 95),
+                child: Container(
+                  height: 5,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      oppC.withOpacity(0.55),
+                      oppC.withOpacity(0.9)
+                    ]),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text('$oppEmoji MOM',
+            style: TextStyle(
+                color: oppC, fontSize: 7.5, fontWeight: FontWeight.bold)),
+      ]),
+    );
+  }
+
+  // ── xG SATIRI (stats panel) ───────────────────────────────────────────────
+  Widget _xgRow() {
+    bool playerHome = !widget.isPlayerTeamAway;
+    double myxG = playerHome ? _homexG : _awayxG;
+    double oppxG = playerHome ? _awayxG : _homexG;
+    double total = myxG + oppxG;
+    double myRatio = total > 0 ? (myxG / total).clamp(0.01, 0.99) : 0.5;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(myxG.toStringAsFixed(2),
+                  style: const TextStyle(
+                      color: Colors.purpleAccent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold)),
+              Text('xG (BEKLENEN GOL)',
+                  style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 8.5,
+                      letterSpacing: 0.8)),
+              Text(oppxG.toStringAsFixed(2),
+                  style: const TextStyle(
+                      color: Colors.pinkAccent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 3),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: Row(children: [
+              Expanded(
+                flex: (myRatio * 100).round().clamp(1, 99),
+                child: Container(
+                    height: 6,
+                    color: Colors.purpleAccent.withOpacity(0.82)),
+              ),
+              Expanded(
+                flex: ((1 - myRatio) * 100).round().clamp(1, 99),
+                child: Container(
+                    height: 6, color: Colors.pinkAccent.withOpacity(0.68)),
+              ),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+
+SimPlayer p, Color base, double w, double h,
       {bool isMyTeam = false}) {
     bool hasBall = (ball.owner == p);
     bool isMarking = (p.markTarget != null);
+    bool isHero = (_heroPlayer == p && _heroTimer > 0);
     Color c = p.isPressing ? Colors.orangeAccent : base;
     // Wall-run blink: player flashes when about to fire rocket shot
     bool isWallRunner = ball.isWallRunActive && ball.wallRunner == p;
@@ -4675,6 +5175,23 @@ class _MatchEngineViewState extends State<MatchEngineView>
             Stack(
               alignment: Alignment.center,
               children: [
+                // Hero glow: altın aura (son golü atan oyuncu)
+                if (isHero)
+                  Container(
+                    width: glowSize + 18,
+                    height: glowSize + 18,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.amber.withOpacity(
+                              0.88 * (_heroTimer / 320.0).clamp(0.0, 1.0)),
+                          blurRadius: 28,
+                          spreadRadius: 10,
+                        ),
+                      ],
+                    ),
+                  ),
                 // Dribble glow: orange aura when player is dribbling
                 if (p.isDribbling)
                   Container(
@@ -5295,6 +5812,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
             myColor: Colors.orangeAccent, oppColor: Colors.red),
         _statBar('İSABETLİ ŞUT', myShotsOT, oppShotsOT,
             myColor: Colors.greenAccent, oppColor: Colors.redAccent),
+        _xgRow(),
         _statBar('TAMAMLANAN PAS', myPasses, oppPasses,
             myColor: Colors.lightBlueAccent, oppColor: Colors.pinkAccent),
         _statBar('PAS DOĞRULUĞU', myPassAcc, oppPassAcc,
@@ -5865,6 +6383,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
     comingOn.pos.set(goingOff.pos);
     comingOn.moveTarget.set(goingOff.homeBase);
     comingOn.stamina = 1.0; // substitute comes on fresh
+
+    // Taze oyuncu küçük momentum bonusu katar
+    if (comingOn.isHome)
+      _homeMomentum = (_homeMomentum + 4).clamp(0, 100);
+    else
+      _awayMomentum = (_awayMomentum + 4).clamp(0, 100);
 
     // Send subbed off player off pitch
     goingOff.pos = Pos(-5.0, -5.0);
