@@ -414,6 +414,14 @@ class _MatchEngineViewState extends State<MatchEngineView>
   int _homeYellows = 0, _awayYellows = 0;
   int _homeTackles = 0, _awayTackles = 0;
 
+  // ── PER-PLAYER CARD TRACKING ──────────────────────────────────────────────
+  final Map<String, int> _playerYellowCount = {};
+  final Set<String> _redCardedPlayers = {};
+  int _homeReds = 0, _awayReds = 0;
+
+  // ── SCORE-REACTIVE AI: last tick a goal was scored by each side ──────────
+  int _homeLastGoalTick = -1, _awayLastGoalTick = -1;
+
   // ── BALL STUCK DETECTION ─────────────────────────────────────────────────
   int _ballStuckTicks = 0;
   Pos _lastBallPos = Pos(0.5, 0.5);
@@ -529,6 +537,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
     _awayYellows = 0;
     _homeTackles = 0;
     _awayTackles = 0;
+    _playerYellowCount.clear();
+    _redCardedPlayers.clear();
+    _homeReds = 0;
+    _awayReds = 0;
+    _homeLastGoalTick = -1;
+    _awayLastGoalTick = -1;
     _homeCornerTricksDone = 0;
     _awayCornerTricksDone = 0;
     _homeCornerTricksMax = 1 + _rng.nextInt(2); // her maç 1 veya 2 tane
@@ -1015,6 +1029,49 @@ class _MatchEngineViewState extends State<MatchEngineView>
     var opp = owner.isHome ? awayTeam : homeTeam;
     var team = owner.isHome ? homeTeam : awayTeam;
     var gk = opp.firstWhere((p) => p.role == 'GK', orElse: () => opp.first);
+
+    // ─── SKOR-REAKTİF AI: geriden gelen takım daha agresif oynar ─────────────
+    {
+      int myScore = owner.isHome ? homeScore : awayScore;
+      int oppScore = owner.isHome ? awayScore : homeScore;
+      int diff = myScore - oppScore; // >0 önde, <0 geride
+      bool ownerGoRight = owner.isHome;
+
+      if (diff < 0 && owner.role != 'GK' && owner.role != 'DEF') {
+        // Gerideyken FWD/WING/CAM daha ileri konumlanır
+        double pushFwd = (-diff * 0.04).clamp(0.0, 0.10);
+        bool inOwnSide = ownerGoRight ? owner.pos.x < 0.52 : owner.pos.x > 0.48;
+        if (inOwnSide && _rng.nextInt(100) < 50) {
+          owner.moveTarget = Pos(
+            (owner.pos.x + (ownerGoRight ? 0.10 + pushFwd : -0.10 - pushFwd))
+                .clamp(0.04, 0.96),
+            (owner.pos.y * 0.65 + 0.5 * 0.35).clamp(0.05, 0.95),
+          );
+        }
+      }
+      // 2+ fark gerideyken 75.+ dakikada çaresiz hücum
+      if (diff <= -2 &&
+          matchMinute > 75 &&
+          owner.role != 'GK' &&
+          _rng.nextInt(100) < 40) {
+        _log('🔴 Son dakika baskısı! ${owner.data.name} ileri!',
+            Colors.redAccent);
+        owner.moveTarget = Pos(
+          (ownerGoRight
+                  ? 0.68 + _rng.nextDouble() * 0.24
+                  : 0.08 + _rng.nextDouble() * 0.24)
+              .clamp(0.04, 0.96),
+          0.18 + _rng.nextDouble() * 0.64,
+        );
+      }
+      // 2+ fark önde iken savunma bloğu: DEF daha geri çekilir
+      if (diff >= 2 && owner.role == 'DEF' && _rng.nextInt(100) < 35) {
+        double retreatX = ownerGoRight
+            ? (owner.homeBase.x - 0.05).clamp(0.04, 0.50)
+            : (owner.homeBase.x + 0.05).clamp(0.50, 0.96);
+        owner.moveTarget = Pos(retreatX, owner.homeBase.y);
+      }
+    }
 
     // ── Lane tracking: update which vertical zone owner is in ──
     int curLane = owner.pos.y < 0.35
@@ -1947,6 +2004,22 @@ class _MatchEngineViewState extends State<MatchEngineView>
           : passer.pos.x - candidate.pos.x;
       if (fwdDist < 0.12) continue; // Must be significantly ahead
 
+      // ─── OFSAYT KONTROLÜ: alıcı son savunmacının gerisindeyse hakem durdurur ───
+      final _ofsDefs = opp.where((o) => o.role != 'GK').toList();
+      if (_ofsDefs.isNotEmpty) {
+        double _lastDefX = goRight
+            ? _ofsDefs.map((d) => d.pos.x).reduce((a, b) => a < b ? a : b)
+            : _ofsDefs.map((d) => d.pos.x).reduce((a, b) => a > b ? a : b);
+        bool _isOffside = goRight
+            ? (candidate.pos.x > _lastDefX + 0.05 && passer.pos.x < _lastDefX)
+            : (candidate.pos.x < _lastDefX - 0.05 && passer.pos.x > _lastDefX);
+        // Hakem %68 oranında offsaydı görür (gerçekçilik için bazen kaçırıyor)
+        if (_isOffside && _rng.nextInt(100) < 68) {
+          _triggerOffside(passer);
+          return true;
+        }
+      }
+
       // Project where they’ll sprint to
       double projX =
           (candidate.pos.x + (goRight ? 0.15 : -0.15)).clamp(0.05, 0.95);
@@ -2662,20 +2735,40 @@ class _MatchEngineViewState extends State<MatchEngineView>
     ball.pos.x += ball.vBallX;
     ball.pos.y += ball.vBallY;
 
-    // ── DUVAR SEKME: yan çizgiye çarparsa açısında sekecek ──
+    // ── ROLLING FRICTION: HaxBall-style deceleration each tick ───────────────
+    // Rocket shots are faster, retain less friction (power shot feel)
+    if (ball.isRocketShot) {
+      ball.vBallX *= 0.9985;
+      ball.vBallY *= 0.9985;
+    } else {
+      ball.vBallX *= 0.9954;
+      ball.vBallY *= 0.9954;
+    }
+
+    // ── INELASTIC WALL BOUNCE: lose energy on impact (like a real football) ──
     // Üst/alt çizgi (y < 0.02 veya y > 0.98)
     if (ball.pos.y < 0.02) {
       ball.pos.y = 0.02 + (0.02 - ball.pos.y); // yansıt
-      ball.vBallY = -ball.vBallY; // hız vektörü yansıyor
+      ball.vBallY = -(ball.vBallY * 0.62); // enerji kaybı: %38 absorpsiyon
+      ball.vBallX *= 0.88; // yönsel sürtünme
       if (!ball.shotBounced) {
-        _log('🏀 Top duvara çarptı • sek!', Colors.white54);
+        _logVariant([
+          '🏀 Top duvara çarptı!',
+          '🪃 Kenar çizgisinden sektı!',
+          '💥 Duvar! Top döndü!',
+        ], Colors.white54);
         ball.shotBounced = true;
       }
     } else if (ball.pos.y > 0.98) {
       ball.pos.y = 0.98 - (ball.pos.y - 0.98);
-      ball.vBallY = -ball.vBallY;
+      ball.vBallY = -(ball.vBallY * 0.62);
+      ball.vBallX *= 0.88;
       if (!ball.shotBounced) {
-        _log('🏀 Top duvara çarptı • sek!', Colors.white54);
+        _logVariant([
+          '🏀 Top duvara çarptı!',
+          '🪃 Kenar çizgisinden sektı!',
+          '💥 Duvar! Top döndü!',
+        ], Colors.white54);
         ball.shotBounced = true;
       }
     }
@@ -2720,13 +2813,17 @@ class _MatchEngineViewState extends State<MatchEngineView>
       return;
     }
 
-    _log('🧤 ${gk.data.name} kurtardı!', Colors.cyanAccent);
+    String saveMsg =
+        (_saveComments[_rng.nextInt(_saveComments.length)]) + gk.data.name;
+    _log(saveMsg, Colors.cyanAccent);
     ball.pos.set(gk.pos);
 
     // Kurtarış animasyonu tetikle
     _gkSaveActive = true;
     _gkSavingPlayer = gk;
     _gkSaveTimer = 72;
+    _insight(gk).update(tackle: true);
+    _insight(gk).rating = (_insight(gk).rating + 0.55).clamp(4.0, 10.0);
 
     int outcome = _rng.nextInt(100);
 
@@ -2791,12 +2888,22 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
   void _goal(bool homeScored, String scorer) {
     isGoal = true;
-    if (homeScored)
+    if (homeScored) {
       homeScore++;
-    else
+      _homeLastGoalTick = tick;
+    } else {
       awayScore++;
+      _awayLastGoalTick = tick;
+    }
+    // ── Hızlı gol tespiti: rakip golünden kısa süre sonra gol geldi mi? ──────
+    int oppLastGoalTick = homeScored ? _awayLastGoalTick : _homeLastGoalTick;
+    bool isQuickReply = oppLastGoalTick > 0 && (tick - oppLastGoalTick) < 180;
+
+    String celebPrefix = isQuickReply
+        ? '⚡ HIZLI CEVAP! '
+        : _goalComments[_rng.nextInt(_goalComments.length)];
     goalCelebText = '⚽ GOOOL!\n$scorer\n${homeScore} - ${awayScore}';
-    _log('⚽🔥 GOL! $scorer  $homeScore-$awayScore', Colors.yellowAccent);
+    _log('${celebPrefix}$scorer  $homeScore-$awayScore', Colors.yellowAccent);
 
     // Scorer insight
     var scorerPlayer = [...homeTeam, ...awayTeam]
@@ -2863,17 +2970,58 @@ class _MatchEngineViewState extends State<MatchEngineView>
     if (ball.cornerCountdown > 0) return;
 
     var taking = ball.cornerForHome ? homeTeam : awayTeam;
+    var defending = ball.cornerForHome ? awayTeam : homeTeam;
     var recv = taking.where((p) => p != ball.owner && p.role != 'GK').toList();
     if (recv.isEmpty) {
       ball.phase = BallPhase.free;
       return;
     }
 
-    var target = recv
-        .reduce((a, b) => a.pos.dist(ball.pos) < b.pos.dist(ball.pos) ? a : b);
-
     if (ball.owner != null) ball.owner!.isCornering = false;
-    _log('⤴ Korner ortaya gönderildi!', Colors.purpleAccent);
+
+    // ─── KAFA DÜELLOSU: en iyi başlık yapan atakçı vs defansçı ──────────────
+    SimPlayer atkHeader = recv.reduce((a, b) {
+      int aS = (a.stats['Fizik'] ?? 10) * 3 + (a.stats['Hız'] ?? 10);
+      int bS = (b.stats['Fizik'] ?? 10) * 3 + (b.stats['Hız'] ?? 10);
+      return bS > aS ? b : a;
+    });
+
+    var defHeaders = defending.where((p) => p.role == 'DEF').toList();
+    SimPlayer? defChallenger = defHeaders.isNotEmpty
+        ? defHeaders.reduce((a, b) {
+            int aS = (a.stats['Fizik'] ?? 10) * 3 + (a.stats['Defans'] ?? 10);
+            int bS = (b.stats['Fizik'] ?? 10) * 3 + (b.stats['Defans'] ?? 10);
+            return bS > aS ? b : a;
+          })
+        : null;
+
+    int atkScore = (atkHeader.stats['Fizik'] ?? 10) * 4 +
+        (atkHeader.stats['Şut'] ?? 10) * 2 +
+        _rng.nextInt(40);
+    int defScore = defChallenger != null
+        ? (defChallenger.stats['Fizik'] ?? 10) * 4 +
+            (defChallenger.stats['Defans'] ?? 10) * 2 +
+            _rng.nextInt(40)
+        : 0;
+
+    SimPlayer target;
+    bool atkWon = atkScore > defScore;
+    if (atkWon) {
+      target = atkHeader;
+      _log('🤜 ${atkHeader.data.name} kafa düellosunu KAZANDI!',
+          Colors.orangeAccent);
+      target.shootOnReceive = true; // Doğrudan şut atar
+    } else if (defChallenger != null) {
+      target = defChallenger;
+      _log('🤛 ${defChallenger.data.name} kafayı uzaklaştırdı!',
+          Colors.lightBlueAccent);
+    } else {
+      target = recv.reduce(
+          (a, b) => a.pos.dist(ball.pos) < b.pos.dist(ball.pos) ? a : b);
+    }
+
+    _log('⤴ Korner ${atkWon ? "hücum" : "savunma"} başlığına!',
+        Colors.purpleAccent);
 
     ball.owner = null;
     ball.phase = BallPhase.passFlight;
@@ -2961,6 +3109,22 @@ class _MatchEngineViewState extends State<MatchEngineView>
   }
 
   void _triggerFoul(SimPlayer fouled, SimPlayer tackler) {
+    // ── CEZA SAHASI KONTROLÜ: penalti mi, serbest vuruş mu? ─────────────────
+    bool inPenArea = fouled.isHome
+        ? (fouled.pos.x > 0.83 && fouled.pos.y > 0.22 && fouled.pos.y < 0.78)
+        : (fouled.pos.x < 0.17 && fouled.pos.y > 0.22 && fouled.pos.y < 0.78);
+    if (inPenArea && tackler.isHome != fouled.isHome) {
+      if (tackler.isHome)
+        _homeFouls++;
+      else
+        _awayFouls++;
+      _log(
+          '🟥 PENALTİ! ${tackler.data.name} → ${fouled.data.name} (Ceza sahası!)',
+          Colors.redAccent);
+      _triggerPenalty(fouled.isHome);
+      return;
+    }
+
     _isFreeKick = true;
     _freeKickForHome = fouled.isHome;
     _freeKickPos = fouled.pos.copy();
@@ -2968,21 +3132,59 @@ class _MatchEngineViewState extends State<MatchEngineView>
     ball.phase = BallPhase.free;
     ball.pos.set(_freeKickPos);
 
-    bool yellowCard = _rng.nextInt(100) < 20;
-    String card = yellowCard ? ' 🟨 Sarı Kart!' : '';
-    // Foul stats
-    if (tackler.isHome)
-      _homeFouls++;
-    else
-      _awayFouls++;
-    if (yellowCard) {
+    // ── KART SİSTEMİ: 2. sarı = kırmızı, oyuncu sahadan atılır ─────────────
+    bool yellowCard = _rng.nextInt(100) < 22;
+    bool directRed = _rng.nextInt(100) < 5; // Ağır faul direkt kırmızı
+    String card = '';
+
+    if (directRed && !_redCardedPlayers.contains(tackler.data.name)) {
+      _redCardedPlayers.add(tackler.data.name);
+      if (tackler.isHome) {
+        _homeYellows++;
+        _homeReds++;
+      } else {
+        _awayYellows++;
+        _awayReds++;
+      }
+      card = ' 🟥 KIRMIZI KART!';
+      tackler.pos = Pos(-5.0, -5.0);
+      tackler.moveTarget = Pos(-5.0, -5.0);
+      _log('🟥 KIRMIZI KART! ${tackler.data.name} SAHADAN ATILDI!',
+          Colors.redAccent);
+    } else if (yellowCard) {
+      int prevY = _playerYellowCount[tackler.data.name] ?? 0;
+      _playerYellowCount[tackler.data.name] = prevY + 1;
+      if (prevY >= 1 && !_redCardedPlayers.contains(tackler.data.name)) {
+        _redCardedPlayers.add(tackler.data.name);
+        if (tackler.isHome)
+          _homeReds++;
+        else
+          _awayReds++;
+        card = ' 🟨🟥 2. SARI = KIRMIZI!';
+        tackler.pos = Pos(-5.0, -5.0);
+        tackler.moveTarget = Pos(-5.0, -5.0);
+        _log(
+            '🟨→🟥 ${tackler.data.name} 2. Sarı ile ATILDI!', Colors.redAccent);
+      } else {
+        card = ' 🟨 Sarı Kart!';
+      }
       if (tackler.isHome)
         _homeYellows++;
       else
         _awayYellows++;
     }
-    _log('🚨 Faul! ${tackler.data.name} → ${fouled.data.name}$card',
-        Colors.redAccent);
+
+    // Foul stats
+    if (tackler.isHome)
+      _homeFouls++;
+    else
+      _awayFouls++;
+
+    _logVariant([
+      '🚨 Faul! ${tackler.data.name} → ${fouled.data.name}$card',
+      '⚠️ Sert giriş! ${tackler.data.name}$card',
+      '🦵 ${tackler.data.name} durdurdu$card',
+    ], Colors.redAccent);
 
     // Foul bekleme süresi (ms)
     int waitMs = speed == MatchSpeed.slow
@@ -3005,6 +3207,111 @@ class _MatchEngineViewState extends State<MatchEngineView>
       ball.phase = BallPhase.owned;
       _log('⚡ ${taker.data.name} serbest vuruş kullandı',
           Colors.lightBlueAccent);
+    });
+  }
+
+  // ─── OFSİDE (OFFSIDE) ────────────────────────────────────────────────────────
+
+  void _triggerOffside(SimPlayer passer) {
+    _isFreeKick = true;
+    _freeKickForHome = !passer.isHome; // savunan takım serbest vuruş alır
+    _freeKickPos = ball.pos.copy();
+    ball.owner = null;
+    ball.phase = BallPhase.free;
+    ball.pos.set(_freeKickPos);
+
+    if (passer.isHome)
+      _homeFouls++;
+    else
+      _awayFouls++;
+
+    _logVariant([
+      '🚩 OFSAYT! ${passer.data.name} – Serbest vuruş',
+      '🚩 Ofsayt bayrağı! Pozisyon iptal',
+      '🚩 Çok ilerde! Ofsayt – ${passer.data.name}',
+    ], Colors.yellowAccent);
+
+    int waitMs = speed == MatchSpeed.slow
+        ? 2200
+        : speed == MatchSpeed.medium
+            ? 950
+            : 480;
+    var team = _freeKickForHome ? homeTeam : awayTeam;
+    SimPlayer taker =
+        team.fold(team.first, (b, p) => p.passStat > b.passStat ? p : b);
+
+    Future.delayed(Duration(milliseconds: waitMs), () {
+      if (!mounted || isMatchOver || isGoal) return;
+      setState(() {
+        _isFreeKick = false;
+        taker.pos.set(_freeKickPos);
+        taker.vx = 0;
+        taker.vy = 0;
+        ball.owner = taker;
+        ball.pos.set(_freeKickPos);
+        ball.phase = BallPhase.owned;
+      });
+      _log(
+          '⚡ ${taker.data.name} ofsayt serbest vuruşu', Colors.lightBlueAccent);
+    });
+  }
+
+  // ─── PENALTİ ATIŞI ───────────────────────────────────────────────────────────
+
+  /// Ceza sahası içindeki faulde penalti atışı verilir.
+  void _triggerPenalty(bool forHome) {
+    _isFreeKick = false;
+    ball.owner = null;
+    ball.phase = BallPhase.free;
+
+    var attackTeam = forHome ? homeTeam : awayTeam;
+    var defendTeam = forHome ? awayTeam : homeTeam;
+
+    SimPlayer taker = attackTeam.fold(
+        attackTeam.first, (b, p) => p.shootStat > b.shootStat ? p : b);
+    SimPlayer gk = defendTeam.firstWhere((p) => p.role == 'GK',
+        orElse: () => defendTeam.first);
+
+    // Penalti başlangıç pozisyonu: ceza noktası
+    double penX = forHome ? 0.12 : 0.88;
+    taker.pos.set(Pos(penX, 0.5));
+    taker.vx = 0;
+    taker.vy = 0;
+    ball.pos.set(Pos(penX, 0.5));
+    ball.owner = taker;
+    ball.phase = BallPhase.owned;
+
+    // Başarı oranı: %72-90 arası (shoot stat'a göre)
+    double successRate = 0.72 + (taker.shootStat / 100.0) * 0.18;
+    bool scores = _rng.nextDouble() < successRate;
+
+    _log('🟥 PENALTİ! ${taker.data.name} vuracak...', Colors.redAccent);
+
+    int waitMs = speed == MatchSpeed.slow
+        ? 2500
+        : speed == MatchSpeed.medium
+            ? 1200
+            : 600;
+    Future.delayed(Duration(milliseconds: waitMs), () {
+      if (!mounted || isMatchOver) return;
+      if (scores) {
+        _logVariant([
+          '⚽ PENALTİ GOL! ${taker.data.name}!!',
+          '💥 PENALTI GOLÜ! ${taker.data.name} atmadı mı?',
+          '🎯 SOĞUKKANLILIĞA BAKTI! ${taker.data.name}',
+        ], Colors.yellowAccent);
+        _goal(forHome, taker.data.name);
+      } else {
+        _logVariant([
+          '🧤 PENALTİYİ KURTARDI! ${gk.data.name}!',
+          '🧤 ${gk.data.name} penaltıyı önledi! EFSANE!',
+          '🧤 Direğin dibi – ${gk.data.name} atladı!',
+        ], Colors.cyanAccent);
+        ball.owner = gk;
+        ball.phase = BallPhase.owned;
+        ball.pos.set(gk.pos);
+      }
+      setState(() {});
     });
   }
 
@@ -3175,18 +3482,35 @@ class _MatchEngineViewState extends State<MatchEngineView>
       return;
     }
 
-    // ─── GK: always tracks ball Y live – even during pass/shot flights ───────
+    // ─── GK: açı daraltma + live Y takibi ────────────────────────────────────
     if (p.role == 'GK') {
       bool ownHasBall = ball.owner != null && ball.owner!.isHome == p.isHome;
-      double ballRefY = ball.pos.y; // live ball pos, not owner pos
+      double ballRefY = ball.pos.y;
+      bool goRight = p.isHome;
+
       if (ownHasBall) {
-        // Team has ball: stay near post, slight Y lean toward ball
+        // Takım topla: direk yakınında dur, biraz Y'ye eğil
         double gy = (ballRefY * 0.20 + p.homeBase.y * 0.80).clamp(0.28, 0.72);
         p.moveTarget = Pos(p.homeBase.x, gy);
       } else {
-        // Defending: always be in-line with the ball
+        // ─── AÇI DARALTMA: GK atıcı – kale merkezi hattında ileri çıkar ─────
+        bool oppInFinalThird = goRight ? ball.pos.x > 0.60 : ball.pos.x < 0.40;
         double idealY = ballRefY.clamp(0.24, 0.76);
-        p.moveTarget = Pos(p.homeBase.x, idealY);
+
+        if (oppInFinalThird) {
+          // Kalecinin kale hattından ne kadar ileri çıkacağı (t=0 kale, t=1 atıcı)
+          const double t2 = 0.26;
+          double narrowX = p.homeBase.x + (ball.pos.x - p.homeBase.x) * t2;
+          double maxStep = 0.09;
+          double clampedX = goRight
+              ? narrowX.clamp(p.homeBase.x, p.homeBase.x + maxStep)
+              : narrowX.clamp(p.homeBase.x - maxStep, p.homeBase.x);
+          double narrowY = ball.pos.y * 0.55 + 0.5 * 0.45;
+          p.moveTarget = Pos(clampedX, narrowY.clamp(0.24, 0.76));
+        } else {
+          // Uzak durumdayken normal kale hattında
+          p.moveTarget = Pos(p.homeBase.x, idealY);
+        }
       }
       return;
     }
@@ -3841,6 +4165,37 @@ class _MatchEngineViewState extends State<MatchEngineView>
     logs.insert(0, LogEntry(msg, color, matchMinute.toInt()));
     if (logs.length > 22) logs.removeLast();
   }
+
+  /// Picks a random variant string from [variants] so commentary doesn't repeat.
+  void _logVariant(List<String> variants, Color color) {
+    _log(variants[_rng.nextInt(variants.length)], color);
+  }
+
+  // ── GOAL COMMENTARY – varied Turkish football phrases ──────────────────────
+  final List<String> _goalComments = [
+    '⚽🔥 GOL! ',
+    '⚽💥 MUAZZAM GOL! ',
+    '🎉🔥 GOOOL! ',
+    '⚽✨ HARIKA GOL! ',
+    '💫 İNANILMAZ! ',
+    '🚀 SÜPERGOL! ',
+    '⚽ GOL! GOL! GOL! ',
+    '🏆 NET ÇATLADI! ',
+    '💎 MÜKEMMEL! ',
+    '🌟 GOOOOOL! ',
+  ];
+
+  // ── SAVE COMMENTARY ─────────────────────────────────────────────────────────
+  final List<String> _saveComments = [
+    '🧤 Muhteşem kurtarış! ',
+    '🧤 İnanılmaz! ',
+    '🧤 Hayat kurtardı! ',
+    '🤲 El kaçırdı! ',
+    '🧤 Parmak ucu! ',
+    '🧤 GK durdu! ',
+    '🦁 Aslan gibi! ',
+    '🧤 Engelleyemez mi? ',
+  ];
 
   // ─── END MATCH ──────────────────────────────────────────────────────────────
 
@@ -4926,6 +5281,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
     int oppFouls = playerHome ? _awayFouls : _homeFouls;
     int myYellows = playerHome ? _homeYellows : _awayYellows;
     int oppYellows = playerHome ? _awayYellows : _homeYellows;
+    int myReds = playerHome ? _homeReds : _awayReds;
+    int oppReds = playerHome ? _awayReds : _homeReds;
     int myTackles = playerHome ? _homeTackles : _awayTackles;
     int oppTackles = playerHome ? _awayTackles : _homeTackles;
 
@@ -4952,6 +5309,10 @@ class _MatchEngineViewState extends State<MatchEngineView>
             reversed: true),
         _statBar('SARI KART', myYellows, oppYellows,
             myColor: Colors.yellowAccent,
+            oppColor: Colors.redAccent,
+            reversed: true),
+        _statBar('KIRMIZI KART', myReds, oppReds,
+            myColor: Colors.redAccent,
             oppColor: Colors.redAccent,
             reversed: true),
         const SizedBox(height: 10),
@@ -5845,6 +6206,41 @@ class _PitchPainter extends CustomPainter {
         2.0,
         false,
         p);
+    // ─── KÖşE YAYLARI: her köşede çeyrek daire (HaxBall gerçekçilik) ─────────
+    double cornerR = h * 0.042;
+    // Sol-üst
+    canvas.drawArc(Rect.fromLTWH(-cornerR, -cornerR, cornerR * 2, cornerR * 2),
+        0, 1.5708, false, p);
+    // Sol-alt
+    canvas.drawArc(
+        Rect.fromLTWH(-cornerR, h - cornerR, cornerR * 2, cornerR * 2),
+        -1.5708,
+        1.5708,
+        false,
+        p);
+    // Sağ-üst
+    canvas.drawArc(
+        Rect.fromLTWH(w - cornerR, -cornerR, cornerR * 2, cornerR * 2),
+        1.5708,
+        1.5708,
+        false,
+        p);
+    // Sağ-alt
+    canvas.drawArc(
+        Rect.fromLTWH(w - cornerR, h - cornerR, cornerR * 2, cornerR * 2),
+        3.14159,
+        1.5708,
+        false,
+        p);
+
+    // ─── MERKEZ DAİRE DOLGU: hafif saydam yeşil ──────────────────────────────
+    canvas.drawCircle(
+        Offset(w / 2, h / 2),
+        h * 0.155,
+        Paint()
+          ..color = Colors.white.withOpacity(0.04)
+          ..style = PaintingStyle.fill);
+
     // Touch line & goal line (border)
     canvas.drawRect(Rect.fromLTWH(1, 1, w - 2, h - 2), p);
   }
