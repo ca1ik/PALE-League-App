@@ -60,6 +60,25 @@ void main() async {
     ]);
   } catch (e) {
     debugPrint("Hive Hatası: $e");
+    // Bozuk kutular temizlenip yeniden açılıyor
+    try {
+      for (final boxName in [
+        'palehax_players',
+        'palehax_players_v9',
+        'palehax_manager_db',
+      ]) {
+        await Hive.deleteBoxFromDisk(boxName);
+      }
+      await Future.wait([
+        Hive.openBox('natroff_memory'),
+        Hive.openBox<StrategyModel>('palehax_strategies'),
+        Hive.openBox<Player>('palehax_manager_db'),
+        Hive.openBox<Player>('palehax_players_v9'),
+        Hive.openBox<Player>('palehax_players'),
+      ]);
+    } catch (e2) {
+      debugPrint('Hive yeniden açma hatası: $e2');
+    }
   }
 
   // Window Manager yalnızca Windows/macOS için

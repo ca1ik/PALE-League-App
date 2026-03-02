@@ -2208,38 +2208,40 @@ class _ViewProfile extends StatelessWidget {
                   Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(player.name.toUpperCase(),
-                                  style: GoogleFonts.orbitron(
-                                      fontSize: 36,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold)),
-                              Text("${player.position} | ${player.team}",
-                                  style: GoogleFonts.montserrat(
-                                      fontSize: 20, color: Colors.white70))
-                            ]),
-                        Padding(
-                            padding: const EdgeInsets.only(right: 150),
-                            child: SizedBox(
-                                width: 220,
-                                height: 55,
-                                child: ElevatedButton.icon(
-                                    onPressed: () => _showDetailedStats(
-                                        context, player, lang),
-                                    icon: const Icon(Icons.analytics,
-                                        color: Colors.black, size: 24),
-                                    label: Text(t("DETAYLI ANALİZ", lang),
-                                        style: const TextStyle(
-                                            color: Colors.black,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16)),
-                                    style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.cyanAccent,
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(12))))))
+                        Flexible(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(player.name.toUpperCase(),
+                                    style: GoogleFonts.orbitron(
+                                        fontSize: 36,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold),
+                                    overflow: TextOverflow.ellipsis),
+                                Text("${player.position} | ${player.team}",
+                                    style: GoogleFonts.montserrat(
+                                        fontSize: 20, color: Colors.white70),
+                                    overflow: TextOverflow.ellipsis),
+                              ]),
+                        ),
+                        SizedBox(
+                            width: 220,
+                            height: 55,
+                            child: ElevatedButton.icon(
+                                onPressed: () =>
+                                    _showDetailedStats(context, player, lang),
+                                icon: const Icon(Icons.analytics,
+                                    color: Colors.black, size: 24),
+                                label: Text(t("DETAYLI ANALİZ", lang),
+                                    style: const TextStyle(
+                                        color: Colors.black,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16)),
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.cyanAccent,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)))))
                       ]),
                   const SizedBox(height: 35),
                   Text(t("PLAYSTYLES", lang),

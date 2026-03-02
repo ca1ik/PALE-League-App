@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../data/player_data.dart';
 
@@ -151,6 +152,10 @@ class SimPlayer {
   int playerIndex = 0; // 0=GK,1-2=DEF,3-4=MID,5-6=FWD
   SimPlayer? markTarget; // assigned man-marking target
 
+  // Dribbling state
+  bool isDribbling = false;
+  int dribbleTimer = 0;
+
   // FM26-style smooth movement
   double vx = 0, vy = 0;
   // Stamina: 1.0 = fresh → 0.72 = tired late game
@@ -178,6 +183,65 @@ class SimPlayer {
 }
 
 // =============================================================================
+// PLAYER MATCH INSIGHT
+// =============================================================================
+
+class _PlayerInsight {
+  int passes = 0;
+  int shots = 0;
+  int shotsOnTarget = 0;
+  int tackles = 0;
+  int keyPasses = 0;
+  int goals = 0;
+  double rating = 6.5;
+
+  void update({
+    bool pass = false,
+    bool shotOT = false,
+    bool tackle = false,
+    bool keyPass = false,
+    bool goal = false,
+    bool miss = false,
+    bool badPass = false,
+  }) {
+    if (pass) {
+      passes++;
+      rating = (rating + 0.05).clamp(4.0, 10.0);
+    }
+    if (shotOT) {
+      shots++;
+      shotsOnTarget++;
+      rating = (rating + 0.35).clamp(4.0, 10.0);
+    }
+    if (tackle) {
+      tackles++;
+      rating = (rating + 0.18).clamp(4.0, 10.0);
+    }
+    if (keyPass) {
+      keyPasses++;
+      rating = (rating + 0.28).clamp(4.0, 10.0);
+    }
+    if (goal) {
+      goals++;
+      rating = (rating + 1.2).clamp(4.0, 10.0);
+    }
+    if (miss) rating = (rating - 0.1).clamp(4.0, 10.0);
+    if (badPass) rating = (rating - 0.15).clamp(4.0, 10.0);
+  }
+
+  String get ratingStr => rating.toStringAsFixed(1);
+
+  Color get ratingColor {
+    if (rating >= 9.0) return const Color(0xFF00E676);
+    if (rating >= 8.0) return const Color(0xFF76FF03);
+    if (rating >= 7.0) return const Color(0xFFFFD600);
+    if (rating >= 6.0) return Colors.orange;
+    if (rating >= 5.0) return Colors.deepOrange;
+    return Colors.redAccent;
+  }
+}
+
+// =============================================================================
 // BALL
 // =============================================================================
 
@@ -196,6 +260,18 @@ class Ball {
 
   BallPhase phase = BallPhase.owned;
 
+  // Shot-flight velocity – enables realistic wall-bounce physics
+  double vBallX = 0, vBallY = 0;
+  bool shotBounced = false; // for log dedup
+  bool isRocketShot = false; // wall-run diagonal rocket
+
+  // Wall-run state
+  bool isWallRunActive = false;
+  SimPlayer? wallRunner;
+  Pos wallRunTarget = Pos(0.5, 0.5);
+  int wallRunCountdown = 0;
+  int wallRunBlinkTimer = 0;
+
   // Shot-flight state
   bool shotWillGoal = false;
   bool shotOnTarget = false;
@@ -206,6 +282,10 @@ class Ball {
   // Corner state
   bool cornerForHome = false;
   int cornerCountdown = 0;
+
+  // Visual-only ball display offset (ball orbits just outside player)
+  double ballDispDx = 0.0;
+  double ballDispDy = 0.0;
 }
 
 // =============================================================================
@@ -280,10 +360,14 @@ class _MatchEngineViewState extends State<MatchEngineView>
   String goalCelebText = '';
 
   MatchSpeed speed = MatchSpeed.medium;
-  Timer? _gameTimer;
+  Ticker? _ticker;
+  Duration _lastFrameTime = Duration.zero;
+  double _simAccumulator = 0.0;
+  static const double _simTickInterval = 1.0 / 60.0; // 60 sim ticks/sec
   late AnimationController _goalAnim;
   List<LogEntry> logs = [];
   int _shotSlowMoTicks = 0;
+  int _rocketFreezeTicks = 0;
   List<Pos> _ballTrail = [];
 
   // Foul / free-kick state
@@ -301,18 +385,74 @@ class _MatchEngineViewState extends State<MatchEngineView>
   double _homePower = 50;
   double _awayPower = 50;
 
+  // ── LIVE MATCH STATS ──────────────────────────────────────────────────────
+  int _homePossessionTicks = 0, _awayPossessionTicks = 0;
+  int _homeShots = 0, _awayShots = 0;
+  int _homeShotsOnTarget = 0, _awayShotsOnTarget = 0;
+  int _homePassesAtt = 0, _awayPassesAtt = 0;
+  int _homePassesCmpl = 0, _awayPassesCmpl = 0;
+  int _homeCorners = 0, _awayCorners = 0;
+  int _homeFouls = 0, _awayFouls = 0;
+  int _homeYellows = 0, _awayYellows = 0;
+  int _homeTackles = 0, _awayTackles = 0;
+
+  // ── BALL STUCK DETECTION ─────────────────────────────────────────────────
+  int _ballStuckTicks = 0;
+  Pos _lastBallPos = Pos(0.5, 0.5);
+
+  // ── GK SAVE ANIMATION ─────────────────────────────────────────────────────
+  bool _gkSaveActive = false;
+  SimPlayer? _gkSavingPlayer;
+  int _gkSaveTimer = 0;
+
+  // ── SHOT PARTICLES ────────────────────────────────────────────────────────
+  final List<_ShotParticle> _shotParticles = [];
+
+  // ── MANAGER PANEL ─────────────────────────────────────────────────────────
+  bool _panelOpen = false;
+  int _panelTab = 0; // 0=stats 1=tactics 2=squad 3=analysis
+  late AnimationController _panelAnim;
+
+  // ── MID-MATCH ADJUSTMENTS ─────────────────────────────────────────────────
+  TacticStyle? _liveHomeTactic, _liveAwayTactic;
+  double _defLineVal = 0.5; // 0.0=deep block … 1.0=high line
+  double _pressLineVal = 0.5; // 0.0=sit off   … 1.0=max press
+  double _widthVal = 0.5; // 0.0=narrow    … 1.0=wide
+  double _tempoVal = 0.5; // 0.0=slow      … 1.0=direct
+
+  // ── SUBSTITUTIONS ─────────────────────────────────────────────────────────
+  int _subsUsed = 0;
+  final int _maxSubs = 5;
+  SimPlayer? _subCandidate;
+  final List<SimPlayer> _subbedPlayers = [];
+
+  // ── PLAYER MATCH INSIGHTS ─────────────────────────────────────────────────
+  final Map<String, _PlayerInsight> _insights = {};
+
+  void _ensureInsight(SimPlayer p) =>
+      _insights.putIfAbsent(p.data.name, () => _PlayerInsight());
+
+  _PlayerInsight _insight(SimPlayer p) {
+    _ensureInsight(p);
+    return _insights[p.data.name]!;
+  }
+
   @override
   void initState() {
     super.initState();
     _goalAnim = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 1800));
+    _panelAnim = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 320));
     _initGame();
   }
 
   @override
   void dispose() {
-    _gameTimer?.cancel();
+    _ticker?.stop();
+    _ticker?.dispose();
     _goalAnim.dispose();
+    _panelAnim.dispose();
     super.dispose();
   }
 
@@ -320,6 +460,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
   void _initGame() {
     ball = Ball();
+    _lastBallPos = Pos(0.5, 0.5);
+    _ballStuckTicks = 0;
     homeTeam = [];
     awayTeam = [];
 
@@ -336,6 +478,35 @@ class _MatchEngineViewState extends State<MatchEngineView>
     _kickoff(homeTeam);
     _homePower = _calcTeamPower(homeTeam, _myTactic(true));
     _awayPower = _calcTeamPower(awayTeam, _myTactic(false));
+
+    // Init live tactics and insights
+    _liveHomeTactic =
+        widget.isPlayerTeamAway ? widget.oppTactic : widget.myTactic;
+    _liveAwayTactic =
+        widget.isPlayerTeamAway ? widget.myTactic : widget.oppTactic;
+    _insights.clear();
+    _subbedPlayers.clear();
+    _subsUsed = 0;
+    _subCandidate = null;
+    _homePossessionTicks = 0;
+    _awayPossessionTicks = 0;
+    _homeShots = 0;
+    _awayShots = 0;
+    _homeShotsOnTarget = 0;
+    _awayShotsOnTarget = 0;
+    _homePassesAtt = 0;
+    _awayPassesAtt = 0;
+    _homePassesCmpl = 0;
+    _awayPassesCmpl = 0;
+    _homeCorners = 0;
+    _awayCorners = 0;
+    _homeFouls = 0;
+    _awayFouls = 0;
+    _homeYellows = 0;
+    _awayYellows = 0;
+    _homeTackles = 0;
+    _awayTackles = 0;
+    for (var p in [...homeTeam, ...awayTeam]) _ensureInsight(p);
   }
 
   double _calcTeamPower(List<SimPlayer> team, TacticStyle tac) {
@@ -371,51 +542,49 @@ class _MatchEngineViewState extends State<MatchEngineView>
   ) {
     target.clear();
 
-    // Sort so GK is index 0, DEF 1-2, MID 3-4, FWD 5-6
+    // ── Formation 1-2-1-2-1 ─────────────────────────────────────────────────
+    // Slots: GK(0)  DEF-L(1)  DEF-R(2)  CAM(3)  WING-L(4)  WING-R(5)  ST(6)
+    // Sort: GK first → DEF → MID/CAM → FWD/WING/ST
     var sorted = List<Player>.from(players)
       ..sort((a, b) => _posScore(a.position).compareTo(_posScore(b.position)));
 
-    // Base positions for home (attacking rightward, x inches toward 1.0)
-    // Format: [GK, DEF-L, DEF-R, MID-CL, MID-CR, FWD-L, FWD-R]
-    final baseX = [0.06, 0.22, 0.22, 0.44, 0.44, 0.72, 0.72];
-    final baseY = [0.50, 0.28, 0.72, 0.22, 0.78, 0.32, 0.68];
+    // Base positions for home (attacking rightward → x toward 1.0)
+    final baseX = [0.06, 0.21, 0.21, 0.50, 0.62, 0.62, 0.80];
+    final baseY = [0.50, 0.24, 0.76, 0.50, 0.08, 0.92, 0.50];
 
     // Tactic depth adjustments
     double xBias = 0;
-    if (tactic == TacticStyle.attack) xBias = 0.07;
-    if (tactic == TacticStyle.defensive) xBias = -0.08;
-    if (tactic == TacticStyle.counter) xBias = -0.05;
-    if (tactic == TacticStyle.highPress) xBias = 0.10;
+    if (tactic == TacticStyle.attack) xBias = 0.08;
+    if (tactic == TacticStyle.defensive) xBias = -0.09;
+    if (tactic == TacticStyle.counter) xBias = -0.06;
+    if (tactic == TacticStyle.highPress) xBias = 0.11;
     if (tactic == TacticStyle.gegen) xBias = 0.04;
 
     for (int i = 0; i < min(sorted.length, 7); i++) {
       double bx = (isHome ? baseX[i] : 1.0 - baseX[i]);
       double by = baseY[i];
 
-      // Apply tactic bias (not for GK)
-      if (i > 0) {
-        bx = (bx + (isHome ? xBias : -xBias)).clamp(0.05, 0.95);
-      }
+      if (i > 0) bx = (bx + (isHome ? xBias : -xBias)).clamp(0.05, 0.95);
 
-      // Wide instruction squeezes to extreme y
       PlayerInstruction instr = (instructions[i] ?? PlayerInstruction()).copy();
-      bool isWinger = (i == 3 || i == 5); // MID-L, FWD-L
-      bool isRightWinger = (i == 4 || i == 6);
-      if (instr.stayWide) {
-        by = isWinger
-            ? 0.06
-            : isRightWinger
-                ? 0.94
-                : by;
+      // stayWide on wingers pins them to the extreme touchline
+      if (instr.stayWide && (i == 4 || i == 5)) {
+        by = i == 4 ? 0.04 : 0.96;
       }
 
-      String role = i == 0
-          ? 'GK'
-          : i < 3
-              ? 'DEF'
-              : i < 5
-                  ? 'MID'
-                  : 'FWD';
+      // Role assignment: no central midfielders
+      String role;
+      if (i == 0) {
+        role = 'GK';
+      } else if (i < 3) {
+        role = 'DEF';
+      } else if (i == 3) {
+        role = 'CAM'; // Ofansif orta saha
+      } else if (i < 6) {
+        role = 'WING'; // Left & right wingers – run all over
+      } else {
+        role = 'ST'; // Centre forward
+      }
 
       target.add(SimPlayer(
         data: sorted[i],
@@ -442,10 +611,14 @@ class _MatchEngineViewState extends State<MatchEngineView>
   }
 
   void _kickoff(List<SimPlayer> byTeam) {
-    // Tüm oyuncuları baz pozisyonlara sıfırla
+    // Tüm oyuncuları KENDI yarı sahalarına sıfırla (gerçek futbol santralı gibi)
+    // Home (kırmızı) → x < 0.5 (sol yarı), Away (mavi) → x > 0.5 (sağ yarı)
     for (var p in [...homeTeam, ...awayTeam]) {
-      p.pos.set(p.homeBase);
-      p.moveTarget.set(p.homeBase);
+      double kx = p.isHome
+          ? p.homeBase.x.clamp(0.04, 0.49) // home: kendi yarısında kal
+          : p.homeBase.x.clamp(0.51, 0.96); // away: kendi yarısında kal
+      p.pos = Pos(kx, p.homeBase.y);
+      p.moveTarget = Pos(kx, p.homeBase.y);
       p.vx = 0;
       p.vy = 0;
       p.isPressing = false;
@@ -454,6 +627,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
       p.isPassShoot = false;
       p.passShootTimer = 0;
       p.markTarget = null;
+      p.isDribbling = false;
+      p.dribbleTimer = 0;
     }
 
     // Reset ball to center
@@ -465,14 +640,67 @@ class _MatchEngineViewState extends State<MatchEngineView>
     ball.shotGk = null;
     ball.shotShooterName = '';
     ball.shotIsHome = false;
+    ball.isRocketShot = false;
+    ball.isWallRunActive = false;
+    ball.wallRunner = null;
+    ball.wallRunCountdown = 0;
+    ball.wallRunBlinkTimer = 0;
     _shotSlowMoTicks = 0;
+    _rocketFreezeTicks = 0;
+    _shotParticles.clear();
 
     SimPlayer kicker = byTeam.firstWhere(
-      (p) => p.role == 'FWD',
+      (p) => p.role == 'ST' || p.role == 'WING' || p.role == 'FWD',
       orElse: () => byTeam.last,
     );
     kicker.pos.set(Pos(0.5, 0.5));
+    // Give kicker an immediate forward target so it doesn't freeze at centre
+    bool goRightKick = byTeam.first.isHome;
+    kicker.moveTarget.set(Pos(
+      (0.5 + (goRightKick ? 0.09 : -0.09)).clamp(0.10, 0.90),
+      0.38 + _rng.nextDouble() * 0.24,
+    ));
     ball.owner = kicker;
+
+    // Gerçek futbol santralı: kanatlar ve forvet hemen ileri koşu başlatır,
+    // rakip defans da bu koşucuları takip etmek üzere hazır pozisyon alır.
+    bool goRight = byTeam.first.isHome;
+    for (var p in byTeam) {
+      if (p == kicker) continue;
+      if (p.role == 'WING') {
+        bool isLeftWing = p.playerIndex == 4;
+        double runX = (goRight
+                ? 0.60 + _rng.nextDouble() * 0.22
+                : 0.18 + _rng.nextDouble() * 0.22)
+            .clamp(0.05, 0.95);
+        double runY = isLeftWing
+            ? 0.05 + _rng.nextDouble() * 0.10
+            : 0.85 + _rng.nextDouble() * 0.10;
+        p.moveTarget = Pos(runX, runY);
+      } else if (p.role == 'ST' || p.role == 'FWD') {
+        double runX = (goRight
+                ? 0.65 + _rng.nextDouble() * 0.18
+                : 0.17 + _rng.nextDouble() * 0.18)
+            .clamp(0.05, 0.95);
+        p.moveTarget = Pos(runX, 0.38 + _rng.nextDouble() * 0.24);
+      }
+    }
+
+    // Rakip defans, ileri kaçan oyuncuları tutmak için öne pozisyon alır
+    var oppTeamList = goRight ? awayTeam : homeTeam;
+    for (var p in oppTeamList) {
+      if (p.role == 'DEF') {
+        // Defansçılar kendi yarısında rakip forvetlere karşı barikat kurar
+        double guardX = goRight
+            ? (0.60 + _rng.nextDouble() * 0.12).clamp(0.51, 0.80)
+            : (0.28 + _rng.nextDouble() * 0.12).clamp(0.20, 0.49);
+        p.moveTarget = Pos(
+            guardX,
+            p.playerIndex == 1
+                ? 0.28 + _rng.nextDouble() * 0.10
+                : 0.62 + _rng.nextDouble() * 0.10);
+      }
+    }
 
     _log('🎾 Santral: ${kicker.data.name}', Colors.greenAccent);
   }
@@ -482,40 +710,138 @@ class _MatchEngineViewState extends State<MatchEngineView>
   void _startMatch() {
     if (isStarted) return;
     isStarted = true;
-    _gameTimer =
-        Timer.periodic(const Duration(milliseconds: 16), (_) => _onTick());
+    _lastFrameTime = Duration.zero;
+    _simAccumulator = 0.0;
+    _ticker = createTicker(_onFrame);
+    _ticker!.start();
+  }
+
+  /// Called every vsync frame – runs simulation at fixed 60 Hz,
+  /// renders at the display's native refresh rate (uncapped).
+  void _onFrame(Duration elapsed) {
+    if (!mounted || isMatchOver) return;
+
+    // Delta time in seconds; skip the very first frame to avoid spike
+    double dt = (_lastFrameTime == Duration.zero)
+        ? 0.0
+        : (elapsed - _lastFrameTime).inMicroseconds / 1000000.0;
+    _lastFrameTime = elapsed;
+
+    // During goal celebration: keep rendering for animation but don't run sim
+    if (isGoal) {
+      _simAccumulator = 0.0; // drain so there's no burst after celebration ends
+      setState(() {}); // keep goal overlay & animation alive
+      return;
+    }
+
+    // Rocket freeze: pause simulation for dramatic freeze-frame effect
+    if (_rocketFreezeTicks > 0) {
+      _rocketFreezeTicks--;
+      setState(() {}); // keep rendering, no sim step
+      return;
+    }
+
+    // Clamp dt to avoid spiral-of-death if window is hidden/unfocused
+    _simAccumulator += dt.clamp(0.0, 0.05);
+
+    bool simRan = false;
+    while (_simAccumulator >= _simTickInterval) {
+      _simAccumulator -= _simTickInterval;
+      _onTick();
+      simRan = true;
+      if (isMatchOver || isGoal) break;
+    }
+
+    // Render every frame regardless of whether simulation stepped
+    if (simRan) setState(() {});
   }
 
   void _onTick() {
-    if (!mounted || isMatchOver) return;
-
     tick++;
     matchMinute = (tick / speed.totalTicks * 90.0).clamp(0, 90);
 
-    if (_shotSlowMoTicks > 0) _shotSlowMoTicks--;
+    // ─ Update shot particles ─
+    _shotParticles.removeWhere((sp) => sp.life <= 0);
+    for (var sp in _shotParticles) {
+      sp.x += sp.vx;
+      sp.y += sp.vy;
+      sp.vy += 0.00018; // micro gravity
+      sp.life -= 0.040;
+    }
+
+    // ─ GK save animation countdown ─
+    if (_gkSaveTimer > 0) {
+      _gkSaveTimer--;
+      if (_gkSaveTimer == 0) {
+        _gkSaveActive = false;
+        _gkSavingPlayer = null;
+      }
+    }
 
     if (!isGoal) _simulate();
 
+    // Ball-stuck detection: if ball barely moves for >1.5 real-seconds → force handover
+    // Skip during pass / shot flights – ball IS moving along its trajectory
+    if (!isGoal &&
+        ball.phase != BallPhase.cornerDelay &&
+        ball.phase != BallPhase.shotFlight &&
+        ball.phase != BallPhase.passFlight) {
+      if (ball.pos.dist(_lastBallPos) < 0.003) {
+        _ballStuckTicks++;
+        // ~90 ticks = 1.5 s at 60 Hz sim rate; tightened for fast mode, relaxed for slow
+        int stuckLimit = speed == MatchSpeed.slow
+            ? 72
+            : speed == MatchSpeed.fast
+                ? 108
+                : 90;
+        if (_ballStuckTicks > stuckLimit) {
+          _forcePassToBall();
+          _ballStuckTicks = 0;
+        }
+      } else {
+        _ballStuckTicks = 0;
+      }
+      _lastBallPos = ball.pos.copy();
+    }
+
+    // Possession tracking
+    if (ball.owner != null && !isGoal) {
+      if (ball.owner!.isHome)
+        _homePossessionTicks++;
+      else
+        _awayPossessionTicks++;
+    }
+
     // Ball trail – always track for smooth FM26 motion blur
     if (!isGoal && ball.phase != BallPhase.cornerDelay) {
-      _ballTrail.add(ball.pos.copy());
-      if (_ballTrail.length > 9) _ballTrail.removeAt(0);
+      // Use visual display offset during owned phase so trail follows orbiting ball
+      Pos trailPos = (ball.owner != null && ball.phase == BallPhase.owned)
+          ? Pos(
+              (ball.pos.x + ball.ballDispDx).clamp(0.01, 0.99),
+              (ball.pos.y + ball.ballDispDy).clamp(0.02, 0.98),
+            )
+          : ball.pos.copy();
+      _ballTrail.add(trailPos);
+      if (_ballTrail.length > 16) _ballTrail.removeAt(0);
     } else if (isGoal) {
       _ballTrail.clear();
     }
 
     if (tick >= speed.totalTicks && !isMatchOver) {
-      _gameTimer?.cancel();
+      _ticker?.stop();
       _endMatch();
-      return;
     }
-
-    if (tick % 3 == 0) setState(() {});
   }
 
   // ─── SIMULATION ─────────────────────────────────────────────────────────────
 
   void _simulate() {
+    // ── Pre-sync: keep ball.pos glued to owner BEFORE any phase logic runs ──
+    // This guarantees every part of _simulate() reads the correct ball position.
+    if (ball.owner != null && ball.phase == BallPhase.owned) {
+      ball.pos.set(ball.owner!.pos);
+    }
+
     switch (ball.phase) {
       case BallPhase.owned:
         _ownedPhase();
@@ -555,16 +881,40 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
     }
 
-    // Owner moves toward their current target too, ball follows
+    // Owner moves toward their current target; ball stays glued to owner.
+    // We re-sync here so the renderer always reads the freshest pos.
     if (ball.owner != null && ball.phase == BallPhase.owned) {
       _moveToward(ball.owner!);
       ball.pos.set(ball.owner!.pos);
+      // ── Visual orbit offset: ball stays just outside the player circle ──
+      // Direction: blend movement velocity with a slow sinusoidal sway
+      var ow = ball.owner!;
+      double velLen = sqrt(ow.vx * ow.vx + ow.vy * ow.vy);
+      double orbitAngle;
+      if (velLen > 0.00025) {
+        // Moving: offset is in the direction of travel (ball is slightly ahead)
+        orbitAngle = atan2(ow.vy, ow.vx) + sin(tick * 0.25) * 0.35;
+      } else {
+        // Standing: slow orbit around player
+        orbitAngle = tick * 0.07 + ow.playerIndex * 1.31;
+      }
+      const double orbitR = 0.020;
+      ball.ballDispDx = cos(orbitAngle) * orbitR;
+      ball.ballDispDy = sin(orbitAngle) * orbitR;
+    } else {
+      ball.ballDispDx = 0.0;
+      ball.ballDispDy = 0.0;
     }
   }
 
   // ─── OWNED PHASE ────────────────────────────────────────────────────────────
 
   void _ownedPhase() {
+    // ─ Wall-run active: route to dedicated handler ─
+    if (ball.isWallRunActive) {
+      _wallRunPhase();
+      return;
+    }
     var owner = ball.owner;
     if (owner == null) {
       ball.phase = BallPhase.free;
@@ -608,11 +958,33 @@ class _MatchEngineViewState extends State<MatchEngineView>
         .toList();
 
     if (blocking.isEmpty && owner.role != 'GK') {
-      double sway = sin(tick * 0.12 + owner.playerIndex * 1.3) * 0.030;
-      double fwdStep = owner.role == 'DEF' ? 0.010 : 0.014;
+      bool _isAtk =
+          owner.role == 'ST' || owner.role == 'FWD' || owner.role == 'WING';
+      bool _isMid = owner.role == 'CAM' || owner.role == 'MID';
+      // Increased fwdStep so ball carrier drives forward more aggressively
+      double fwdStep = owner.role == 'DEF'
+          ? 0.014
+          : _isAtk
+              ? 0.028
+              : _isMid
+                  ? 0.023
+                  : 0.018;
+      double sway = sin(tick * 0.12 + owner.playerIndex * 1.3) * 0.022;
+      // Pull attackers toward penalty area centre when not yet in the box
+      bool _inBoxNow = goRight ? owner.pos.x > 0.76 : owner.pos.x < 0.24;
+      double targetY = owner.pos.y + sway;
+      if (_isAtk && !_inBoxNow) {
+        if (owner.role == 'WING') {
+          // Kanatlar kenarda kalmalı – kendi çizgisine çekim (bencil taşıma)
+          targetY = targetY * 0.72 + owner.homeBase.y * 0.28;
+        } else {
+          // ST/FWD/CAM: ceza alanı ortasına doğru çekim
+          targetY = targetY * 0.65 + 0.50 * 0.35;
+        }
+      }
       owner.moveTarget = Pos(
         (owner.pos.x + (goRight ? fwdStep : -fwdStep)).clamp(0.01, 0.99),
-        (owner.pos.y + sway).clamp(0.04, 0.96),
+        targetY.clamp(0.04, 0.96),
       );
     } else {
       double sideStep = _rng.nextBool() ? 0.07 : -0.07;
@@ -625,20 +997,95 @@ class _MatchEngineViewState extends State<MatchEngineView>
     // Yakın baskı yapanlar
     var pressers = opp.where((o) => o.pos.dist(owner.pos) < 0.12).toList();
 
-    // ── GK pasla temizle ──
+    // ── GK DAĞITIMI – büyük çoğunlukla uzun top ──
     if (owner.role == 'GK') {
       owner.moveTarget.set(owner.homeBase);
-      if (tick % 12 == 0) _tryPass(owner, team, preferFwd: true);
+      int gkPassFreq = _scaledPassEvery(8);
+      // Baskı varsa beklemeden anında dağıt
+      if (tick % gkPassFreq == 0 || pressers.isNotEmpty) {
+        // 75% uzun top: ST veya WING'e doğrudan servis
+        if (_rng.nextInt(100) < 75) {
+          var fwds = team
+              .where(
+                  (p) => p.role == 'ST' || p.role == 'WING' || p.role == 'FWD')
+              .toList();
+          if (fwds.isNotEmpty) {
+            // En açık ve en ileride olanı seç
+            fwds.sort((a, b) =>
+                (owner.isHome ? b.pos.x - a.pos.x : a.pos.x - b.pos.x)
+                    .toDouble()
+                    .compareTo(0));
+            var fwdTarget = fwds.first;
+            _log('🦵 ${owner.data.name} uzun top! → ${fwdTarget.data.name}',
+                Colors.greenAccent);
+            _execPass(owner, fwdTarget);
+            return;
+          }
+        }
+        // 25%: kısa ama mutlaka ileriye oyna
+        _tryPass(owner, team, preferFwd: true);
+      }
       return;
     }
 
     TacticStyle myTac = _myTactic(owner.isHome);
 
-    // ── DUVAR PAS: kenar çizgisine yakınken köşeye çekilip içe pas ──
+    // ── 1v1 KALECİ: defans aşıldıysa şut (derin rakip sahasında) ──
+    if (!owner.instruction.passOnly && owner.role != 'GK') {
+      bool inDeepAtt = goRight ? owner.pos.x > 0.62 : owner.pos.x < 0.38;
+      if (inDeepAtt) {
+        // Kendi ile kale arasında rakip DEF var mı?
+        bool noDefBetween = opp
+            .where((o) =>
+                o.role == 'DEF' &&
+                (goRight
+                    ? o.pos.x > owner.pos.x - 0.04
+                    : o.pos.x < owner.pos.x + 0.04) &&
+                o.pos.dist(owner.pos) < 0.32)
+            .isEmpty;
+        if (noDefBetween) {
+          _shoot(owner, gk);
+          return;
+        }
+      }
+    }
+
+    // ── KENDİ YARISINDA HIZLI ÇIKIŞ: kısa pas döngüsünü önle ──
+    bool inOwnHalf = goRight ? owner.pos.x < 0.50 : owner.pos.x > 0.50;
+    if (inOwnHalf && owner.role != 'GK') {
+      // Baskı varsa → derhal uzun top veya ileri pas
+      if (pressers.isNotEmpty) {
+        var fwds = team
+            .where((t) =>
+                (t.role == 'ST' || t.role == 'WING' || t.role == 'FWD') &&
+                (goRight ? t.pos.x > 0.45 : t.pos.x < 0.55))
+            .toList();
+        if (fwds.isNotEmpty) {
+          fwds.sort((a, b) => (goRight ? b.pos.x - a.pos.x : a.pos.x - b.pos.x)
+              .toDouble()
+              .compareTo(0));
+          _log('⚡ ${owner.data.name} tahliye!', Colors.orangeAccent);
+          _execPass(owner, fwds.first);
+          return;
+        }
+        _tryPass(owner, team, preferFwd: true);
+        return;
+      }
+      // Baskı yoksa kendi sahasında topu sürerek ilerliyorsun: nadiren pas
+      if (tick % _scaledPassEvery(12) == 0) {
+        if (_tryThroughPass(owner, team)) return;
+        _tryPass(owner, team, preferFwd: true);
+        return;
+      }
+    }
+
+    // ── DUVAR PAS: sadece RAKIP sahasında, kenar çizgisine yakınken içe pas ──
     bool nearSideWall = owner.pos.y < 0.08 || owner.pos.y > 0.92;
     bool notInBox = goRight ? owner.pos.x < 0.78 : owner.pos.x > 0.22;
+    bool inOwnHalfForWall = goRight ? owner.pos.x < 0.50 : owner.pos.x > 0.50;
     if (nearSideWall &&
         notInBox &&
+        !inOwnHalfForWall && // kendi sahasında duvar pas yok
         pressers.isEmpty &&
         _rng.nextInt(100) < 35) {
       var closeMates = team
@@ -651,6 +1098,69 @@ class _MatchEngineViewState extends State<MatchEngineView>
         _log('🧱 ${owner.data.name} duvara oynadı!', Colors.tealAccent);
         _execPass(owner, closeMates.first);
         return;
+      }
+    }
+
+    // ── CAM KOMBINASYON: rakip yarısında ise WING veya ST'ye ara pas ──
+    if (owner.role == 'CAM') {
+      bool inOppHalf = goRight ? owner.pos.x > 0.50 : owner.pos.x < 0.50;
+      if (inOppHalf && !owner.instruction.passOnly && _rng.nextInt(100) < 50) {
+        if (_tryThroughPass(owner, team)) return;
+        // Prefer WING or ST in advanced positions
+        var atk = team
+            .where((t) =>
+                (t.role == 'WING' || t.role == 'ST' || t.role == 'FWD') &&
+                (goRight ? t.pos.x > owner.pos.x : t.pos.x < owner.pos.x))
+            .toList();
+        if (atk.isNotEmpty) {
+          atk.sort((a, b) =>
+              (goRight ? b.pos.x - a.pos.x : a.pos.x - b.pos.x).toInt());
+          _execPass(owner, atk.first);
+          return;
+        }
+      }
+    }
+
+    // ── KANAT GERİ PAS (cut-back): yan çizgide iken ST/CAM'e döndür ──
+    if (owner.role == 'WING') {
+      bool nearByline = goRight ? owner.pos.x > 0.82 : owner.pos.x < 0.18;
+      if (nearByline && !owner.instruction.passOnly) {
+        var cbTargets = team
+            .where((t) =>
+                (t.role == 'ST' || t.role == 'CAM' || t.role == 'FWD') &&
+                (goRight ? t.pos.x > 0.68 : t.pos.x < 0.32))
+            .toList();
+        if (cbTargets.isNotEmpty && _rng.nextInt(100) < 68) {
+          cbTargets.sort(
+              (a, b) => a.pos.dist(owner.pos).compareTo(b.pos.dist(owner.pos)));
+          _log('🔄 ${owner.data.name} geri pas kesme!', Colors.cyanAccent);
+          _execPass(owner, cbTargets.first);
+          return;
+        }
+      }
+      // ── DUVAR ROKETİ: kanat top sürüyor, duvara çok yakın, derin rakip sahası ──
+      bool wingDeepOpp = goRight ? owner.pos.x > 0.64 : owner.pos.x < 0.36;
+      bool wingOnWall = owner.pos.y < 0.08 || owner.pos.y > 0.92;
+      if (wingDeepOpp &&
+          wingOnWall &&
+          pressers.isEmpty &&
+          !ball.isWallRunActive &&
+          !owner.instruction.passOnly &&
+          _rng.nextInt(100) < 72) {
+        _startWallRun(owner);
+        return;
+      }
+
+      // Diagonal cut-inside when not hugging touchline
+      bool midWide = owner.pos.y < 0.24 || owner.pos.y > 0.76;
+      if (midWide &&
+          !owner.instruction.stayWide &&
+          pressers.isEmpty &&
+          _rng.nextInt(100) < 40) {
+        owner.moveTarget = Pos(
+          (owner.pos.x + (goRight ? 0.07 : -0.07)).clamp(0.05, 0.95),
+          0.32 + _rng.nextDouble() * 0.36,
+        );
       }
     }
 
@@ -677,26 +1187,106 @@ class _MatchEngineViewState extends State<MatchEngineView>
     // ── ŞUT: ceza alanı içi ──
     bool inBox = goRight ? owner.pos.x > 0.76 : owner.pos.x < 0.24;
     if (inBox && !owner.instruction.passOnly) {
-      // 60% ihtimalle önce ortak ara: gol pası
+      // One-two / low cross combination: topa açık arkadaş varsa önce gönder
       bool hasOpenBoxMate = team.any((t) =>
           t != owner &&
           t.role != 'GK' &&
-          t.pos.dist(owner.pos) < 0.20 &&
+          t.pos.dist(owner.pos) < 0.22 &&
           opp.every((o) => o.pos.dist(t.pos) > 0.10));
-      if (hasOpenBoxMate && _rng.nextInt(100) < 22) {
+      // Tiki-taka/highPress: daha çok çeviriyor
+      int boxPassChance = myTac == TacticStyle.tikiTaka
+          ? 35
+          : myTac == TacticStyle.highPress
+              ? 28
+              : 22;
+      if (hasOpenBoxMate && _rng.nextInt(100) < boxPassChance) {
         if (_tryPass(owner, team, preferFwd: false, boxPass: true)) return;
       }
 
+      // Merkeze çekilip şut: 1v1 durumunda yüksek şans
+      bool is1v1 = opp
+          .where((o) => o.pos.dist(owner.pos) < 0.18 && o.role == 'DEF')
+          .isEmpty;
       double pAdv = (owner.isHome ? _homePower : _awayPower) -
           (owner.isHome ? _awayPower : _homePower);
       int shootChance = _calcShootChance(myTac, owner.role, pressers.length,
-          teamPowerAdv: pAdv);
-      // Bonus shot chance when box pass fails
-      int finalShootChance = min(97, shootChance + 15);
+          teamPowerAdv: pAdv, is1v1: is1v1);
+      // Tempo yüksekse daha direkt şut
+      double tempoBoost = _tempoVal * 12;
+      int finalShootChance = min(97, shootChance + 15 + tempoBoost.round());
       if (_rng.nextInt(100) < finalShootChance) {
         _shoot(owner, gk);
         return;
       }
+    }
+
+    // ── NEAR-BOX KOMBINASYON: ceza alanı girişinde bölge oyunu ──
+    bool nearBox = goRight
+        ? (owner.pos.x > 0.62 && owner.pos.x <= 0.76)
+        : (owner.pos.x < 0.38 && owner.pos.x >= 0.24);
+    if (nearBox && owner.role != 'DEF' && pressers.isEmpty) {
+      // Açı varsa direkt şut: merkezi konum + yolda defans yok
+      bool _nearBoxAngle = owner.pos.y > 0.26 && owner.pos.y < 0.74;
+      bool _nearBoxClear = opp
+          .where((o) =>
+              o.role != 'GK' &&
+              (goRight ? o.pos.x > owner.pos.x : o.pos.x < owner.pos.x) &&
+              o.pos.dist(owner.pos) < 0.26 &&
+              (o.pos.y - owner.pos.y).abs() < 0.12)
+          .isEmpty;
+      if (_nearBoxAngle &&
+          _nearBoxClear &&
+          !owner.instruction.passOnly &&
+          _rng.nextInt(100) < 55) {
+        _log('🎯 ${owner.data.name} açıdan şut!', Colors.greenAccent);
+        _shoot(owner, gk);
+        return;
+      }
+      // Ceza alanı girişinde ortak arama – üçüncü adam koşusu
+      bool mate = team.any((t) =>
+          t != owner &&
+          (t.role == 'FWD' || t.role == 'ST' || t.role == 'WING') &&
+          (goRight ? t.pos.x > 0.70 : t.pos.x < 0.30));
+      if (mate && _rng.nextInt(100) < 40) {
+        if (_tryThroughPass(owner, team)) return;
+        if (_tryPass(owner, team, preferFwd: true)) return;
+      }
+    }
+
+    // ── DRIBBLING ATILIM: açık alan varsa topu sür ──
+    // All outfield players (incl. DEF) can carry when there's space
+    bool canDribble = owner.role != 'GK' && !owner.instruction.passOnly;
+    // Allow carrying from deep own half onwards
+    bool inCarryZone = goRight ? owner.pos.x > 0.22 : owner.pos.x < 0.78;
+    if (pressers.isEmpty && canDribble && inCarryZone) {
+      bool spaceAhead = opp.every((o) => !((goRight
+              ? o.pos.x > owner.pos.x - 0.04
+              : o.pos.x < owner.pos.x + 0.04) &&
+          o.pos.dist(owner.pos) < 0.17));
+      // DEF carries less eagerly; wingers most eager to drive forward
+      int carryChance = owner.role == 'DEF'
+          ? 38
+          : owner.role == 'WING'
+              ? 88 // kanatlar ileri sürer – bencil taşıma
+              : owner.role == 'MID'
+                  ? 55
+                  : 65;
+      if (spaceAhead && _rng.nextInt(100) < carryChance) {
+        owner.isDribbling = true;
+        owner.dribbleTimer = 28 + _rng.nextInt(22); // longer carry bursts
+        double sway = sin(tick * 0.20 + owner.playerIndex * 0.9) * 0.048;
+        double dribX =
+            (owner.pos.x + (goRight ? 0.12 : -0.12)).clamp(0.04, 0.96);
+        double dribY = (owner.pos.y + sway).clamp(0.04, 0.96);
+        owner.moveTarget = Pos(dribX, dribY);
+        _log('\u26bd ${owner.data.name} sürdü!', Colors.orangeAccent);
+        return;
+      }
+    }
+    // Dribble timer tick
+    if (owner.dribbleTimer > 0) {
+      owner.dribbleTimer--;
+      if (owner.dribbleTimer == 0) owner.isDribbling = false;
     }
 
     // ── MÜDAHALE RİSKİ ──
@@ -727,33 +1317,64 @@ class _MatchEngineViewState extends State<MatchEngineView>
     // Uzun süredir aynı kanatta → daha sık pas zorla
     int consecBonus =
         owner.isHome ? (_homeConsecLane ~/ 30) : (_awayConsecLane ~/ 30);
+    // Tempo yükseldikçe daha az bekle (daha direkt play)
+    int tempoBonus = (_tempoVal * 3).round();
+    // Larger base = players carry the ball longer before deciding to pass
     int basePassEvery = myTac == TacticStyle.tikiTaka
-        ? 4
+        ? 10
         : myTac == TacticStyle.gegen
-            ? 6
+            ? 14
             : myTac == TacticStyle.highPress
-                ? 5
-                : 7;
-    int passEvery = _scaledPassEvery(max(3, basePassEvery - consecBonus));
+                ? 12
+                : 16;
+    int passEvery =
+        _scaledPassEvery(max(3, basePassEvery - consecBonus - tempoBonus));
     if (tick % passEvery == 0) {
-      if (_rng.nextInt(100) < 28) {
-        if (_tryThroughPass(owner, team)) return;
+      // Kanat oyuncusu: son üçte bire gelene kadar topu sürerek ileri taşır
+      bool wingInFinalThird = goRight ? owner.pos.x > 0.68 : owner.pos.x < 0.32;
+      if (owner.role == 'WING' && !wingInFinalThird && pressers.isEmpty) {
+        // Baskı yoksa ilerleyip pozisyon al, pas atma
+        double fwdX =
+            (owner.pos.x + (goRight ? 0.09 : -0.09)).clamp(0.05, 0.95);
+        owner.moveTarget = Pos(
+          fwdX,
+          (owner.pos.y * 0.70 + owner.homeBase.y * 0.30).clamp(0.04, 0.96),
+        );
+      } else {
+        int throughChance = 20 + (_tempoVal * 20).round();
+        if (_rng.nextInt(100) < throughChance) {
+          if (_tryThroughPass(owner, team)) return;
+        }
+        _tryPass(owner, team, preferFwd: true);
       }
-      _tryPass(owner, team, preferFwd: true);
     }
 
-    // ── UZAKTAN ŞUT: orta saha / yakın orta saha ──
-    bool inMidLongRange = goRight
-        ? (owner.pos.x > 0.47 && owner.pos.x < 0.76)
-        : (owner.pos.x > 0.24 && owner.pos.x < 0.53);
-    if (inMidLongRange && owner.role != 'DEF' && !owner.instruction.passOnly) {
-      int lsc = owner.role == 'FWD'
-          ? 40
-          : owner.role == 'MID'
+    // ── UZAKTAN ŞUT: sadece ceza alanı girişi ve iç saha (kanatlar orta sahadan şut atmaz) ──
+    // Kanatlar: duvara drive ederek pozisyon kurar, orta sahadan şut atmamalı.
+    bool inLongRange = goRight
+        ? (owner.pos.x > 0.56 && owner.pos.x < 0.76)
+        : (owner.pos.x > 0.24 && owner.pos.x < 0.44);
+    if (inLongRange &&
+        owner.role != 'DEF' &&
+        owner.role != 'WING' &&
+        !owner.instruction.passOnly) {
+      int lsc = owner.role == 'ST'
+          ? 28
+          : owner.role == 'CAM'
               ? 30
-              : 10;
-      if (pressers.length >= 2) lsc += 28;
-      // Encourage more shots when in good position
+              : owner.role == 'FWD'
+                  ? 32
+                  : owner.role == 'MID'
+                      ? 18
+                      : 8;
+      if (pressers.length >= 2) lsc += 22;
+      bool _goodAngle = owner.pos.y > 0.28 && owner.pos.y < 0.72;
+      bool _defInPath = opp.any((o) =>
+          o.role != 'GK' &&
+          (goRight ? o.pos.x > owner.pos.x : o.pos.x < owner.pos.x) &&
+          o.pos.dist(owner.pos) < 0.26 &&
+          (o.pos.y - owner.pos.y).abs() < 0.12);
+      if (_goodAngle && !_defInPath) lsc += 22;
       if (_rng.nextInt(100) < lsc) {
         _log('💥 ${owner.data.name} uzaktan şut!', Colors.orange);
         _shoot(owner, gk);
@@ -778,25 +1399,36 @@ class _MatchEngineViewState extends State<MatchEngineView>
   }
 
   int _calcShootChance(TacticStyle tac, String role, int pressers,
-      {double teamPowerAdv = 0}) {
-    int base = role == 'FWD'
+      {double teamPowerAdv = 0, bool is1v1 = false}) {
+    int base = role == 'ST'
         ? 90
-        : role == 'MID'
-            ? 70
-            : 26;
-    if (tac == TacticStyle.attack) base += 26;
-    if (tac == TacticStyle.defensive) base -= 6;
+        : role == 'WING'
+            ? 78 // wingers love the diagonal cut-and-shoot
+            : role == 'CAM'
+                ? 64
+                : role == 'FWD' // legacy
+                    ? 88
+                    : role == 'MID' // legacy
+                        ? 68
+                        : 24;
+    if (tac == TacticStyle.attack) base += 28;
+    if (tac == TacticStyle.defensive) base -= 8;
     if (tac == TacticStyle.tikiTaka) base -= 2;
-    if (tac == TacticStyle.counter) base += 16;
+    if (tac == TacticStyle.counter) base += 18;
+    if (tac == TacticStyle.highPress) base += 8;
     if (pressers > 1) base += 22;
+    if (is1v1) base += 18; // 1v1 with GK → strong shot urge
     base += (teamPowerAdv * 0.20).round().clamp(-8, 16);
     return base.clamp(18, 96);
   }
 
   TacticStyle _myTactic(bool isHome) {
-    return isHome
-        ? (widget.isPlayerTeamAway ? widget.oppTactic : widget.myTactic)
-        : (widget.isPlayerTeamAway ? widget.myTactic : widget.oppTactic);
+    if (isHome) {
+      return _liveHomeTactic ??
+          (widget.isPlayerTeamAway ? widget.oppTactic : widget.myTactic);
+    }
+    return _liveAwayTactic ??
+        (widget.isPlayerTeamAway ? widget.myTactic : widget.oppTactic);
   }
 
   // ─── PASS ───────────────────────────────────────────────────────────────────
@@ -824,6 +1456,9 @@ class _MatchEngineViewState extends State<MatchEngineView>
     SimPlayer? best;
     double bestS = -9999;
 
+    // Pasörün kendi sahasında olup olmadığı
+    bool passerInOwnHalf = goRight ? passer.pos.x < 0.50 : passer.pos.x > 0.50;
+
     for (var t in opts) {
       double s = 0;
 
@@ -832,6 +1467,21 @@ class _MatchEngineViewState extends State<MatchEngineView>
         double fwdDist =
             goRight ? t.pos.x - passer.pos.x : passer.pos.x - t.pos.x;
         s += fwdDist * 95;
+      }
+
+      // Kendi sahasında: derinlere/arkaya pas ağır ceza, ileriye büyük bonus
+      if (passerInOwnHalf) {
+        double fwdDist =
+            goRight ? t.pos.x - passer.pos.x : passer.pos.x - t.pos.x;
+        if (fwdDist < -0.05) s -= 140; // geri veya yanlara pas yasak
+        if (fwdDist > 0.10) s += 80; // ileriye pas büyük ödül
+        // DEF veya GK'ya pas vermeyi tamamen engelle
+        if (t.role == 'DEF' || t.role == 'GK') s -= 200;
+        // Kanat/forvet en öncelikli
+        if (t.role == 'ST' ||
+            t.role == 'WING' ||
+            t.role == 'FWD' ||
+            t.role == 'CAM') s += 90;
       }
 
       // Rakip sahasındayken geri pas cezası – topu öne taşı
@@ -856,6 +1506,9 @@ class _MatchEngineViewState extends State<MatchEngineView>
       // Farklı Y bölgesinde (yayılma): yoğunlaşmayı önle
       double yDiff = (t.pos.y - passer.pos.y).abs();
       if (yDiff > 0.18) s += 30;
+      if (yDiff > 0.32) s += 50; // Kanat değiştirme: saha genişliği ödülü
+      // Kanat oyuncusuna pas: saha genişliği zorla
+      if (t.role == 'WING' && yDiff > 0.20) s += 40;
 
       // ── LANE ROTATION: penalize same-lane targets when stuck ──
       int targetLane = t.pos.y < 0.35
@@ -869,7 +1522,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
         s += 60; // strongly prefer different lane
       }
 
-      if (t.role == 'FWD') s += 35;
+      if (t.role == 'FWD' || t.role == 'ST' || t.role == 'WING') s += 35;
       if (t.instruction.stayWide) s += 25;
 
       // Optimal pas mesafesi: 0.10-0.50 arası
@@ -937,7 +1590,24 @@ class _MatchEngineViewState extends State<MatchEngineView>
     return false;
   }
 
+  /// Directly activate wall-run for a WING player already hugging the touchline.
+  void _startWallRun(SimPlayer runner) {
+    bool goRight = runner.isHome;
+    double wallY = runner.pos.y < 0.5 ? 0.02 : 0.98;
+    ball.isWallRunActive = true;
+    ball.wallRunner = runner;
+    ball.wallRunTarget = Pos(
+      (runner.pos.x + (goRight ? 0.06 : -0.06)).clamp(0.04, 0.96),
+      wallY,
+    );
+    ball.wallRunCountdown = 50;
+    ball.wallRunBlinkTimer = 0;
+    _log('💨 ${runner.data.name} duvara koşuyor!', Colors.yellowAccent);
+  }
+
   void _execPass(SimPlayer passer, SimPlayer target) {
+    // Guard: cannot pass to yourself
+    if (passer == target) return;
     int psk = passer.passStat;
     // Error chance scales with pass stat: low stat → higher error
     // passStat 75 → ~10%, 50 → ~21%, 25 → ~32%
@@ -971,6 +1641,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
           (passer.pos.dist(Pos(errX, errY)) * 95 * _passTicksMult()).round());
       ball.passTicksRemaining = ball.passTicksTotal;
       ball.pos.set(passer.pos);
+      // Stats – failed pass
+      if (passer.isHome)
+        _homePassesAtt++;
+      else
+        _awayPassesAtt++;
+      _insight(passer).update(badPass: true);
       _log('⚠️ ${passer.data.name} hatalı pas!', Colors.orange);
       passer.moveTarget = Pos(
         (passer.pos.x + (passer.isHome ? 0.10 : -0.10)).clamp(0.05, 0.95),
@@ -1017,6 +1693,17 @@ class _MatchEngineViewState extends State<MatchEngineView>
         max(16, (passer.pos.dist(target.pos) * 95 * _passTicksMult()).round());
     ball.passTicksRemaining = ball.passTicksTotal;
     ball.pos.set(passer.pos);
+
+    // Stats – successful pass
+    if (passer.isHome) {
+      _homePassesAtt++;
+      _homePassesCmpl++;
+    } else {
+      _awayPassesAtt++;
+      _awayPassesCmpl++;
+    }
+    bool isIntoBox = passer.isHome ? target.pos.x > 0.76 : target.pos.x < 0.24;
+    _insight(passer).update(pass: true, keyPass: isIntoBox);
     _log('✓ ${passer.data.name} → ${target.data.name}', Colors.lightBlueAccent);
   }
 
@@ -1038,8 +1725,11 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
     // Can an opponent intercept at arrival?
     var opp = recv.isHome ? awayTeam : homeTeam;
-    SimPlayer? rival = opp.firstWhereOrNull(
-        (o) => o.pos.dist(ball.pos) < recv.pos.dist(ball.pos) - 0.04);
+    // Only attempt interception if rival is physically close (< 0.15) AND
+    // closer to the ball than the receiver – prevents far-away snap ownership.
+    SimPlayer? rival = opp.firstWhereOrNull((o) =>
+        o.pos.dist(ball.pos) < 0.15 &&
+        o.pos.dist(ball.pos) < recv.pos.dist(ball.pos) - 0.03);
     if (rival != null) {
       // Power-weighted interception: stronger team intercepts more reliably
       double recvPwr = recv.isHome ? _homePower : _awayPower;
@@ -1057,27 +1747,122 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
     }
 
-    // Ball arrives at its locked destination
-    ball.pos.set(ball.passTo);
-    // Receiver must be within 0.10 of arrival point to collect cleanly
-    if (recv.pos.dist(ball.passTo) < 0.10) {
-      ball.owner = recv;
-      ball.phase = BallPhase.owned;
-      recv.pos.set(ball.passTo);
-      // Ceza alanında pas alındıysa anında şut imkânı değerlendir
-      var recvOpp = recv.isHome ? awayTeam : homeTeam;
-      var recvGk = recvOpp.firstWhereOrNull((pl) => pl.role == 'GK');
-      bool inAttBox = recv.isHome ? recv.pos.x > 0.76 : recv.pos.x < 0.24;
-      if (inAttBox && recvGk != null && _rng.nextInt(100) < 52) {
-        _shoot(recv, recvGk);
-        return;
-      }
-    } else {
-      // Receiver too far – loose ball at arrival spot
-      ball.owner = null;
-      ball.phase = BallPhase.free;
-      _log('📌 Top sahada kaldı!', Colors.white38);
+    // Ball arrives – snap ball to where the receiver CURRENTLY is.
+    // Do NOT teleport the receiver; they keep moving naturally.
+    // (Receiver was running toward passTo the whole flight – they are close.)
+    ball.pos.set(recv.pos);
+    ball.owner = recv;
+    ball.phase = BallPhase.owned;
+    ball.passTarget = null; // clear target immediately to prevent re-use
+    // Ceza alanında pas alındıysa anında şut imkânı değerlendir
+    var recvOpp = recv.isHome ? awayTeam : homeTeam;
+    var recvGk = recvOpp.firstWhereOrNull((pl) => pl.role == 'GK');
+    bool inAttBox = recv.isHome ? recv.pos.x > 0.76 : recv.pos.x < 0.24;
+    bool isAttacker = recv.role == 'ST' ||
+        recv.role == 'WING' ||
+        recv.role == 'CAM' ||
+        recv.role == 'FWD';
+    if (inAttBox && recvGk != null && isAttacker && _rng.nextInt(100) < 52) {
+      _shoot(recv, recvGk);
+      return;
     }
+  }
+
+  // ─── WALL RUN ────────────────────────────────────────────────────────────────
+
+  void _wallRunPhase() {
+    var runner = ball.wallRunner;
+    if (runner == null) {
+      ball.isWallRunActive = false;
+      return;
+    }
+    // Point the runner toward the wall – _simulate() handles actual movement
+    runner.moveTarget.set(ball.wallRunTarget);
+    ball.wallRunCountdown--;
+
+    double distToWall = runner.pos.dist(ball.wallRunTarget);
+    bool reachedWall = distToWall < 0.07 || ball.wallRunCountdown <= 0;
+    if (!reachedWall) return;
+
+    // ── BLINK PHASE: oyuncu 2 kez yanıp söner ──
+    ball.wallRunBlinkTimer++;
+    // blink effect exposed via isPassShoot toggle (~14 tick per blink)
+    runner.isPassShoot = (ball.wallRunBlinkTimer % 14) < 7;
+
+    if (ball.wallRunBlinkTimer < 30) return; // ~0.5s blink phase
+
+    // Done blinking → fire diagonal rocket shot
+    runner.isPassShoot = false;
+    ball.isWallRunActive = false;
+    ball.wallRunner = null;
+
+    var opp = runner.isHome ? awayTeam : homeTeam;
+    var gk = opp.firstWhereOrNull((p) => p.role == 'GK');
+    if (gk != null) _rocketShoot(runner, gk);
+  }
+
+  // ─── ROCKET SHOOT (diagonal wall shot) ──────────────────────────────────────
+
+  void _rocketShoot(SimPlayer shooter, SimPlayer gk) {
+    bool goRight = shooter.isHome;
+    double goalX = goRight ? 0.985 : 0.015;
+    // Shoot diagonally to opposite post from shooter's Y
+    double goalY = shooter.pos.y < 0.5 ? 0.62 : 0.38;
+
+    int shotSk = shooter.shootStat;
+    // Rocket is highly precise – almost always on target
+    bool onTarget = _rng.nextInt(100) >= max(1, 96 - shotSk);
+    // GK has much less time to react – save probability halved
+    int saveChance = max(1, (gk.reflexStat * 0.11).round());
+    bool gkSaves = onTarget && _rng.nextInt(100) < saveChance;
+
+    ball.shotWillGoal = onTarget && !gkSaves;
+    ball.shotOnTarget = onTarget;
+    ball.shotGk = gk;
+    ball.shotShooterName = shooter.data.name;
+    ball.shotIsHome = shooter.isHome;
+    ball.isRocketShot = true;
+
+    const int flightTicks = 20;
+    double dxShot = goalX - shooter.pos.x;
+    double dyShot = goalY - shooter.pos.y;
+    ball.vBallX = dxShot / flightTicks;
+    ball.vBallY = dyShot / flightTicks;
+    ball.shotBounced = false;
+
+    ball.owner = null;
+    ball.phase = BallPhase.shotFlight;
+    ball.passFrom.set(shooter.pos);
+    ball.passTo = Pos(goalX, goalY);
+    ball.passTicksTotal = flightTicks;
+    ball.passTicksRemaining = flightTicks;
+    ball.pos.set(shooter.pos);
+    _rocketFreezeTicks = 18; // brief freeze-frame before flight
+
+    if (shooter.isHome) {
+      _homeShots++;
+      if (onTarget) _homeShotsOnTarget++;
+    } else {
+      _awayShots++;
+      if (onTarget) _awayShotsOnTarget++;
+    }
+    _insight(shooter).update(shotOT: onTarget, miss: !onTarget);
+
+    // Spawn red rocket particles
+    for (int i = 0; i < 28; i++) {
+      double angle = _rng.nextDouble() * 2 * pi;
+      double spd = 0.005 + _rng.nextDouble() * 0.010;
+      _shotParticles.add(_ShotParticle(
+        shooter.pos.x,
+        shooter.pos.y,
+        cos(angle) * spd,
+        sin(angle) * spd,
+        1.0,
+        Color.lerp(Colors.redAccent, Colors.orangeAccent, _rng.nextDouble())!,
+      ));
+    }
+
+    _log('🚀 ${shooter.data.name} DUVAR ROKET ŞUT!', Colors.redAccent);
   }
 
   // ─── CROSS ──────────────────────────────────────────────────────────────────
@@ -1085,14 +1870,24 @@ class _MatchEngineViewState extends State<MatchEngineView>
   void _cross(SimPlayer crosser, List<SimPlayer> team) {
     bool goRight = crosser.isHome;
     var targets = team
-        .where((t) => t != crosser && (t.role == 'FWD' || t.role == 'MID'))
+        .where((t) =>
+            t != crosser &&
+            (t.role == 'FWD' ||
+                t.role == 'MID' ||
+                t.role == 'ST' ||
+                t.role == 'WING' ||
+                t.role == 'CAM'))
         .toList();
     if (targets.isEmpty) return;
 
-    var tgt = targets.reduce((a, b) =>
-        (a.role == 'FWD' ? 0 : 1).compareTo(b.role == 'FWD' ? 0 : 1) <= 0
-            ? a
-            : b);
+    // Priority: ST > WING > CAM > MID/FWD
+    SimPlayer tgt = targets.firstWhere(
+      (t) => t.role == 'ST',
+      orElse: () => targets.firstWhere(
+        (t) => t.role == 'WING',
+        orElse: () => targets.first,
+      ),
+    );
 
     tgt.moveTarget = Pos(
       goRight
@@ -1115,6 +1910,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
   // ─── SHOOT ──────────────────────────────────────────────────────────────────
 
   void _shoot(SimPlayer shooter, SimPlayer gk) {
+    ball.isRocketShot = false; // regular shot – clear any previous rocket flag
     bool isVolley =
         (ball.phase == BallPhase.passFlight || ball.passTicksRemaining > 0);
     int shotSk = shooter.shootStat;
@@ -1131,9 +1927,33 @@ class _MatchEngineViewState extends State<MatchEngineView>
     _log('🎯 ${shooter.data.name}${isVolley ? ' (gelişine)' : ''} şut!',
         Colors.amber);
 
+    // Stats tracking
+    if (shooter.isHome) {
+      _homeShots++;
+      if (onTarget) _homeShotsOnTarget++;
+    } else {
+      _awayShots++;
+      if (onTarget) _awayShotsOnTarget++;
+    }
+    _insight(shooter).update(shotOT: onTarget, miss: !onTarget);
+
     // LED ring şut efekti
     shooter.isPassShoot = true;
     shooter.passShootTimer = 45;
+
+    // Spawn orange shot particles
+    for (int i = 0; i < 18; i++) {
+      double angle = _rng.nextDouble() * 2 * pi;
+      double spd = 0.003 + _rng.nextDouble() * 0.007;
+      _shotParticles.add(_ShotParticle(
+        shooter.pos.x,
+        shooter.pos.y,
+        cos(angle) * spd,
+        sin(angle) * spd,
+        1.0,
+        Color.lerp(const Color(0xFFFF6D00), Colors.yellow, _rng.nextDouble())!,
+      ));
+    }
 
     bool goRight = shooter.isHome;
 
@@ -1184,26 +2004,49 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
     }
 
-    // Launch ball as shot flight
+    // Launch ball as shot flight with velocity-based wall-bounce physics
+    double dxShot = goalX - shooter.pos.x;
+    double dyShot = goalY - shooter.pos.y;
+    const int flightTicks = 30;
+    ball.vBallX = dxShot / flightTicks;
+    ball.vBallY = dyShot / flightTicks;
+    ball.shotBounced = false;
+
     ball.owner = null;
     ball.phase = BallPhase.shotFlight;
     ball.passFrom.set(shooter.pos);
     ball.passTo = Pos(goalX, goalY);
-    ball.passTicksTotal = 28;
-    ball.passTicksRemaining = 28;
+    ball.passTicksTotal = flightTicks;
+    ball.passTicksRemaining = flightTicks;
     ball.pos.set(shooter.pos);
-
-    // Engage slow motion
-    _shotSlowMoTicks = 90;
   }
 
   // ─── SHOT FLIGHT ────────────────────────────────────────────────────────────
 
   void _shotFlightPhase() {
-    ball.passTicksRemaining--;
-    double t = 1.0 - (ball.passTicksRemaining / ball.passTicksTotal);
-    ball.pos.set(ball.passFrom.lerp(ball.passTo, t));
+    // Advance ball position by velocity
+    ball.pos.x += ball.vBallX;
+    ball.pos.y += ball.vBallY;
 
+    // ── DUVAR SEKME: yan çizgiye çarparsa açısında sekecek ──
+    // Üst/alt çizgi (y < 0.02 veya y > 0.98)
+    if (ball.pos.y < 0.02) {
+      ball.pos.y = 0.02 + (0.02 - ball.pos.y); // yansıt
+      ball.vBallY = -ball.vBallY; // hız vektörü yansıyor
+      if (!ball.shotBounced) {
+        _log('🏀 Top duvara çarptı • sek!', Colors.white54);
+        ball.shotBounced = true;
+      }
+    } else if (ball.pos.y > 0.98) {
+      ball.pos.y = 0.98 - (ball.pos.y - 0.98);
+      ball.vBallY = -ball.vBallY;
+      if (!ball.shotBounced) {
+        _log('🏀 Top duvara çarptı • sek!', Colors.white54);
+        ball.shotBounced = true;
+      }
+    }
+
+    ball.passTicksRemaining--;
     if (ball.passTicksRemaining > 0) return;
 
     // Shot arrived – resolve
@@ -1246,6 +2089,11 @@ class _MatchEngineViewState extends State<MatchEngineView>
     _log('🧤 ${gk.data.name} kurtardı!', Colors.cyanAccent);
     ball.pos.set(gk.pos);
 
+    // Kurtarış animasyonu tetikle
+    _gkSaveActive = true;
+    _gkSavingPlayer = gk;
+    _gkSaveTimer = 72;
+
     int outcome = _rng.nextInt(100);
 
     if (outcome < 20) {
@@ -1268,7 +2116,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
       var defMid = ownTeam
           .where((p) =>
               p != gk &&
-              (p.role == 'MID' || p.role == 'FWD' || p.role == 'DEF'))
+              (p.role == 'MID' ||
+                  p.role == 'CAM' ||
+                  p.role == 'FWD' ||
+                  p.role == 'WING' ||
+                  p.role == 'ST' ||
+                  p.role == 'DEF'))
           .toList();
       var targets = defMid.isNotEmpty
           ? defMid
@@ -1310,6 +2163,11 @@ class _MatchEngineViewState extends State<MatchEngineView>
       awayScore++;
     goalCelebText = '⚽ GOOOL!\n$scorer\n${homeScore} - ${awayScore}';
     _log('⚽🔥 GOL! $scorer  $homeScore-$awayScore', Colors.yellowAccent);
+
+    // Scorer insight
+    var scorerPlayer = [...homeTeam, ...awayTeam]
+        .firstWhereOrNull((p) => p.data.name == scorer);
+    if (scorerPlayer != null) _insight(scorerPlayer).update(goal: true);
 
     // Topu kaleye gönder (fiziksel)
     double goalX = homeScored ? 0.985 : 0.015;
@@ -1359,6 +2217,11 @@ class _MatchEngineViewState extends State<MatchEngineView>
     }
 
     _log('🚩 Korner! ${taker.data.name} kullanacak…', Colors.purpleAccent);
+    // Corner stats
+    if (forHome)
+      _homeCorners++;
+    else
+      _awayCorners++;
   }
 
   void _cornerDelayPhase() {
@@ -1391,23 +2254,17 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
   void _freeBallPhase() {
     var all = [...homeTeam, ...awayTeam];
-
-    // ── Possession balance: defending team gets reach advantage near own half ──
-    // If ball is in home half (x<0.5), away team is defending → they get priority
-    // If ball is in away half (x>0.5), home team is defending → they get priority
     bool ballInHomeHalf = ball.pos.x < 0.5;
 
     SimPlayer? nearest;
     double minD = 999;
     for (var p in all) {
-      p.moveTarget.set(ball.pos);
       double d = p.pos.dist(ball.pos);
+      // Only nearby players sprint to ball; distant players hold tactical shape
+      if (d < 0.55) p.moveTarget.set(ball.pos);
 
-      // Defending team near their own half → subtract from effective distance
-      // (they hustle harder to clear the ball from their zone)
       bool isDefending =
           (p.isHome && !ballInHomeHalf) || (!p.isHome && ballInHomeHalf);
-      // Stronger team gets extra reach bonus (power-based possession)
       double teamPwr = p.isHome ? _homePower : _awayPower;
       double oppPwr = p.isHome ? _awayPower : _homePower;
       double powerBonus = ((teamPwr - oppPwr) * 0.0012).clamp(-0.04, 0.06);
@@ -1425,11 +2282,23 @@ class _MatchEngineViewState extends State<MatchEngineView>
     if (nearest != null && realD < 0.065) {
       ball.owner = nearest;
       ball.phase = BallPhase.owned;
-      ball.pos.set(nearest.pos);
+      ball.pos.set(nearest.pos); // sync ball to owner immediately on pickup
       _log('⚽ ${nearest.data.name} topu aldı',
           nearest.isHome ? Colors.lightBlue : Colors.redAccent);
       _triggerCounterRun(nearest);
     }
+  }
+
+  // ─── FORCE BALL HANDOVER ────────────────────────────────────────────────────
+
+  /// Called when ball is static >1.5 s.
+  /// Releases ball as free at its current position – NO instant ownership snap.
+  /// _freeBallPhase naturally awards it to the nearest player who reaches it.
+  void _forcePassToBall() {
+    ball.owner = null;
+    ball.passTarget = null;
+    ball.phase = BallPhase.free;
+    // ball.pos stays where it is; _freeBallPhase handles pickup
   }
 
   // ─── TACKLE ─────────────────────────────────────────────────────────────────
@@ -1445,6 +2314,12 @@ class _MatchEngineViewState extends State<MatchEngineView>
       ball.owner = tackler;
       ball.phase = BallPhase.owned;
       ball.pos.set(tackler.pos);
+      // Tackle stats
+      if (tackler.isHome)
+        _homeTackles++;
+      else
+        _awayTackles++;
+      _insight(tackler).update(tackle: true);
       _log('⚔️ ${tackler.data.name} topladı!', Colors.orangeAccent);
       _maybeTriggerGegen(owner.isHome);
       _triggerCounterRun(tackler);
@@ -1461,6 +2336,17 @@ class _MatchEngineViewState extends State<MatchEngineView>
 
     bool yellowCard = _rng.nextInt(100) < 20;
     String card = yellowCard ? ' 🟨 Sarı Kart!' : '';
+    // Foul stats
+    if (tackler.isHome)
+      _homeFouls++;
+    else
+      _awayFouls++;
+    if (yellowCard) {
+      if (tackler.isHome)
+        _homeYellows++;
+      else
+        _awayYellows++;
+    }
     _log('🚨 Faul! ${tackler.data.name} → ${fouled.data.name}$card',
         Colors.redAccent);
 
@@ -1501,13 +2387,13 @@ class _MatchEngineViewState extends State<MatchEngineView>
     var myTeam = newOwner.isHome ? homeTeam : awayTeam;
     for (var p in myTeam) {
       if (p == newOwner || p.role == 'GK') continue;
-      if (p.role == 'FWD') {
+      if (p.role == 'FWD' || p.role == 'ST' || p.role == 'WING') {
         double tx = (goRight
                 ? 0.76 + _rng.nextDouble() * 0.14
                 : 0.10 + _rng.nextDouble() * 0.14)
             .clamp(0.05, 0.95);
         p.moveTarget = Pos(tx, 0.18 + _rng.nextDouble() * 0.64);
-      } else if (p.role == 'MID' && _rng.nextBool()) {
+      } else if ((p.role == 'MID' || p.role == 'CAM') && _rng.nextBool()) {
         double tx = (goRight
                 ? 0.55 + _rng.nextDouble() * 0.22
                 : 0.23 + _rng.nextDouble() * 0.22)
@@ -1553,40 +2439,47 @@ class _MatchEngineViewState extends State<MatchEngineView>
       return targets.first;
     }
 
-    // DEF: rakibin FWD/kanat oyuncularını tutar
-    // DEF index 1 → opp FWD index 5 veya 6 (playerIndex eşleşmesi)
+    // DEF: marks opponent attackers (ST, WING, FWD)
     if (p.role == 'DEF') {
-      var oppFwds = opp.where((o) => o.role == 'FWD').toList();
-      if (oppFwds.isEmpty) return null;
-      oppFwds.sort((a, b) => a.playerIndex.compareTo(b.playerIndex));
-      int pick = (p.playerIndex == 1) ? 0 : (oppFwds.length > 1 ? 1 : 0);
-      return oppFwds[pick.clamp(0, oppFwds.length - 1)];
+      var oppAtk = opp
+          .where((o) => o.role == 'ST' || o.role == 'WING' || o.role == 'FWD')
+          .toList();
+      if (oppAtk.isEmpty) return null;
+      oppAtk.sort((a, b) => a.playerIndex.compareTo(b.playerIndex));
+      int pick = (p.playerIndex == 1) ? 0 : (oppAtk.length > 1 ? 1 : 0);
+      return oppAtk[pick.clamp(0, oppAtk.length - 1)];
     }
 
-    // MID: rakip orta sahaları tutar
-    if (p.role == 'MID') {
-      var oppMids = opp.where((o) => o.role == 'MID').toList();
-      if (oppMids.isEmpty) {
-        // Orta saha yoksa DEF'e baskı
-        var oppDefs = opp.where((o) => o.role == 'DEF').toList();
-        if (oppDefs.isEmpty) return null;
-        oppDefs.sort((a, b) => a.pos.dist(p.pos).compareTo(b.pos.dist(p.pos)));
-        return oppDefs.first;
+    // CAM: marks opponent's CAM or MID
+    if (p.role == 'CAM') {
+      var oppMid =
+          opp.where((o) => o.role == 'CAM' || o.role == 'MID').toList();
+      if (oppMid.isNotEmpty) {
+        oppMid.sort((a, b) => a.pos.dist(p.pos).compareTo(b.pos.dist(p.pos)));
+        return oppMid.first;
       }
-      oppMids.sort((a, b) => a.playerIndex.compareTo(b.playerIndex));
-      int pick = (p.playerIndex == 3) ? 0 : (oppMids.length > 1 ? 1 : 0);
-      return oppMids[pick.clamp(0, oppMids.length - 1)];
+      return null;
     }
 
-    // FWD: rakip DEF'i tutar (savunmaya çekilince)
-    if (p.role == 'FWD') {
+    // WING: marks opponent WING on same side (direct duel)
+    if (p.role == 'WING') {
+      var oppWings =
+          opp.where((o) => o.role == 'WING' || o.role == 'FWD').toList();
+      if (oppWings.isEmpty) return null;
+      bool defending = ball.owner != null && ball.owner!.isHome != p.isHome;
+      if (!defending) return null;
+      oppWings.sort((a, b) => a.pos.dist(p.pos).compareTo(b.pos.dist(p.pos)));
+      return oppWings.first;
+    }
+
+    // ST: marks opponent DEF when defending
+    if (p.role == 'ST' || p.role == 'FWD') {
       bool defending = ball.owner != null && ball.owner!.isHome != p.isHome;
       if (!defending) return null;
       var oppDefs = opp.where((o) => o.role == 'DEF').toList();
       if (oppDefs.isEmpty) return null;
       oppDefs.sort((a, b) => a.playerIndex.compareTo(b.playerIndex));
-      int pick = (p.playerIndex == 5) ? 0 : (oppDefs.length > 1 ? 1 : 0);
-      return oppDefs[pick.clamp(0, oppDefs.length - 1)];
+      return oppDefs.first;
     }
 
     return null;
@@ -1595,9 +2488,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
   // Takım toplu olduğunda yayılma pozisyonunu hesapla
   Pos _spreadPosition(SimPlayer p, Pos ballPos) {
     bool goRight = p.isHome;
-    // Her oyuncuya sahadaki farklı dilim verilir (yığılmayı önler)
-    // Y dilimi: playerIndex 0-6 → 0.10, 0.22, 0.78, 0.18, 0.82, 0.28, 0.72
-    const spreadY = [0.50, 0.22, 0.78, 0.14, 0.86, 0.30, 0.70];
+    // Y channels per slot – new 1-2-1-2-1 formation spread
+    const spreadY = [0.50, 0.22, 0.78, 0.50, 0.08, 0.92, 0.50];
     double ty = spreadY[p.playerIndex.clamp(0, 6)];
 
     double tx;
@@ -1605,22 +2497,36 @@ class _MatchEngineViewState extends State<MatchEngineView>
       case 'GK':
         return p.homeBase.copy();
       case 'DEF':
-        // Savunma hattını biraz ilerlet ama dikkatli kal
         tx = goRight
             ? (ballPos.x - 0.22).clamp(0.08, 0.40)
             : (ballPos.x + 0.22).clamp(0.60, 0.92);
         break;
-      case 'MID':
-        // Topu taşıyan oyuncunun arkasında veya yanında, geniş aç
+      case 'CAM':
         tx = goRight
-            ? (ballPos.x - 0.06).clamp(0.30, 0.72)
-            : (ballPos.x + 0.06).clamp(0.28, 0.70);
+            ? (ballPos.x + 0.04).clamp(0.36, 0.75)
+            : (ballPos.x - 0.04).clamp(0.25, 0.64);
         break;
-      case 'FWD':
-        // İleri koş, geniş açıl
+      case 'WING':
+        bool isLeft = p.playerIndex == 4;
+        tx = goRight
+            ? (ballPos.x + 0.14).clamp(0.48, 0.92)
+            : (ballPos.x - 0.14).clamp(0.08, 0.52);
+        ty = isLeft ? 0.08 : 0.92;
+        break;
+      case 'ST':
+        tx = goRight
+            ? (ballPos.x + 0.18).clamp(0.58, 0.94)
+            : (ballPos.x - 0.18).clamp(0.06, 0.42);
+        break;
+      case 'FWD': // legacy
         tx = goRight
             ? (ballPos.x + 0.16).clamp(0.52, 0.92)
             : (ballPos.x - 0.16).clamp(0.08, 0.48);
+        break;
+      case 'MID': // legacy
+        tx = goRight
+            ? (ballPos.x - 0.06).clamp(0.30, 0.72)
+            : (ballPos.x + 0.06).clamp(0.28, 0.70);
         break;
       default:
         tx = p.homeBase.x;
@@ -1725,28 +2631,64 @@ class _MatchEngineViewState extends State<MatchEngineView>
         ball.owner != null && (ball.owner!.isHome == p.isHome);
     SimPlayer? bo = ball.owner;
 
+    // ── YÜKLEME BASKISI: rakip kendi sahasında topla – hücum oyuncuları presler ──
+    if (!ownTeamHasBall && bo != null && p.role != 'GK') {
+      bool oppDeepInDef = p.isHome
+          ? ballRef.x < 0.38 // rakip (away) kendi ceza sahası önünde
+          : ballRef.x > 0.62; // rakip (home) kendi ceza sahası önünde
+      bool isAttacker = p.role == 'ST' ||
+          p.role == 'WING' ||
+          p.role == 'CAM' ||
+          p.role == 'FWD';
+      if (oppDeepInDef && isAttacker) {
+        // Topa doğru agresif pres
+        double pressX =
+            (ballRef.x + (p.isHome ? 0.06 : -0.06)).clamp(0.05, 0.92);
+        double pressY =
+            (ballRef.y * 0.55 + p.homeBase.y * 0.45).clamp(0.05, 0.95);
+        p.moveTarget = Pos(pressX, pressY);
+        // Yakınsa müdahale
+        if (p.pos.dist(bo.pos) < 0.11) {
+          if (_rng.nextInt(100) < max(8, p.defStat - bo.dribbleStat + 26)) {
+            _beenTackled(bo, p);
+          }
+        }
+        _constrainByTactic(p);
+        _applySeparation(p);
+        return;
+      }
+    }
+
     // ── OTOMATİK MAN-MARKING sistemi ──
     // Markaj hedefini güncelle (sadece savunma pozisyonundayken)
     SimPlayer? autoMark = _resolveMarkTarget(p);
     p.markTarget = autoMark;
 
     if (!ownTeamHasBall && autoMark != null && p.role != 'GK') {
-      // ── DEF: form solid wall at penalty-box edge ──
+      // ── DEF: savunma hattı + kaçan forvetleri aktif takip ──
       if (p.role == 'DEF') {
         bool goRight = p.isHome;
-        // Edge of our own penalty box
+        // Our penalty box edge – last line of defence
         double boxEdge = goRight ? 0.83 : 0.17;
-        // Shift line toward ball but never beyond box edge
-        double wallX = goRight
+        // Chase the marked runner: blend between box-edge and attacker's actual X
+        // If attacker has already entered box zone, push tight against them
+        double attackerX = autoMark.pos.x;
+        bool attackerInBox = goRight ? attackerX > 0.74 : attackerX < 0.26;
+        double chaseBlend = attackerInBox ? 0.85 : 0.55; // tighter when in box
+        double baseWallX = goRight
             ? min(boxEdge, ballRef.x - 0.06).clamp(0.06, boxEdge)
             : max(boxEdge, ballRef.x + 0.06).clamp(boxEdge, 0.94);
-        // Y: each DEF covers a channel of the goal
+        double chaseX = goRight
+            ? min(boxEdge, attackerX - 0.05).clamp(0.06, boxEdge)
+            : max(boxEdge, attackerX + 0.05).clamp(boxEdge, 0.94);
+        double wallX = baseWallX * (1 - chaseBlend) + chaseX * chaseBlend;
+        // Y: each DEF covers a channel; blend tightly toward attacker's Y
         const defChannelY = [0.32, 0.68];
         double channelY = defChannelY[(p.playerIndex == 1) ? 0 : 1];
-        // Blend toward marked attacker Y for tight marking
-        double targetY = autoMark.pos.y * 0.65 + channelY * 0.35;
-        p.moveTarget = Pos(wallX, targetY.clamp(0.08, 0.92));
-        // Tackle if attacker walks into wall
+        // Tight man-marking: 80% attacker Y, wider channel only as fallback
+        double targetY = autoMark.pos.y * 0.80 + channelY * 0.20;
+        p.moveTarget = Pos(wallX, targetY.clamp(0.05, 0.95));
+        // Tackle if attacker walks into defender
         if (p.pos.dist(autoMark.pos) < 0.055 && bo != null) {
           if (_rng.nextInt(100) < max(10, p.defStat - bo.dribbleStat + 32)) {
             _beenTackled(bo, p);
@@ -1777,32 +2719,132 @@ class _MatchEngineViewState extends State<MatchEngineView>
     if (ownTeamHasBall) {
       // ── TAKIM TOPLU: FM26-style şekil ──
       bool goRight = p.isHome;
-      // Only recompute target every few ticks to prevent jitter
-      bool shouldUpdate = (tick % 8 == p.playerIndex % 8);
+      // Recompute target every 4 ticks per player – stable yet responsive
+      bool shouldUpdate = (tick % 4 == p.playerIndex % 4);
 
-      // FWD: attacking half → run into channels at penalty box
-      if (p.role == 'FWD' && shouldUpdate) {
-        // Forvet her zaman rakip ceza sahasında – sürekli bölge değiştirir
-        int teamLane = p.isHome ? _homeLane : _awayLane;
-        const fwdZones = [
-          [0.18, 0.82, 0.50], // lane 0 cycle
-          [0.50, 0.18, 0.82], // lane 1 cycle
-          [0.82, 0.50, 0.18], // lane 2 cycle
-        ];
-        // Her ~80 tick'te bölge değişir – forvet sürekli hareket halinde
-        int zoneIdx = ((tick ~/ 80) + p.playerIndex) % 3;
-        double channelY = fwdZones[teamLane][zoneIdx];
-        // Ceza sahasında rakip kaleye yakın; sinüs dalgasıyla X titreşimi
-        double targetX = (goRight
-                ? 0.76 + sin(tick * 0.038 + p.playerIndex) * 0.11
-                : 0.24 - sin(tick * 0.038 + p.playerIndex) * 0.11)
-            .clamp(0.52, 0.96);
-        p.moveTarget = Pos(targetX, channelY);
+      // ── WING: sürekli ileriye koşu – her 20 tickte yeni hedef ──────────────
+      if (p.role == 'WING' && (tick % 4 == p.playerIndex % 4)) {
+        bool isLeftWing = p.playerIndex == 4;
+        double homeY = isLeftWing ? 0.06 : 0.94;
+
+        // 3-fazlı çevrim: 0=kanat koşusu  1=içe çekilme  2=ay çizgisi sprint
+        int phaseCycle = ((tick ~/ 22) + p.playerIndex * 7) % 3;
+        switch (phaseCycle) {
+          case 0:
+            // Kanattan ilerle – defansı geniş tut
+            double wx = (goRight
+                    ? 0.70 + sin(tick * 0.08 + p.playerIndex) * 0.16
+                    : 0.30 - sin(tick * 0.08 + p.playerIndex) * 0.16)
+                .clamp(0.06, 0.94);
+            p.moveTarget = Pos(wx, homeY);
+            break;
+          case 1:
+            // Kanattan ileri sprint – geniş kal, defansı aç
+            double inX = (goRight
+                    ? 0.72 + _rng.nextDouble() * 0.14
+                    : 0.14 + _rng.nextDouble() * 0.14)
+                .clamp(0.06, 0.94);
+            // homeY'ye yakın kal (touchline tarafı)
+            p.moveTarget = Pos(
+                inX, (homeY + (isLeftWing ? 0.10 : -0.10)).clamp(0.04, 0.96));
+            break;
+          default:
+            // Ay çizgisi sprint – geri pas için pozisyon
+            double ovX = (goRight
+                    ? 0.84 + _rng.nextDouble() * 0.08
+                    : 0.08 + _rng.nextDouble() * 0.08)
+                .clamp(0.04, 0.96);
+            p.moveTarget = Pos(ovX, homeY);
+            break;
+        }
         _applySeparation(p);
         return;
       }
 
-      // MID: rakip yarısına paslaşarak git – DEF ve GK hariç tüm oyuncular
+      // ── ST: kutuda sürekli hareketli – her 20 tickte pozisyon değiştir ───────
+      if ((p.role == 'ST' || p.role == 'FWD') &&
+          (tick % 4 == p.playerIndex % 4)) {
+        // 3 tip koşu sürekli dönüşümlü
+        int runType = ((tick ~/ 28) + p.playerIndex * 9) % 3;
+        double tx, ty;
+        switch (runType) {
+          case 0: // Defansçıları ayır – merkezi koşu
+            tx = (goRight
+                    ? 0.76 + sin(tick * 0.06) * 0.12
+                    : 0.24 - sin(tick * 0.06) * 0.12)
+                .clamp(0.52, 0.96);
+            ty = 0.36 + _rng.nextDouble() * 0.28;
+            break;
+          case 1: // Yakın direk koşusu
+            tx = (goRight
+                    ? 0.83 + _rng.nextDouble() * 0.10
+                    : 0.07 + _rng.nextDouble() * 0.10)
+                .clamp(0.52, 0.96);
+            ty = 0.30 + _rng.nextDouble() * 0.14;
+            break;
+          default: // Uzak direk koşusu
+            tx = (goRight
+                    ? 0.81 + _rng.nextDouble() * 0.10
+                    : 0.09 + _rng.nextDouble() * 0.10)
+                .clamp(0.52, 0.96);
+            ty = 0.56 + _rng.nextDouble() * 0.14;
+            break;
+        }
+        p.moveTarget = Pos(tx, ty);
+        _applySeparation(p);
+        return;
+      }
+
+      // ── CAM: fluid support – distributor & second forward ───────────────────
+      if (p.role == 'CAM' && shouldUpdate && bo != null) {
+        bool goRight = p.isHome;
+        // Faster cycle (every 22 ticks) so CAM stays very dynamic
+        int camCycle = ((tick ~/ 22) + p.playerIndex * 5) % 4;
+        switch (camCycle) {
+          case 0: // Between midfield & attack – classic #10 position
+            double camX = (goRight
+                    ? 0.52 + _rng.nextDouble() * 0.22
+                    : 0.26 + _rng.nextDouble() * 0.22)
+                .clamp(0.10, 0.90);
+            // Lean toward ball Y
+            double cy0 =
+                (0.34 + _rng.nextDouble() * 0.32) * 0.6 + ball.pos.y * 0.4;
+            p.moveTarget = Pos(camX, cy0.clamp(0.08, 0.92));
+            break;
+          case 1: // Penetrating run into box – second striker
+            double atkX = (goRight
+                    ? 0.70 + _rng.nextDouble() * 0.16
+                    : 0.14 + _rng.nextDouble() * 0.16)
+                .clamp(0.10, 0.90);
+            p.moveTarget = Pos(atkX, 0.30 + _rng.nextDouble() * 0.40);
+            break;
+          case 2: // Drop deep to receive & distribute
+            double linkX = (goRight
+                    ? 0.38 + _rng.nextDouble() * 0.18
+                    : 0.44 + _rng.nextDouble() * 0.18)
+                .clamp(0.10, 0.90);
+            p.moveTarget = Pos(
+                linkX,
+                (ball.pos.y * 0.5 + 0.25 + _rng.nextDouble() * 0.50 * 0.5)
+                    .clamp(0.08, 0.92));
+            break;
+          default: // Wide support run – open a channel
+            double wideX = (goRight
+                    ? 0.58 + _rng.nextDouble() * 0.20
+                    : 0.22 + _rng.nextDouble() * 0.20)
+                .clamp(0.06, 0.94);
+            p.moveTarget = Pos(
+                wideX,
+                _rng.nextBool()
+                    ? 0.12 + _rng.nextDouble() * 0.16
+                    : 0.72 + _rng.nextDouble() * 0.16);
+            break;
+        }
+        _applySeparation(p);
+        return;
+      }
+
+      // ── MID (legacy): midfield support ──────────────────────────────────────
       if (p.role == 'MID' && shouldUpdate && bo != null) {
         int teamLane = p.isHome ? _homeLane : _awayLane;
         const midZones = [
@@ -1833,15 +2875,26 @@ class _MatchEngineViewState extends State<MatchEngineView>
       }
     } else {
       // ── SAVUNMA: compact mid/low block ──
-      bool shouldUpdate = (tick % 6 == p.playerIndex % 6);
+      bool shouldUpdate = (tick % 4 == p.playerIndex % 4);
       if (bo != null && shouldUpdate) {
         bool goRight = p.isHome;
         // Each role drops to a defensive compactness zone
         double blockX;
         switch (p.role) {
+          case 'ST':
           case 'FWD':
-            // High pressing forward – pressure the ball carrier
-            blockX = (bo.pos.x + (goRight ? -0.14 : 0.14)).clamp(0.10, 0.90);
+            // ST presses high – close down the GK/DEF
+            blockX = (bo.pos.x + (goRight ? -0.12 : 0.12)).clamp(0.10, 0.90);
+            break;
+          case 'WING':
+            // Wingers track back hard – cover wide channels
+            blockX = (bo.pos.x + (goRight ? -0.10 : 0.10)).clamp(0.08, 0.92);
+            break;
+          case 'CAM':
+            // CAM drops to mid-block – protects between lines
+            blockX = goRight
+                ? (bo.pos.x - 0.06).clamp(0.32, 0.62)
+                : (bo.pos.x + 0.06).clamp(0.38, 0.68);
             break;
           case 'MID':
             // Mid-block: stay between ball and our goal
@@ -1897,37 +2950,58 @@ class _MatchEngineViewState extends State<MatchEngineView>
     TacticStyle tac = _myTactic(p.isHome);
     bool goRight = p.isHome;
 
+    // defLine slider: only applies to player's team (home side when !isPlayerTeamAway)
+    bool isPlayerTeam = p.isHome != widget.isPlayerTeamAway;
+    double effDefLine = isPlayerTeam ? _defLineVal : 0.5;
+
     if (tac == TacticStyle.defensive && p.role == 'DEF') {
+      double cap = 0.28 + effDefLine * 0.10;
       p.moveTarget.x = goRight
-          ? p.moveTarget.x.clamp(0.04, 0.36)
-          : p.moveTarget.x.clamp(0.64, 0.96);
+          ? p.moveTarget.x.clamp(0.04, cap)
+          : p.moveTarget.x.clamp(1.0 - cap, 0.96);
     }
     if (tac == TacticStyle.counter &&
         p.role == 'DEF' &&
         ball.owner != null &&
         ball.owner!.isHome != p.isHome) {
-      // Kontra atak: savunma hattı derinde ve düzenli
+      double cap = 0.20 + effDefLine * 0.12;
       p.moveTarget.x = goRight
-          ? p.moveTarget.x.clamp(0.04, 0.27)
-          : p.moveTarget.x.clamp(0.73, 0.96);
+          ? p.moveTarget.x.clamp(0.04, cap)
+          : p.moveTarget.x.clamp(1.0 - cap, 0.96);
     }
     // Hücum taktiği: defans hattı ileri çekilir
     if (tac == TacticStyle.attack && p.role == 'DEF') {
       bool ownBall = ball.owner != null && ball.owner!.isHome == p.isHome;
       if (ownBall) {
+        double lo = 0.22 + effDefLine * 0.16;
         p.moveTarget.x = goRight
-            ? p.moveTarget.x.clamp(0.22, 0.56)
-            : p.moveTarget.x.clamp(0.44, 0.78);
+            ? p.moveTarget.x.clamp(lo, 0.66)
+            : p.moveTarget.x.clamp(1.0 - 0.66, 1.0 - lo);
       }
     }
     // Yüksek Baskı: defans hattı rakip yarısına kadar yükselir
     if (tac == TacticStyle.highPress && p.role == 'DEF') {
       bool defending = ball.owner != null && ball.owner!.isHome != p.isHome;
       if (defending) {
+        double lo = 0.30 + effDefLine * 0.18;
         p.moveTarget.x = goRight
-            ? p.moveTarget.x.clamp(0.32, 0.62)
-            : p.moveTarget.x.clamp(0.38, 0.68);
+            ? p.moveTarget.x.clamp(lo, 0.72)
+            : p.moveTarget.x.clamp(1.0 - 0.72, 1.0 - lo);
       }
+    }
+    // Width slider: FWD/MID spread wider on pitch when set high (player team only)
+    if (isPlayerTeam &&
+        _widthVal > 0.6 &&
+        (p.role == 'FWD' ||
+            p.role == 'MID' ||
+            p.role == 'ST' ||
+            p.role == 'WING' ||
+            p.role == 'CAM')) {
+      double push = (_widthVal - 0.5) * 0.28;
+      double wideY = p.homeBase.y > 0.5
+          ? (p.homeBase.y + push).clamp(0.06, 0.94)
+          : (p.homeBase.y - push).clamp(0.06, 0.94);
+      p.moveTarget.y = (p.moveTarget.y * 0.72 + wideY * 0.28).clamp(0.06, 0.94);
     }
   }
 
@@ -1935,9 +3009,20 @@ class _MatchEngineViewState extends State<MatchEngineView>
     double dx = p.moveTarget.x - p.pos.x;
     double dy = p.moveTarget.y - p.pos.y;
     double d = sqrt(dx * dx + dy * dy);
-    if (d < 0.001) {
-      p.vx *= 0.72; // decelerate when at target
-      p.vy *= 0.72;
+    if (d < 0.004) {
+      // Near target: gentle sinusoidal sway + ball-watching lean
+      if (p != ball.owner) {
+        double angle = tick * 0.09 + p.playerIndex * 1.31;
+        // FM26-style weight shift toward ball – every player watches the ball
+        double ballDy = (ball.pos.y - p.pos.y) * 0.012;
+        double ballDx = (ball.pos.x - p.pos.x) * 0.006;
+        p.moveTarget.x =
+            (p.moveTarget.x + cos(angle) * 0.003 + ballDx).clamp(0.04, 0.96);
+        p.moveTarget.y =
+            (p.moveTarget.y + sin(angle) * 0.003 + ballDy).clamp(0.04, 0.96);
+      }
+      p.vx *= 0.70;
+      p.vy *= 0.70;
       return;
     }
 
@@ -1949,8 +3034,8 @@ class _MatchEngineViewState extends State<MatchEngineView>
     double targetVx = (dx / d) * baseSpd;
     double targetVy = (dy / d) * baseSpd;
 
-    // FM26-style inertia – smooth acceleration
-    const double accel = 0.18;
+    // FM26-style inertia – smooth acceleration (lower = more buttery glide)
+    const double accel = 0.13;
     p.vx += (targetVx - p.vx) * accel;
     p.vy += (targetVy - p.vy) * accel;
 
@@ -2012,6 +3097,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
   void _endMatch() {
     if (isMatchOver) return;
     isMatchOver = true;
+    _ticker?.stop();
     setState(() {});
 
     bool playerHome = !widget.isPlayerTeamAway;
@@ -2046,10 +3132,19 @@ class _MatchEngineViewState extends State<MatchEngineView>
         ),
         Column(children: [
           _scoreBar(),
+          _liveStatsBand(),
           _speedBar(),
           Expanded(child: _pitch()),
           _logPanel(),
         ]),
+        // Manager Panel Overlay
+        if (_panelOpen) _managerPanelOverlay(),
+        // Manager FAB – bottom-right above log panel
+        Positioned(
+          bottom: 116,
+          right: 10,
+          child: _managerFAB(),
+        ),
       ]),
     );
   }
@@ -2221,12 +3316,30 @@ class _MatchEngineViewState extends State<MatchEngineView>
               isMyTeam: !widget.isPlayerTeamAway)),
           ...awayTeam.map((p) => _playerDot(p, Colors.cyanAccent, w, h,
               isMyTeam: widget.isPlayerTeamAway)),
+          // Pass-flight destination line
+          if (ball.phase == BallPhase.passFlight && ball.passTarget != null)
+            CustomPaint(
+              size: Size(w, h),
+              painter: _PassLinePainter(
+                ball.pos,
+                ball.passTo,
+                w,
+                h,
+                ball.owner?.isHome ?? true,
+              ),
+            ),
           // Ball trail (always-on)
           if (_ballTrail.length > 1)
             CustomPaint(
               size: Size(w, h),
-              painter: _BallTrailPainter(
-                  _ballTrail, w, h, ball.phase == BallPhase.shotFlight),
+              painter: _BallTrailPainter(_ballTrail, w, h,
+                  ball.phase == BallPhase.shotFlight, ball.isRocketShot),
+            ),
+          // Shot particles
+          if (_shotParticles.isNotEmpty)
+            CustomPaint(
+              size: Size(w, h),
+              painter: _ParticlePainter(_shotParticles, w, h),
             ),
           // Ball
           _ballDot(w, h),
@@ -2246,29 +3359,35 @@ class _MatchEngineViewState extends State<MatchEngineView>
                 ),
               ),
             ),
-          // Slow-motion overlay
-          if (ball.phase == BallPhase.shotFlight || _shotSlowMoTicks > 40)
+          // Rocket slow-mo / freeze overlay
+          if (ball.isRocketShot &&
+              (_rocketFreezeTicks > 0 ||
+                  ball.phase == BallPhase.shotFlight ||
+                  _shotSlowMoTicks > 40))
             Positioned(
               top: 8,
               right: 12,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.55),
+                  color: Colors.black.withOpacity(0.72),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                      color: Colors.orangeAccent.withOpacity(0.6), width: 1),
+                      color: Colors.redAccent.withOpacity(0.85), width: 1.2),
                 ),
                 child: Text(
-                  '🎬 SLOW MO',
+                  _rocketFreezeTicks > 0 ? '❄️ FREEZE' : '🚀 ROCKET',
                   style: TextStyle(
-                      color: Colors.orangeAccent,
-                      fontSize: 8,
+                      color: Colors.redAccent,
+                      fontSize: 9,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2),
+                      letterSpacing: 1.5),
                 ),
               ),
             ),
+          // GK save animation
+          if (_gkSaveActive && _gkSavingPlayer != null)
+            _gkSaveOverlay(_gkSavingPlayer!, w, h),
           // Goal flash
           if (isGoal) _goalFlash(),
           // Match over overlay
@@ -2287,209 +3406,342 @@ class _MatchEngineViewState extends State<MatchEngineView>
         ),
       );
 
-  // Jersey numbers per position slot
-  static const _jerseyNums = [1, 2, 3, 4, 5, 7, 9];
+  // ── GK SAVE OVERLAY ─────────────────────────────────────────────────────────
+  Widget _gkSaveOverlay(SimPlayer gk, double w, double h) {
+    double tFrac = (_gkSaveTimer / 72.0).clamp(0.0, 1.0);
+    double pulse = sin(_gkSaveTimer * 0.28).abs();
+    double scale = 0.85 + pulse * 0.35;
+    // Fade out in last quarter
+    double opacity = tFrac < 0.25 ? tFrac * 4 : 1.0;
+    return Positioned(
+      left: (gk.pos.x * w - 38).clamp(0.0, w - 76),
+      top: (gk.pos.y * h - 62).clamp(0.0, h - 80),
+      child: Opacity(
+        opacity: opacity.clamp(0.0, 1.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Transform.scale(
+              scale: scale,
+              child: const Text('🧤', style: TextStyle(fontSize: 32)),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF00BCD4), Color(0xFF006064)],
+                ),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.cyanAccent.withOpacity(0.55 + pulse * 0.30),
+                    blurRadius: 14,
+                    spreadRadius: 2,
+                  ),
+                ],
+                border: Border.all(
+                    color: Colors.cyanAccent.withOpacity(0.70), width: 1.2),
+              ),
+              child: const Text(
+                'KURTARIŞ!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.4,
+                  shadows: [
+                    Shadow(
+                        color: Colors.black54,
+                        blurRadius: 4,
+                        offset: Offset(0.5, 0.5))
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Jersey numbers: GK(1) DEF-L(2) DEF-R(3) CAM(10) WING-L(7) WING-R(11) ST(9)
+  static const _jerseyNums = [1, 2, 3, 10, 7, 11, 9];
 
   Widget _playerDot(SimPlayer p, Color base, double w, double h,
       {bool isMyTeam = false}) {
     bool hasBall = (ball.owner == p);
     bool isMarking = (p.markTarget != null);
     Color c = p.isPressing ? Colors.orangeAccent : base;
-    bool ledActive = p.isPassShoot;
+    // Wall-run blink: player flashes when about to fire rocket shot
+    bool isWallRunner = ball.isWallRunActive && ball.wallRunner == p;
+    bool blinkHide =
+        isWallRunner && p.isPassShoot; // isPassShoot used as blink signal
     int jerseyNum = _jerseyNums[p.playerIndex.clamp(0, 6)];
     // My team players rendered larger
     double dotSize = isMyTeam ? 36.0 : 28.0;
-    double ledSize = isMyTeam ? 52.0 : 40.0;
     double markSize = isMyTeam ? 44.0 : 34.0;
-    double glowSize = isMyTeam ? 46.0 : 36.0;
+    double glowSize = isMyTeam ? 48.0 : 38.0;
     double jerseyFont = isMyTeam ? 13.0 : 10.0;
     double nameFont = isMyTeam ? 9.0 : 7.5;
     double halfDot = dotSize / 2;
+    // Role badge color
+    Color roleColor = p.role == 'GK'
+        ? Colors.yellowAccent
+        : p.role == 'DEF'
+            ? Colors.lightBlueAccent
+            : p.role == 'CAM'
+                ? Colors.greenAccent
+                : p.role == 'ST'
+                    ? Colors.redAccent
+                    : p.role == 'WING'
+                        ? Colors.orangeAccent
+                        : c;
 
     return Positioned(
       left: (p.pos.x * w - halfDot - 4).clamp(0.0, w - dotSize - 8),
-      top: (p.pos.y * h - halfDot - 6).clamp(0.0, h - dotSize - 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              // LED ring when passing or shooting
-              if (ledActive)
-                TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 1.0, end: 0.0),
-                  duration: const Duration(milliseconds: 500),
-                  builder: (_, v, __) => Container(
-                    width: ledSize,
-                    height: ledSize,
+      top: (p.pos.y * h - halfDot - 8).clamp(0.0, h - dotSize - 20),
+      child: Opacity(
+        opacity: blinkHide ? 0.10 : 1.0,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                // Dribble glow: orange aura when player is dribbling
+                if (p.isDribbling)
+                  Container(
+                    width: glowSize + 8,
+                    height: glowSize + 8,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withOpacity(v * 0.95),
-                        width: 2.5,
-                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: c.withOpacity(v * 0.85),
-                          blurRadius: 14,
-                          spreadRadius: 5,
+                          color: Colors.orangeAccent.withOpacity(0.72),
+                          blurRadius: 18,
+                          spreadRadius: 6,
                         ),
                       ],
                     ),
                   ),
-                ),
-              // Marking indicator ring
-              if (isMarking && !ledActive)
-                Container(
-                  width: markSize,
-                  height: markSize,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                        color: Colors.yellowAccent.withOpacity(0.55),
-                        width: 1.2),
+                // Marking indicator ring
+                if (isMarking && !p.isDribbling)
+                  Container(
+                    width: markSize,
+                    height: markSize,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: Colors.yellowAccent.withOpacity(0.50),
+                          width: 1.2),
+                    ),
                   ),
-                ),
-              // Ball-possession glow ring
-              if (hasBall)
+                // Ball-possession glow ring
+                if (hasBall)
+                  Container(
+                    width: glowSize,
+                    height: glowSize,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: Colors.white.withOpacity(0.92), width: 2.2),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.white.withOpacity(0.60),
+                            blurRadius: 12,
+                            spreadRadius: 3)
+                      ],
+                    ),
+                  ),
+                // Main player circle with 3D radial gradient
                 Container(
-                  width: glowSize,
-                  height: glowSize,
+                  width: dotSize,
+                  height: dotSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Color.lerp(Colors.white, c, 0.45)!,
+                        c,
+                        c.withOpacity(0.80),
+                      ],
+                      stops: const [0.0, 0.45, 1.0],
+                      center: const Alignment(-0.40, -0.40),
+                    ),
                     border: Border.all(
-                        color: Colors.white.withOpacity(0.9), width: 2),
+                        color: hasBall
+                            ? Colors.white
+                            : Colors.black.withOpacity(0.55),
+                        width: hasBall ? 2.4 : 1.2),
                     boxShadow: [
                       BoxShadow(
-                          color: Colors.white.withOpacity(0.55),
-                          blurRadius: 10,
-                          spreadRadius: 2)
+                          color: c.withOpacity(hasBall ? 0.90 : 0.40),
+                          blurRadius: hasBall ? 16 : 8)
                     ],
                   ),
-                ),
-              Container(
-                width: dotSize,
-                height: dotSize,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [c, c.withOpacity(0.72)],
-                    center: const Alignment(-0.35, -0.35),
+                  child: Center(
+                    child: Text('$jerseyNum',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: jerseyFont,
+                            fontWeight: FontWeight.bold,
+                            shadows: const [
+                              Shadow(
+                                  color: Colors.black54,
+                                  blurRadius: 4,
+                                  offset: Offset(0.5, 0.5))
+                            ])),
                   ),
-                  border: Border.all(
-                      color: hasBall
-                          ? Colors.white
-                          : Colors.black.withOpacity(0.6),
-                      width: hasBall ? 2.2 : 1.2),
-                  boxShadow: [
-                    BoxShadow(
-                        color: c.withOpacity(hasBall ? 0.85 : 0.35),
-                        blurRadius: hasBall ? 14 : 7)
-                  ],
                 ),
-                child: Center(
-                  child: Text('$jerseyNum',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: jerseyFont,
-                          fontWeight: FontWeight.bold,
-                          shadows: const [
-                            Shadow(
-                                color: Colors.black54,
-                                blurRadius: 3,
-                                offset: Offset(0.5, 0.5))
-                          ])),
-                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            // Role badge strip
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.55),
+                borderRadius: BorderRadius.circular(3),
+                border:
+                    Border.all(color: roleColor.withOpacity(0.55), width: 0.7),
               ),
-            ],
-          ),
-          const SizedBox(height: 1),
-          Text(
-            p.data.name.length > (isMyTeam ? 9 : 7)
-                ? '${p.data.name.substring(0, isMyTeam ? 8 : 6)}.'
-                : p.data.name,
-            style: TextStyle(
-                color: c.withOpacity(0.92),
-                fontSize: nameFont,
-                fontWeight: FontWeight.bold,
-                shadows: const [Shadow(color: Colors.black, blurRadius: 3)]),
-          ),
-          // FM26-style velocity direction arrow
-          _velocityArrow(p, c),
-        ],
-      ),
+              child: Text(
+                p.data.name.length > (isMyTeam ? 9 : 7)
+                    ? '${p.data.name.substring(0, isMyTeam ? 8 : 6)}.'
+                    : p.data.name,
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.92),
+                    fontSize: nameFont,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                    shadows: const [
+                      Shadow(color: Colors.black87, blurRadius: 4)
+                    ]),
+              ),
+            ),
+            const SizedBox(height: 1),
+            // FM26-style velocity direction arrow
+            _velocityArrow(p, c),
+          ],
+        ),
+      ), // closes Opacity
     );
   }
 
   Widget _velocityArrow(SimPlayer p, Color c) {
     double sp = sqrt(p.vx * p.vx + p.vy * p.vy);
-    if (sp < 0.00035) return const SizedBox.shrink();
+    if (sp < 0.00050) return const SizedBox(height: 6);
     double angle = atan2(p.vy, p.vx);
+    // Scale arrow length with speed
+    double arrowLen = (sp * 2200).clamp(7.0, 18.0);
     return Transform.rotate(
       angle: angle,
       child: SizedBox(
-        width: 12,
-        height: 7,
-        child: CustomPaint(painter: _ArrowPainter(c.withOpacity(0.75))),
+        width: arrowLen,
+        height: 5,
+        child: CustomPaint(painter: _ArrowPainter(c.withOpacity(0.70))),
       ),
     );
   }
 
   Widget _ballDot(double w, double h) {
-    bool inFlight = ball.phase == BallPhase.passFlight ||
-        ball.phase == BallPhase.shotFlight;
-    Pos bp = inFlight ? ball.pos : (ball.owner?.pos ?? ball.pos);
+    // During owned phase use the visual orbit offset so ball orbits just outside player
+    Pos bp = (ball.owner != null && ball.phase == BallPhase.owned)
+        ? Pos(
+            (ball.pos.x + ball.ballDispDx).clamp(0.01, 0.99),
+            (ball.pos.y + ball.ballDispDy).clamp(0.02, 0.98),
+          )
+        : ball.pos;
     bool isShotBall = ball.phase == BallPhase.shotFlight;
-    Color bc = ball.phase == BallPhase.cornerDelay
-        ? Colors.purpleAccent
-        : isShotBall
-            ? Colors.orangeAccent
-            : Colors.white;
-    double size = isShotBall ? 16 : 14;
+    bool isRocket = isShotBall && ball.isRocketShot;
+    double size = isShotBall ? 19 : 15;
+
     return Positioned(
       left: (bp.x * w - size / 2).clamp(0.0, w - size),
       top: (bp.y * h - size / 2).clamp(0.0, h - size),
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // LED ring glow on shot ball
+          // Shot halo glow (orange → red for rocket)
           if (isShotBall)
             TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.4, end: 1.0),
-              duration: const Duration(milliseconds: 180),
+              tween: Tween(begin: 0.3, end: 1.0),
+              duration: const Duration(milliseconds: 150),
               builder: (_, v, __) => Container(
-                width: size + 14,
-                height: size + 14,
+                width: size + 22,
+                height: size + 22,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.orangeAccent.withOpacity(v * 0.9),
-                    width: 2.0,
+                    color: (isRocket ? Colors.redAccent : Colors.orangeAccent)
+                        .withOpacity(v * 0.95),
+                    width: 2.5,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.orange.withOpacity(v * 0.7),
-                      blurRadius: 16,
-                      spreadRadius: 5,
+                      color: (isRocket ? Colors.red : const Color(0xFFFF6D00))
+                          .withOpacity(v * 0.80),
+                      blurRadius: 22,
+                      spreadRadius: 7,
+                    ),
+                    BoxShadow(
+                      color: (isRocket ? Colors.deepOrange : Colors.yellow)
+                          .withOpacity(v * 0.45),
+                      blurRadius: 40,
+                      spreadRadius: 14,
                     ),
                   ],
                 ),
               ),
             ),
+          // Black & white soccer ball base
           Container(
             width: size,
             height: size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: bc,
+              gradient: RadialGradient(
+                colors: isShotBall
+                    ? (isRocket
+                        ? [
+                            Colors.orange.shade100,
+                            Colors.redAccent,
+                            const Color(0xFF8B0000)
+                          ]
+                        : [
+                            Colors.yellow.shade100,
+                            const Color(0xFFFF6D00),
+                            const Color(0xFF8B2500)
+                          ])
+                    : [
+                        Colors.white,
+                        Colors.grey.shade200,
+                        Colors.grey.shade500
+                      ],
+                stops: const [0.0, 0.55, 1.0],
+                center: const Alignment(-0.38, -0.38),
+              ),
               boxShadow: [
                 BoxShadow(
-                    color: bc.withOpacity(isShotBall ? 1.0 : 0.9),
-                    blurRadius: isShotBall ? 22 : 10,
-                    spreadRadius: isShotBall ? 5 : 2)
+                  color: isShotBall
+                      ? (isRocket
+                          ? Colors.red.withOpacity(1.0)
+                          : Colors.orange.withOpacity(0.95))
+                      : Colors.black26,
+                  blurRadius: isShotBall ? 28 : 8,
+                  spreadRadius: isShotBall ? 5 : 2,
+                ),
               ],
             ),
+            child: isShotBall
+                ? null
+                : ClipOval(
+                    child: CustomPaint(
+                      size: Size(size, size),
+                      painter: _SoccerBallPainter(),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -2572,6 +3824,1052 @@ class _MatchEngineViewState extends State<MatchEngineView>
       ),
     );
   }
+
+  // ════════════════════════════════════════════════════════════════
+  // LIVE STATS BAND (just below score bar)
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _liveStatsBand() {
+    bool playerHome = !widget.isPlayerTeamAway;
+    int totalPoss = _homePossessionTicks + _awayPossessionTicks;
+    double myPossRatio = totalPoss > 0
+        ? (playerHome ? _homePossessionTicks : _awayPossessionTicks) / totalPoss
+        : 0.5;
+    int myPoss = (myPossRatio * 100).round();
+    int myShots = playerHome ? _homeShots : _awayShots;
+    int oppShots = playerHome ? _awayShots : _homeShots;
+
+    return Container(
+      height: 26,
+      color: const Color(0xFF0A0A18),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          Text('$myPoss%',
+              style: const TextStyle(
+                  color: Colors.cyanAccent,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(width: 4),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: Row(children: [
+                Expanded(
+                  flex: myPoss.clamp(1, 99),
+                  child: Container(
+                      height: 5, color: Colors.cyanAccent.withOpacity(0.7)),
+                ),
+                Expanded(
+                  flex: (100 - myPoss).clamp(1, 99),
+                  child: Container(
+                      height: 5, color: Colors.redAccent.withOpacity(0.6)),
+                ),
+              ]),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text('${100 - myPoss}%',
+              style: const TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(width: 12),
+          Icon(Icons.sports_soccer, size: 10, color: Colors.white38),
+          const SizedBox(width: 3),
+          Text('$myShots–$oppShots',
+              style: const TextStyle(color: Colors.white60, fontSize: 9)),
+          const SizedBox(width: 6),
+          Text('ŞUT',
+              style: const TextStyle(color: Colors.white24, fontSize: 8)),
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // MANAGER FAB
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _managerFAB() {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _panelOpen = !_panelOpen;
+          if (_panelOpen)
+            _panelAnim.forward(from: 0);
+          else
+            _panelAnim.reverse();
+        });
+      },
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: _panelOpen
+                ? [Colors.redAccent, Colors.red.shade700]
+                : [const Color(0xFF0066FF), const Color(0xFF00C8FF)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: (_panelOpen ? Colors.red : Colors.blue).withOpacity(0.5),
+              blurRadius: 14,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Icon(
+          _panelOpen ? Icons.close_rounded : Icons.manage_accounts_rounded,
+          color: Colors.white,
+          size: 24,
+        ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // MANAGER PANEL OVERLAY
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _managerPanelOverlay() {
+    return AnimatedBuilder(
+      animation: _panelAnim,
+      builder: (_, child) => Positioned(
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: MediaQuery.of(context).size.height * 0.64,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 1),
+            end: Offset.zero,
+          ).animate(
+              CurvedAnimation(parent: _panelAnim, curve: Curves.easeOutCubic)),
+          child: child!,
+        ),
+      ),
+      child: _managerPanel(),
+    );
+  }
+
+  Widget _managerPanel() {
+    bool playerHome = !widget.isPlayerTeamAway;
+    int myG = playerHome ? homeScore : awayScore;
+    int oppG = playerHome ? awayScore : homeScore;
+    TacticStyle curTac = playerHome
+        ? (_liveHomeTactic ?? widget.myTactic)
+        : (_liveAwayTactic ?? widget.myTactic);
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF0C0C1E),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(22),
+          topRight: Radius.circular(22),
+        ),
+        border: Border(
+          top: BorderSide(color: Color(0xFF1E3A6E), width: 1.5),
+          left: BorderSide(color: Color(0xFF1A2D4A), width: 0.5),
+          right: BorderSide(color: Color(0xFF1A2D4A), width: 0.5),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Handle
+          Container(
+            margin: const EdgeInsets.only(top: 8, bottom: 4),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '⚽ YÖNETİCİ PANELİ',
+                  style: GoogleFonts.orbitron(
+                    color: Colors.cyanAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+                Row(children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: curTac.color.withOpacity(0.15),
+                      border: Border.all(
+                          color: curTac.color.withOpacity(0.5), width: 1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(curTac.label,
+                        style: TextStyle(
+                            color: curTac.color,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 8),
+                  Text("$myG–$oppG  ${matchMinute.toInt()}'",
+                      style: GoogleFonts.russoOne(
+                          color: Colors.white70, fontSize: 12)),
+                ]),
+              ],
+            ),
+          ),
+          // Tab bar
+          SizedBox(
+            height: 38,
+            child: Row(children: [
+              _panelTabBtn(0, '📊 ÖZET'),
+              _panelTabBtn(1, '🎯 TAKTİK'),
+              _panelTabBtn(2, '👥 KADRO'),
+              _panelTabBtn(3, '📈 ANALİZ'),
+            ]),
+          ),
+          Container(height: 1, color: const Color(0xFF1E3A6E)),
+          // Content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(12),
+              child: [
+                _statsTab(),
+                _tacticsTab(),
+                _squadTab(),
+                _analysisTab(),
+              ][_panelTab],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _panelTabBtn(int idx, String label) {
+    bool active = _panelTab == idx;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _panelTab = idx),
+        child: Container(
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: active
+                ? const Color(0xFF0066FF).withOpacity(0.16)
+                : Colors.transparent,
+            border: Border(
+              bottom: BorderSide(
+                color: active ? Colors.cyanAccent : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: active ? Colors.cyanAccent : Colors.white38,
+              fontSize: 9.5,
+              fontWeight: active ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  TAB 0 – ÖZET (STATS)
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _statsTab() {
+    bool playerHome = !widget.isPlayerTeamAway;
+    int totalPoss = _homePossessionTicks + _awayPossessionTicks;
+    double myPossRatio = totalPoss > 0
+        ? (playerHome ? _homePossessionTicks : _awayPossessionTicks) / totalPoss
+        : 0.5;
+    int myPoss = (myPossRatio * 100).round();
+    int myShots = playerHome ? _homeShots : _awayShots;
+    int oppShots = playerHome ? _awayShots : _homeShots;
+    int myShotsOT = playerHome ? _homeShotsOnTarget : _awayShotsOnTarget;
+    int oppShotsOT = playerHome ? _awayShotsOnTarget : _homeShotsOnTarget;
+    int myPasses = playerHome ? _homePassesCmpl : _awayPassesCmpl;
+    int oppPasses = playerHome ? _awayPassesCmpl : _homePassesCmpl;
+    int myPassAtt = playerHome ? _homePassesAtt : _awayPassesAtt;
+    int oppPassAtt = playerHome ? _awayPassesAtt : _homePassesAtt;
+    int myPassAcc = myPassAtt > 0 ? ((myPasses / myPassAtt) * 100).round() : 0;
+    int oppPassAcc =
+        oppPassAtt > 0 ? ((oppPasses / oppPassAtt) * 100).round() : 0;
+    int myCorners = playerHome ? _homeCorners : _awayCorners;
+    int oppCorners = playerHome ? _awayCorners : _homeCorners;
+    int myFouls = playerHome ? _homeFouls : _awayFouls;
+    int oppFouls = playerHome ? _awayFouls : _homeFouls;
+    int myYellows = playerHome ? _homeYellows : _awayYellows;
+    int oppYellows = playerHome ? _awayYellows : _homeYellows;
+    int myTackles = playerHome ? _homeTackles : _awayTackles;
+    int oppTackles = playerHome ? _awayTackles : _homeTackles;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _statBar('TOPLA OYNAMA', myPoss, 100 - myPoss,
+            unit: '%', myColor: Colors.cyanAccent, oppColor: Colors.redAccent),
+        _statBar('ŞUT', myShots, oppShots,
+            myColor: Colors.orangeAccent, oppColor: Colors.red),
+        _statBar('İSABETLİ ŞUT', myShotsOT, oppShotsOT,
+            myColor: Colors.greenAccent, oppColor: Colors.redAccent),
+        _statBar('TAMAMLANAN PAS', myPasses, oppPasses,
+            myColor: Colors.lightBlueAccent, oppColor: Colors.pinkAccent),
+        _statBar('PAS DOĞRULUĞU', myPassAcc, oppPassAcc,
+            unit: '%', myColor: Colors.blueAccent, oppColor: Colors.pinkAccent),
+        _statBar('KAZANILAN TOP', myTackles, oppTackles,
+            myColor: Colors.tealAccent, oppColor: Colors.deepOrangeAccent),
+        _statBar('KORNER', myCorners, oppCorners,
+            myColor: Colors.purpleAccent, oppColor: Colors.redAccent),
+        _statBar('FAUL', myFouls, oppFouls,
+            myColor: Colors.orangeAccent,
+            oppColor: Colors.redAccent,
+            reversed: true),
+        _statBar('SARI KART', myYellows, oppYellows,
+            myColor: Colors.yellowAccent,
+            oppColor: Colors.redAccent,
+            reversed: true),
+        const SizedBox(height: 10),
+        _recentEvents(),
+      ],
+    );
+  }
+
+  Widget _statBar(
+    String label,
+    int my,
+    int opp, {
+    String unit = '',
+    Color myColor = Colors.cyanAccent,
+    Color oppColor = Colors.redAccent,
+    bool reversed = false,
+  }) {
+    int total = my + opp;
+    double myRatio = total > 0 ? my / total : 0.5;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('$my$unit',
+                  style: TextStyle(
+                      color: myColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold)),
+              Text(label,
+                  style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 8.5,
+                      letterSpacing: 0.8)),
+              Text('$opp$unit',
+                  style: TextStyle(
+                      color: oppColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 3),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: Row(children: [
+              Expanded(
+                flex: (myRatio * 100).round().clamp(1, 99),
+                child: Container(height: 6, color: myColor.withOpacity(0.82)),
+              ),
+              Expanded(
+                flex: ((1 - myRatio) * 100).round().clamp(1, 99),
+                child: Container(height: 6, color: oppColor.withOpacity(0.68)),
+              ),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _recentEvents() {
+    var recent = logs.take(6).toList();
+    if (recent.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('SON ANLAR',
+            style: GoogleFonts.orbitron(
+                color: Colors.white24, fontSize: 7.5, letterSpacing: 1.2)),
+        const SizedBox(height: 4),
+        ...recent.map((e) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 1.5),
+              child: Row(children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: e.color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text("${e.minute}'",
+                      style: TextStyle(
+                          color: e.color,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(e.msg,
+                      style: TextStyle(
+                          color: e.color.withOpacity(0.85), fontSize: 8.5),
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ]),
+            )),
+      ],
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  TAB 1 – TAKTİK
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _tacticsTab() {
+    bool playerHome = !widget.isPlayerTeamAway;
+    TacticStyle curTac = playerHome
+        ? (_liveHomeTactic ?? widget.myTactic)
+        : (_liveAwayTactic ?? widget.myTactic);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('OYUN SİSTEMİ',
+            style: GoogleFonts.orbitron(
+                color: Colors.white38, fontSize: 8, letterSpacing: 1.2)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: TacticStyle.values.map((t) {
+            bool active = curTac == t;
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  if (playerHome)
+                    _liveHomeTactic = t;
+                  else
+                    _liveAwayTactic = t;
+                  _log('🔄 Taktik: ${t.label}', Colors.cyanAccent);
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: active
+                      ? t.color.withOpacity(0.22)
+                      : Colors.white.withOpacity(0.05),
+                  border: Border.all(
+                      color: active ? t.color : Colors.white24,
+                      width: active ? 2 : 1),
+                  borderRadius: BorderRadius.circular(9),
+                  boxShadow: active
+                      ? [
+                          BoxShadow(
+                              color: t.color.withOpacity(0.35), blurRadius: 10)
+                        ]
+                      : [],
+                ),
+                child: Text(t.label,
+                    style: TextStyle(
+                      color: active ? t.color : Colors.white54,
+                      fontSize: 10,
+                      fontWeight: active ? FontWeight.bold : FontWeight.normal,
+                    )),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 18),
+        Text('SAVUNMA HATTI',
+            style: GoogleFonts.orbitron(
+                color: Colors.white38, fontSize: 8, letterSpacing: 1.2)),
+        _sliderRow('DERİN', 'YÜKSEK', _defLineVal,
+            (v) => setState(() => _defLineVal = v), Colors.redAccent),
+        const SizedBox(height: 10),
+        Text('BASIN BAŞLAMA ÇİZGİSİ',
+            style: GoogleFonts.orbitron(
+                color: Colors.white38, fontSize: 8, letterSpacing: 1.2)),
+        _sliderRow('DÜŞÜK', 'YÜKSEK', _pressLineVal,
+            (v) => setState(() => _pressLineVal = v), Colors.orangeAccent),
+        const SizedBox(height: 10),
+        Text('GENİŞLİK',
+            style: GoogleFonts.orbitron(
+                color: Colors.white38, fontSize: 8, letterSpacing: 1.2)),
+        _sliderRow('DAR', 'GENİŞ', _widthVal,
+            (v) => setState(() => _widthVal = v), Colors.cyanAccent),
+        const SizedBox(height: 10),
+        Text('TEMPO',
+            style: GoogleFonts.orbitron(
+                color: Colors.white38, fontSize: 8, letterSpacing: 1.2)),
+        _sliderRow('YAVAŞ', 'DİREKT', _tempoVal,
+            (v) => setState(() => _tempoVal = v), Colors.yellowAccent),
+        const SizedBox(height: 10),
+        // Current shape summary
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.04),
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('AKTİF ŞEKL',
+                  style: GoogleFonts.orbitron(
+                      color: Colors.white38, fontSize: 7.5, letterSpacing: 1)),
+              const SizedBox(height: 6),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                _tacBadge(
+                    'Savunma Hattı',
+                    _defLineVal < 0.35
+                        ? 'Derin'
+                        : _defLineVal > 0.65
+                            ? 'Yüksek'
+                            : 'Normal',
+                    Colors.redAccent),
+                _tacBadge(
+                    'Baskı',
+                    _pressLineVal < 0.35
+                        ? 'Az'
+                        : _pressLineVal > 0.65
+                            ? 'Yüksek'
+                            : 'Orta',
+                    Colors.orangeAccent),
+                _tacBadge(
+                    'Genişlik',
+                    _widthVal < 0.35
+                        ? 'Dar'
+                        : _widthVal > 0.65
+                            ? 'Geniş'
+                            : 'Normal',
+                    Colors.cyanAccent),
+                _tacBadge(
+                    'Tempo',
+                    _tempoVal < 0.35
+                        ? 'Yavaş'
+                        : _tempoVal > 0.65
+                            ? 'Direkt'
+                            : 'Orta',
+                    Colors.yellowAccent),
+              ]),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tacBadge(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 7)),
+        const SizedBox(height: 2),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(5),
+            border: Border.all(color: color.withOpacity(0.4)),
+          ),
+          child: Text(value,
+              style: TextStyle(
+                  color: color, fontSize: 8, fontWeight: FontWeight.bold)),
+        ),
+      ],
+    );
+  }
+
+  Widget _sliderRow(String left, String right, double value,
+      ValueChanged<double> onChanged, Color color) {
+    return Row(
+      children: [
+        SizedBox(
+            width: 44,
+            child: Text(left,
+                style: const TextStyle(color: Colors.white38, fontSize: 8),
+                textAlign: TextAlign.right)),
+        Expanded(
+          child: SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: color.withOpacity(0.8),
+              inactiveTrackColor: Colors.white10,
+              thumbColor: color,
+              overlayColor: color.withOpacity(0.18),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+              trackHeight: 3,
+            ),
+            child: Slider(value: value, onChanged: onChanged, min: 0, max: 1),
+          ),
+        ),
+        SizedBox(
+            width: 44,
+            child: Text(right,
+                style: const TextStyle(color: Colors.white38, fontSize: 8))),
+      ],
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  TAB 2 – KADRO / SUBSTITUTIONS
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _squadTab() {
+    bool playerHome = !widget.isPlayerTeamAway;
+    var myTeam = playerHome ? homeTeam : awayTeam;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('DEĞİŞİKLİKLER',
+                style: GoogleFonts.orbitron(
+                    color: Colors.white38, fontSize: 8, letterSpacing: 1.2)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: _subsUsed >= _maxSubs
+                    ? Colors.red.withOpacity(0.18)
+                    : Colors.green.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: _subsUsed >= _maxSubs
+                        ? Colors.redAccent
+                        : Colors.greenAccent,
+                    width: 1),
+              ),
+              child: Text('$_subsUsed / $_maxSubs',
+                  style: TextStyle(
+                    color: _subsUsed >= _maxSubs
+                        ? Colors.redAccent
+                        : Colors.greenAccent,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  )),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (_subCandidate != null) ...[
+          Container(
+            padding: const EdgeInsets.all(10),
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.10),
+              border: Border.all(color: Colors.orangeAccent, width: 1),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Row(children: [
+              const Icon(Icons.swap_vert_rounded,
+                  color: Colors.orangeAccent, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                    '${_subCandidate!.data.name} çıkacak → yerine kim girecek?',
+                    style: const TextStyle(
+                        color: Colors.orangeAccent, fontSize: 10)),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _subCandidate = null),
+                child: const Icon(Icons.cancel_outlined,
+                    color: Colors.white38, size: 18),
+              ),
+            ]),
+          ),
+        ],
+        ...myTeam.map((p) {
+          bool isSubbed = _subbedPlayers.contains(p);
+          bool isSelected = _subCandidate == p;
+          var ins = _insights[p.data.name] ?? _PlayerInsight();
+          double stamFill =
+              ((p.stamina.clamp(0.72, 1.0) - 0.72) / 0.28).clamp(0.0, 1.0);
+          Color stamColor = stamFill > 0.6
+              ? Colors.greenAccent
+              : stamFill > 0.3
+                  ? Colors.orangeAccent
+                  : Colors.redAccent;
+
+          return GestureDetector(
+            onTap: () {
+              if (isSubbed || !isStarted || _subsUsed >= _maxSubs) return;
+              setState(() {
+                if (_subCandidate == null) {
+                  _subCandidate = p;
+                } else if (_subCandidate == p) {
+                  _subCandidate = null;
+                } else {
+                  _executeSubstitution(_subCandidate!, p);
+                }
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(bottom: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.orange.withOpacity(0.12)
+                    : isSubbed
+                        ? Colors.white.withOpacity(0.02)
+                        : Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(
+                  color: isSelected
+                      ? Colors.orangeAccent
+                      : isSubbed
+                          ? Colors.white10
+                          : Colors.white.withOpacity(0.10),
+                  width: 1,
+                ),
+              ),
+              child: Row(children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: playerHome
+                        ? Colors.redAccent.withOpacity(0.25)
+                        : Colors.cyanAccent.withOpacity(0.25),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${_jerseyNums[p.playerIndex.clamp(0, 6)]}',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p.data.name,
+                        style: TextStyle(
+                          color: isSubbed ? Colors.white30 : Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          decoration:
+                              isSubbed ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                      Row(children: [
+                        Text(p.role,
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 8)),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 54,
+                          height: 5,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: LinearProgressIndicator(
+                              value: stamFill,
+                              backgroundColor: Colors.white10,
+                              color: stamColor,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text('${(stamFill * 100).round()}%',
+                            style: TextStyle(color: stamColor, fontSize: 7)),
+                      ]),
+                    ],
+                  ),
+                ),
+                // Rating badge
+                Container(
+                  width: 32,
+                  height: 32,
+                  margin: const EdgeInsets.only(left: 4),
+                  decoration: BoxDecoration(
+                    color: ins.ratingColor.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(7),
+                    border: Border.all(
+                        color: ins.ratingColor.withOpacity(0.55), width: 1),
+                  ),
+                  child: Center(
+                    child: Text(ins.ratingStr,
+                        style: TextStyle(
+                            color: ins.ratingColor,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                // Action button
+                if (isSubbed)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4),
+                    child: Text('↓ ÇIKTI',
+                        style: TextStyle(color: Colors.white24, fontSize: 8)),
+                  )
+                else if (isStarted && _subsUsed < _maxSubs)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Colors.orangeAccent.withOpacity(0.25)
+                          : _subCandidate != null
+                              ? Colors.greenAccent.withOpacity(0.15)
+                              : Colors.blue.withOpacity(0.20),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: isSelected
+                            ? Colors.orangeAccent
+                            : _subCandidate != null
+                                ? Colors.greenAccent
+                                : Colors.blueAccent,
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      isSelected
+                          ? 'İPTAL'
+                          : _subCandidate != null
+                              ? 'GİR ↑'
+                              : 'SEÇ',
+                      style: TextStyle(
+                        color: isSelected
+                            ? Colors.orangeAccent
+                            : _subCandidate != null
+                                ? Colors.greenAccent
+                                : Colors.lightBlueAccent,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ]),
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  void _executeSubstitution(SimPlayer goingOff, SimPlayer comingOn) {
+    if (_subsUsed >= _maxSubs) return;
+    _subbedPlayers.add(goingOff);
+    _subsUsed++;
+    _subCandidate = null;
+
+    // Transfer ball possession if needed
+    if (ball.owner == goingOff) ball.owner = comingOn;
+
+    // Transfer position
+    comingOn.pos.set(goingOff.pos);
+    comingOn.moveTarget.set(goingOff.homeBase);
+    comingOn.stamina = 1.0; // substitute comes on fresh
+
+    // Send subbed off player off pitch
+    goingOff.pos = Pos(-5.0, -5.0);
+    goingOff.moveTarget = Pos(-5.0, -5.0);
+
+    setState(() {});
+    _log(
+        '🔄 ↓${goingOff.data.name}  ↑${comingOn.data.name}', Colors.cyanAccent);
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  TAB 3 – ANALİZ
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _analysisTab() {
+    bool playerHome = !widget.isPlayerTeamAway;
+    var myTeam = (playerHome ? homeTeam : awayTeam)
+        .where((p) => !_subbedPlayers.contains(p))
+        .toList()
+      ..sort((a, b) {
+        double ra = _insights[a.data.name]?.rating ?? 6.5;
+        double rb = _insights[b.data.name]?.rating ?? 6.5;
+        return rb.compareTo(ra);
+      });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('OYUNCU ANALİZİ',
+            style: GoogleFonts.orbitron(
+                color: Colors.white38, fontSize: 8, letterSpacing: 1.2)),
+        const SizedBox(height: 8),
+        ...myTeam.map((p) {
+          var ins = _insights[p.data.name] ?? _PlayerInsight();
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
+            child: Row(children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: ins.ratingColor.withOpacity(0.16),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: ins.ratingColor, width: 1.5),
+                ),
+                child: Center(
+                  child: Text(ins.ratingStr,
+                      style: TextStyle(
+                          color: ins.ratingColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(p.data.name,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold)),
+                    Text(p.role,
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 8)),
+                    const SizedBox(height: 5),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 3,
+                      children: [
+                        _insightChip(
+                            '${ins.passes} PAS', Colors.lightBlueAccent),
+                        _insightChip('${ins.shots} Ş.', Colors.orangeAccent),
+                        _insightChip('${ins.tackles} TOP', Colors.tealAccent),
+                        if (ins.keyPasses > 0)
+                          _insightChip(
+                              '${ins.keyPasses} KILIT', Colors.yellowAccent),
+                        if (ins.goals > 0)
+                          _insightChip(
+                              '${ins.goals} GOL ⚽', Colors.greenAccent),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              // Star rating (5-star FM26 style)
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(5, (i) {
+                  double threshold = 4.5 + i * 1.0;
+                  return Icon(
+                    ins.rating >= threshold + 0.5
+                        ? Icons.star_rounded
+                        : ins.rating >= threshold
+                            ? Icons.star_half_rounded
+                            : Icons.star_outline_rounded,
+                    color: ins.ratingColor,
+                    size: 11,
+                  );
+                }),
+              ),
+            ]),
+          );
+        }),
+        const SizedBox(height: 10),
+        _keyMomentsList(),
+      ],
+    );
+  }
+
+  Widget _insightChip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withOpacity(0.38), width: 0.8),
+      ),
+      child: Text(text,
+          style: TextStyle(
+              color: color, fontSize: 8, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _keyMomentsList() {
+    var highlights = logs
+        .where((l) =>
+            l.msg.contains('GOL') ||
+            l.msg.contains('kurtardı') ||
+            l.msg.contains('Sar') ||
+            l.msg.contains('Faul') ||
+            l.msg.contains('Korner'))
+        .take(7)
+        .toList();
+    if (highlights.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('KRİTİK ANLAR',
+            style: GoogleFonts.orbitron(
+                color: Colors.white38, fontSize: 7.5, letterSpacing: 1.2)),
+        const SizedBox(height: 5),
+        ...highlights.map((e) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: e.color.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text("${e.minute}'",
+                      style: TextStyle(
+                          color: e.color,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(e.msg,
+                      style: TextStyle(
+                          color: e.color.withOpacity(0.85), fontSize: 9),
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ]),
+            )),
+      ],
+    );
+  }
 }
 
 // ─── BALL TRAIL PAINTER ──────────────────────────────────────────────────────────
@@ -2580,22 +4878,31 @@ class _BallTrailPainter extends CustomPainter {
   final List<Pos> trail;
   final double w, h;
   final bool isShot;
-  _BallTrailPainter(this.trail, this.w, this.h, [this.isShot = false]);
+  final bool isRocket;
+  _BallTrailPainter(this.trail, this.w, this.h,
+      [this.isShot = false, this.isRocket = false]);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (trail.length < 2) return;
-    for (int i = 0; i < trail.length - 1; i++) {
-      double t = (i + 1) / trail.length;
-      final trailColor = isShot
-          ? Colors.orangeAccent.withOpacity(t * 0.60)
-          : Colors.white.withOpacity(t * 0.20);
+    final int len = trail.length;
+    for (int i = 0; i < len - 1; i++) {
+      double t = (i + 1) / len;
+      final double opa = isShot ? t * 0.80 : t * 0.28;
+      final double sw =
+          isShot ? (t * 10).clamp(1.5, 10.0) : (t * 4).clamp(1.0, 4.0);
+      final Color lineColor = isRocket
+          ? Color.lerp(Colors.deepOrange, Colors.redAccent, t)!.withOpacity(opa)
+          : isShot
+              ? Color.lerp(Colors.yellow, Colors.orangeAccent, t)!
+                  .withOpacity(opa)
+              : Colors.white.withOpacity(opa);
       final paint = Paint()
-        ..color = trailColor
-        ..strokeWidth =
-            isShot ? (t * 6).clamp(1.5, 6.0) : (t * 3).clamp(1.0, 3.0)
+        ..color = lineColor
+        ..strokeWidth = sw
         ..strokeCap = StrokeCap.round
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, isShot ? 3.0 : 1.5);
+        ..maskFilter = MaskFilter.blur(
+            BlurStyle.normal, isShot ? (isRocket ? 5.0 : 4.0) : 2.0);
       canvas.drawLine(
         Offset(trail[i].x * w, trail[i].y * h),
         Offset(trail[i + 1].x * w, trail[i + 1].y * h),
@@ -2608,6 +4915,60 @@ class _BallTrailPainter extends CustomPainter {
   bool shouldRepaint(_BallTrailPainter old) => true;
 }
 
+// ─── PASS LINE PAINTER ────────────────────────────────────────────────────────
+
+class _PassLinePainter extends CustomPainter {
+  final Pos from, to;
+  final double w, h;
+  final bool isHome;
+  _PassLinePainter(this.from, this.to, this.w, this.h, this.isHome);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final color = isHome
+        ? Colors.redAccent.withOpacity(0.45)
+        : Colors.cyanAccent.withOpacity(0.45);
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+    // Dashed line: 10px on, 5px off
+    const double dashLen = 10, gapLen = 5;
+    Offset a = Offset(from.x * w, from.y * h);
+    Offset b = Offset(to.x * w, to.y * h);
+    double dx = b.dx - a.dx, dy = b.dy - a.dy;
+    double total = sqrt(dx * dx + dy * dy);
+    if (total < 1) return;
+    double nx = dx / total, ny = dy / total;
+    double drawn = 0;
+    bool drawing = true;
+    while (drawn < total) {
+      double seg = drawing ? dashLen : gapLen;
+      double end = (drawn + seg).clamp(0, total);
+      if (drawing) {
+        canvas.drawLine(
+          Offset(a.dx + nx * drawn, a.dy + ny * drawn),
+          Offset(a.dx + nx * end, a.dy + ny * end),
+          paint,
+        );
+      }
+      drawn += seg;
+      drawing = !drawing;
+    }
+    // Destination dot
+    canvas.drawCircle(
+        b,
+        4.0,
+        Paint()
+          ..color = color.withOpacity(0.7)
+          ..style = PaintingStyle.fill);
+  }
+
+  @override
+  bool shouldRepaint(_PassLinePainter old) => true;
+}
+
 // ─── PITCH PAINTER ──────────────────────────────────────────────────────────
 
 class _PitchPainter extends CustomPainter {
@@ -2615,14 +4976,18 @@ class _PitchPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     double w = size.width, h = size.height;
 
-    // ── Alternating mowing stripes (horizontal bands) ──
-    const int numStripes = 10;
-    double stripeH = h / numStripes;
+    // ── Base grass fill ──
+    canvas.drawRect(
+        Rect.fromLTWH(0, 0, w, h), Paint()..color = const Color(0xFF1B6620));
+
+    // ── FM-style vertical mowing stripes ──
+    const int numStripes = 14;
+    double stripeW = w / numStripes;
     for (int i = 0; i < numStripes; i++) {
       final stripePaint = Paint()
-        ..color = (i.isEven ? const Color(0xFF1B6620) : const Color(0xFF1E7524))
+        ..color = (i.isEven ? const Color(0xFF1E7A24) : const Color(0xFF186018))
         ..style = PaintingStyle.fill;
-      canvas.drawRect(Rect.fromLTWH(0, i * stripeH, w, stripeH), stripePaint);
+      canvas.drawRect(Rect.fromLTWH(i * stripeW, 0, stripeW, h), stripePaint);
     }
 
     final p = Paint()
@@ -2707,4 +5072,82 @@ extension IterableFirstWhereOrNull<T> on Iterable<T> {
     for (var e in this) if (test(e)) return e;
     return null;
   }
+}
+
+// ─── SHOT PARTICLE ───────────────────────────────────────────────────────────
+
+class _ShotParticle {
+  double x, y, vx, vy, life;
+  final Color color;
+  _ShotParticle(this.x, this.y, this.vx, this.vy, this.life, this.color);
+}
+
+// ─── PARTICLE PAINTER ────────────────────────────────────────────────────────
+
+class _ParticlePainter extends CustomPainter {
+  final List<_ShotParticle> particles;
+  final double w, h;
+  _ParticlePainter(this.particles, this.w, this.h);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final p in particles) {
+      if (p.life <= 0) continue;
+      final paint = Paint()
+        ..color = p.color.withOpacity((p.life).clamp(0.0, 1.0) * 0.92)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+      final double r = (p.life * 5.5).clamp(1.0, 5.5);
+      canvas.drawCircle(Offset(p.x * w, p.y * h), r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ParticlePainter old) => true;
+}
+
+// ─── SOCCER BALL PAINTER ───────────────────────────────────────────────────
+
+class _SoccerBallPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double r = size.width / 2;
+    final paint = Paint()
+      ..color = Colors.black.withOpacity(0.72)
+      ..style = PaintingStyle.fill;
+
+    // Draw simplified black patches to mimic a classic soccer ball
+    // Central pentagon
+    _drawPatch(canvas, paint, size, r * 0.50, r * 0.50, r * 0.28);
+    // Surrounding patches (6 positions)
+    for (int i = 0; i < 5; i++) {
+      double angle = (i * 2 * 3.14159 / 5) - 1.57;
+      double px = r + cos(angle) * r * 0.54;
+      double py = r + sin(angle) * r * 0.54;
+      _drawPatch(canvas, paint, size, px, py, r * 0.20);
+    }
+  }
+
+  void _drawPatch(
+      Canvas canvas, Paint paint, Size size, double cx, double cy, double pr) {
+    final path = Path();
+    for (int i = 0; i < 6; i++) {
+      double a = (i * 2 * 3.14159 / 6) - 0.52;
+      double px = cx + cos(a) * pr;
+      double py = cy + sin(a) * pr;
+      if (i == 0)
+        path.moveTo(px, py);
+      else
+        path.lineTo(px, py);
+    }
+    path.close();
+    // Only draw within circle bounds
+    canvas.save();
+    canvas.clipPath(
+        Path()..addOval(Rect.fromLTWH(0, 0, size.width, size.height)));
+    canvas.drawPath(path, paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_) => false;
 }
