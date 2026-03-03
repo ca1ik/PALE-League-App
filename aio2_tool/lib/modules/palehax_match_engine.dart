@@ -2119,7 +2119,7 @@ class _MatchEngineViewState extends State<MatchEngineView>
     // If stuck in same lane >= 2 passes, heavily prefer a different lane
     bool forceNewLane = forceLaneSwitch || consecLane >= 55;
 
-    SimPlayer? best;
+    SimPlayer? best; //best of three
     double bestS = -9999;
 
     // Pasörün kendi sahasında olup olmadığı
