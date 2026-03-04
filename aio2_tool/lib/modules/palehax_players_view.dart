@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:screenshot/screenshot.dart'; // EKLENDİ: Ekran görüntüsü için
+import 'package:path_provider/path_provider.dart';
 
 // Kendi proje yapına göre bu importların doğruluğundan emin ol
 import '../data/player_data.dart' as pd;
@@ -2224,6 +2227,101 @@ class SubTabRoles extends StatelessWidget {
   }
 }
 
+// ============================================================================
+// YARDIMCI FONKSİYONLAR: PNG İNDİRME
+// ============================================================================
+
+/// Oyuncu kartını PNG olarak indirir.
+/// Dosya adı: {oyuncu_adı}-{kart_tipi}.png (küçük harf, Türkçe/boşluk temizlenmiş)
+Future<void> _downloadCardPng(Player player, BuildContext context) async {
+  try {
+    final controller = ScreenshotController();
+
+    // Kart widget'ını oluştur ve yakala (3x çözünürlük)
+    final Uint8List? image = await controller.captureFromWidget(
+      Material(
+        color: Colors.transparent,
+        child: FCAnimatedCard(player: player, animateOnHover: false),
+      ),
+      delay: const Duration(milliseconds: 300),
+      pixelRatio: 3.0,
+    );
+
+    if (image == null) return;
+
+    // İndirmeler klasörü
+    final Directory? downloadsDir = await getDownloadsDirectory();
+    if (downloadsDir == null) return;
+
+    // Dosya adı: "kai-temel.png", "pies-draft.png" gibi
+    final String rawName =
+        player.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final String rawType = player.cardType
+        .toLowerCase()
+        .replaceAll(' ', '-')
+        .replaceAll(RegExp(r'[^a-z0-9\-]'), '');
+    final String fileName = '$rawName-$rawType.png';
+    final File file =
+        File('${downloadsDir.path}${Platform.pathSeparator}$fileName');
+
+    await file.writeAsBytes(image);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+                child: Text('İndirildi: $fileName',
+                    style: const TextStyle(color: Colors.white))),
+          ]),
+          backgroundColor: Colors.green.shade700,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('İndirme hatası: $e',
+              style: const TextStyle(color: Colors.white)),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    }
+  }
+}
+
+/// Sağ tıklama context menüsü gösterir (oyuncu kartı için)
+void _showCardDownloadMenu(
+    BuildContext context, Player player, Offset globalPosition) {
+  showMenu(
+    context: context,
+    color: const Color(0xFF1E1E24),
+    shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.cyanAccent.withOpacity(0.3))),
+    position: RelativeRect.fromLTRB(
+      globalPosition.dx,
+      globalPosition.dy,
+      globalPosition.dx + 1,
+      globalPosition.dy + 1,
+    ),
+    items: [
+      PopupMenuItem(
+        onTap: () => _downloadCardPng(player, context),
+        child: const Row(children: [
+          Icon(Icons.download, color: Colors.cyanAccent),
+          SizedBox(width: 12),
+          Text('İndir (PNG)', style: TextStyle(color: Colors.white)),
+        ]),
+      ),
+    ],
+  );
+}
+
 // --- PROFILE WIDGETS ---
 class _ViewProfile extends StatelessWidget {
   final Player player;
@@ -2249,7 +2347,11 @@ class _ViewProfile extends StatelessWidget {
           crossAxisAlignment:
               isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
           children: [
-            FCAnimatedCard(player: player, animateOnHover: true),
+            GestureDetector(
+              onSecondaryTapUp: (details) => _showCardDownloadMenu(
+                  context, player, details.globalPosition),
+              child: FCAnimatedCard(player: player, animateOnHover: true),
+            ),
             const SizedBox(width: 50),
             Expanded(
                 child: Column(
@@ -2404,6 +2506,7 @@ class _ViewUltimate extends StatefulWidget {
 
 class _ViewUltimateState extends State<_ViewUltimate> {
   late String aiDescription;
+  final ScreenshotController _ultimateController = ScreenshotController();
   // Manuel maç verilerini tutmak için geçici liste (DB yapısı değişmediği için UI state'inde tutuyoruz)
   List<Map<String, dynamic>> manualMatches = [];
 
@@ -2577,6 +2680,243 @@ class _ViewUltimateState extends State<_ViewUltimate> {
             ));
   }
 
+  void _showUltimateDownloadMenu(BuildContext context, Offset globalPosition) {
+    showMenu(
+      context: context,
+      color: const Color(0xFF1E1E24),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.purpleAccent.withOpacity(0.4))),
+      position: RelativeRect.fromLTRB(
+        globalPosition.dx,
+        globalPosition.dy,
+        globalPosition.dx + 1,
+        globalPosition.dy + 1,
+      ),
+      items: [
+        PopupMenuItem(
+          onTap: () => _downloadUltimateAnalysis(context),
+          child: const Row(children: [
+            Icon(Icons.download_for_offline, color: Colors.purpleAccent),
+            SizedBox(width: 12),
+            Text('Ultimate Analizi İndir (PNG)',
+                style: TextStyle(color: Colors.white)),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _downloadUltimateAnalysis(BuildContext ctx) async {
+    try {
+      Player player = widget.player;
+      bool isGK = player.position.contains("GK");
+      String? teamLogo = pd.teamLogos[player.team];
+      if (player.team == "CA RIVER PLATE")
+        teamLogo = "assets/takimlar/riverplate.png";
+      if (player.team == "It Spor") teamLogo = "assets/takimlar/itspor.png";
+      String styleDisplay = t(player.style, widget.lang);
+      if (player.styleTier == 1) styleDisplay += "+";
+      if (player.styleTier == 2) styleDisplay += "++";
+
+      // Tüm içeriği bir Column widget'ı olarak yeniden oluştur
+      final Widget captureWidget = Directionality(
+        textDirection: TextDirection.ltr,
+        child: Material(
+          color: const Color(0xFF0D0D0D),
+          child: Padding(
+            padding: const EdgeInsets.all(30),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Başlık
+                Text(player.name.toUpperCase(),
+                    style: GoogleFonts.orbitron(
+                        fontSize: 28,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 4)),
+                Text('${player.position} | ${player.team} | ${player.cardType}',
+                    style: GoogleFonts.montserrat(
+                        fontSize: 16, color: Colors.white60)),
+                const SizedBox(height: 20),
+                const Divider(color: Colors.white12),
+                const SizedBox(height: 20),
+                // Kart + Temel Bilgiler
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    FCAnimatedCard(player: player, animateOnHover: false),
+                    const SizedBox(width: 30),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // AI Analiz
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                    color: Colors.cyanAccent.withOpacity(0.3))),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(children: [
+                                  const Icon(Icons.auto_awesome,
+                                      color: Colors.amber, size: 18),
+                                  const SizedBox(width: 8),
+                                  Text(t("AI_ANALYSIS", widget.lang),
+                                      style: GoogleFonts.orbitron(
+                                          color: Colors.amber,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13)),
+                                ]),
+                                const SizedBox(height: 8),
+                                Text(aiDescription,
+                                    style: GoogleFonts.montserrat(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        height: 1.5)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          // Bilgi etiketleri
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: [
+                              _buildInfoTag(
+                                  Icons.science,
+                                  t("CHEM_L", widget.lang),
+                                  t(player.chemistryStyle, widget.lang),
+                                  Colors.purpleAccent),
+                              _buildInfoTag(
+                                  Icons.theater_comedy,
+                                  t("ROLE_L", widget.lang),
+                                  t(player.role, widget.lang),
+                                  Colors.orangeAccent),
+                              _buildInfoTag(
+                                  Icons.style,
+                                  t("STYLE_L", widget.lang),
+                                  styleDisplay,
+                                  Colors.cyanAccent,
+                                  isNeon: true),
+                              _buildInfoTag(
+                                  Icons.star,
+                                  t("SKILL_L", widget.lang),
+                                  "${player.skillMoves} ✭",
+                                  Colors.yellowAccent),
+                              _buildInfoTag(
+                                  Icons.sports_football,
+                                  t("WF_L", widget.lang),
+                                  "${player.stats['WF'] ?? 3} ✭",
+                                  Colors.redAccent),
+                              _buildInfoTag(Icons.euro, t("VAL_L", widget.lang),
+                                  player.marketValue, Colors.greenAccent),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 30),
+                const Divider(color: Colors.white12),
+                const SizedBox(height: 20),
+                // İstatistikler
+                Text('İSTATİSTİKLER',
+                    style: GoogleFonts.russoOne(
+                        color: Colors.cyanAccent, fontSize: 18)),
+                const SizedBox(height: 15),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children:
+                      (isGK ? pd.gkStatsList : pd.allStatKeys).map((statName) {
+                    int value = player.stats[statName] ?? 0;
+                    return _buildModernStatBox(
+                        pd.PaleHaxLoc.stat(statName), value);
+                  }).toList(),
+                ),
+                const SizedBox(height: 30),
+                const Divider(color: Colors.white12),
+                const SizedBox(height: 20),
+                // Performans özeti
+                if (manualMatches.isNotEmpty) ...[
+                  Text('PERFORMANS',
+                      style: GoogleFonts.russoOne(
+                          color: Colors.greenAccent, fontSize: 18)),
+                  const SizedBox(height: 15),
+                  Wrap(
+                    spacing: 20,
+                    runSpacing: 10,
+                    children: [
+                      _statCard(
+                          t("TOTAL_GOL", widget.lang),
+                          "${manualMatches.fold(0, (s, m) => s + (m['g'] as int))}",
+                          Colors.orange),
+                      _statCard(
+                          t("TOTAL_AST", widget.lang),
+                          "${manualMatches.fold(0, (s, m) => s + (m['a'] as int))}",
+                          Colors.cyan),
+                      _statCard(t("MATCHES", widget.lang),
+                          "${manualMatches.length}", Colors.purple),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final Uint8List? image = await _ultimateController.captureFromLongWidget(
+        InheritedTheme.captureAll(ctx, captureWidget),
+        pixelRatio: 2.0,
+        delay: const Duration(milliseconds: 300),
+      );
+
+      if (image == null) return;
+
+      final Directory? downloadsDir = await getDownloadsDirectory();
+      if (downloadsDir == null) return;
+
+      final String rawName =
+          player.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      final String fileName = '$rawName-ultimate-analiz.png';
+      final File file =
+          File('${downloadsDir.path}${Platform.pathSeparator}$fileName');
+
+      await file.writeAsBytes(image);
+
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+          content: Row(children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+                child: Text('İndirildi: $fileName',
+                    style: const TextStyle(color: Colors.white))),
+          ]),
+          backgroundColor: Colors.purple.shade700,
+          duration: const Duration(seconds: 3),
+        ));
+      }
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+          content: Text('İndirme hatası: $e',
+              style: const TextStyle(color: Colors.white)),
+          backgroundColor: Colors.red.shade700,
+        ));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     Player player = widget.player;
@@ -2592,225 +2932,237 @@ class _ViewUltimateState extends State<_ViewUltimate> {
     if (player.styleTier == 1) styleDisplay += "+";
     if (player.styleTier == 2) styleDisplay += "++";
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(30),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // --- ÜST MENÜ (EDİT / VERSİYON) ---
-          Align(
-            alignment: Alignment.centerRight,
-            child: IconButton(
-              icon: const Icon(Icons.menu,
-                  color: Colors.white12), // Hafif görünür
-              tooltip: "Seçenekler",
-              onPressed: () {
-                _showCardOptions(context, player);
-              },
+    return GestureDetector(
+      onSecondaryTapUp: (details) =>
+          _showUltimateDownloadMenu(context, details.globalPosition),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- ÜST MENÜ (EDİT / VERSİYON) ---
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                icon: const Icon(Icons.menu,
+                    color: Colors.white12), // Hafif görünür
+                tooltip: "Seçenekler",
+                onPressed: () {
+                  _showCardOptions(context, player);
+                },
+              ),
             ),
-          ),
-          // --- ÜST KISIM ---
-          Flex(
-            direction: isMobile ? Axis.vertical : Axis.horizontal,
-            crossAxisAlignment:
-                isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
-            children: [
-              // KART
-              FCAnimatedCard(player: player, animateOnHover: true),
-              const SizedBox(width: 30),
-              // BİLGİLER
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        if (teamLogo != null && teamLogo.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 15),
-                            child: Image.asset(teamLogo,
-                                width: 50,
-                                height: 50,
-                                errorBuilder: (c, e, s) =>
-                                    const SizedBox(width: 50, height: 50)),
-                          ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(player.name.toUpperCase(),
-                                style: GoogleFonts.russoOne(
-                                    fontSize: 36,
-                                    color: Colors.white,
-                                    height: 1)),
-                            Text("${player.position} | ${player.team}",
-                                style: GoogleFonts.montserrat(
-                                    fontSize: 18, color: Colors.white70)),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 25),
-
-                    Text(t("PLAYSTYLES", widget.lang),
-                        style: GoogleFonts.russoOne(
-                            fontSize: 16, color: Colors.amber)),
-                    const SizedBox(height: 10),
-                    _buildPlayStylesList(player),
-                    const SizedBox(height: 25),
-
-                    // YAPAY ZEKA ANALİZ KUTUSU (YENİ YERİ)
-                    Stack(
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(15),
-                              border: Border.all(
-                                  color: Colors.cyanAccent.withOpacity(0.3)),
-                              boxShadow: [
-                                BoxShadow(
-                                    color: Colors.cyanAccent.withOpacity(0.05),
-                                    blurRadius: 20)
-                              ]),
-                          child: Column(
+            // --- ÜST KISIM ---
+            Flex(
+              direction: isMobile ? Axis.vertical : Axis.horizontal,
+              crossAxisAlignment: isMobile
+                  ? CrossAxisAlignment.center
+                  : CrossAxisAlignment.start,
+              children: [
+                // KART
+                GestureDetector(
+                  onSecondaryTapUp: (details) => _showCardDownloadMenu(
+                      context, player, details.globalPosition),
+                  child: FCAnimatedCard(player: player, animateOnHover: true),
+                ),
+                const SizedBox(width: 30),
+                // BİLGİLER
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          if (teamLogo != null && teamLogo.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 15),
+                              child: Image.asset(teamLogo,
+                                  width: 50,
+                                  height: 50,
+                                  errorBuilder: (c, e, s) =>
+                                      const SizedBox(width: 50, height: 50)),
+                            ),
+                          Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.auto_awesome,
-                                      color: Colors.amber, size: 20),
-                                  const SizedBox(width: 10),
-                                  Text(t("AI_ANALYSIS", widget.lang),
-                                      style: GoogleFonts.orbitron(
-                                          color: Colors.amber,
-                                          fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                aiDescription,
-                                style: GoogleFonts.montserrat(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    height: 1.5),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Positioned(
-                          top: 5,
-                          right: 5,
-                          child: IconButton(
-                            icon: const Icon(Icons.menu,
-                                color: Colors.white30, size: 20),
-                            tooltip: "Analizi Düzenle",
-                            onPressed: _editDescription,
-                          ),
-                        )
-                      ],
-                    ),
-                    const SizedBox(height: 50),
-
-                    // BİLGİ ÇUBUKLARI (INFO TAGS) - ARTIK BURADA
-                    Wrap(
-                      spacing: 15,
-                      runSpacing: 10,
-                      children: [
-                        _buildInfoTag(
-                            Icons.science,
-                            t("CHEM_L", widget.lang),
-                            t(player.chemistryStyle, widget.lang),
-                            Colors.purpleAccent),
-                        _buildInfoTag(
-                            Icons.theater_comedy,
-                            t("ROLE_L", widget.lang),
-                            t(player.role, widget.lang), // ROLÜ ÇEVİR
-                            Colors.orangeAccent),
-                        // YENİ SIRALAMA: Kimya -> Rol -> Stil -> Skill
-                        _buildInfoTag(Icons.style, t("STYLE_L", widget.lang),
-                            styleDisplay, Colors.cyanAccent,
-                            isNeon: true),
-                        _buildInfoTag(Icons.star, t("SKILL_L", widget.lang),
-                            "${player.skillMoves} ✭", Colors.yellowAccent),
-                        _buildInfoTag(
-                            Icons.sports_football,
-                            t("WF_L", widget.lang),
-                            "${player.stats['WF'] ?? 3} ✭",
-                            Colors.redAccent),
-                        _buildInfoTag(Icons.euro, t("VAL_L", widget.lang),
-                            player.marketValue, Colors.greenAccent),
-                      ],
-                    ),
-                  ],
-                ),
-              )
-            ],
-          ),
-          const SizedBox(height: 40),
-          const Divider(color: Colors.white12),
-          const SizedBox(height: 20),
-
-          // --- İSTATİSTİKLER VE PERFORMANS (YAN YANA) ---
-          Flex(
-            direction: isMobile ? Axis.vertical : Axis.horizontal,
-            crossAxisAlignment:
-                isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
-            children: [
-              // SOL: İSTATİSTİKLER
-              Expanded(
-                flex: 3,
-                child: Column(
-                  children: (isGK
-                          ? [
-                              MapEntry("KALECİLİK", pd.gkStatsList),
-                            ]
-                          : pd.statSegments.entries.toList())
-                      .map((entry) {
-                    String category = entry.key;
-                    List<String> statsList = entry.value;
-
-                    String catTrans = t(category, widget.lang);
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.bar_chart,
-                                  color: Colors.cyanAccent, size: 20),
-                              const SizedBox(width: 10),
-                              Text(catTrans.toUpperCase(),
+                              Text(player.name.toUpperCase(),
                                   style: GoogleFonts.russoOne(
-                                      color: Colors.cyanAccent, fontSize: 18)),
+                                      fontSize: 36,
+                                      color: Colors.white,
+                                      height: 1)),
+                              Text("${player.position} | ${player.team}",
+                                  style: GoogleFonts.montserrat(
+                                      fontSize: 18, color: Colors.white70)),
                             ],
                           ),
-                        ),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: statsList.map((statName) {
-                            int value = player.stats[statName] ?? 0;
-                            return _buildModernStatBox(
-                                pd.PaleHaxLoc.stat(statName), value);
-                          }).toList(),
-                        ),
-                        const SizedBox(height: 10),
-                        const Divider(color: Colors.white10),
-                      ],
-                    );
-                  }).toList(),
+                        ],
+                      ),
+                      const SizedBox(height: 25),
+
+                      Text(t("PLAYSTYLES", widget.lang),
+                          style: GoogleFonts.russoOne(
+                              fontSize: 16, color: Colors.amber)),
+                      const SizedBox(height: 10),
+                      _buildPlayStylesList(player),
+                      const SizedBox(height: 25),
+
+                      // YAPAY ZEKA ANALİZ KUTUSU (YENİ YERİ)
+                      Stack(
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(
+                                    color: Colors.cyanAccent.withOpacity(0.3)),
+                                boxShadow: [
+                                  BoxShadow(
+                                      color:
+                                          Colors.cyanAccent.withOpacity(0.05),
+                                      blurRadius: 20)
+                                ]),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.auto_awesome,
+                                        color: Colors.amber, size: 20),
+                                    const SizedBox(width: 10),
+                                    Text(t("AI_ANALYSIS", widget.lang),
+                                        style: GoogleFonts.orbitron(
+                                            color: Colors.amber,
+                                            fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  aiDescription,
+                                  style: GoogleFonts.montserrat(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      height: 1.5),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Positioned(
+                            top: 5,
+                            right: 5,
+                            child: IconButton(
+                              icon: const Icon(Icons.menu,
+                                  color: Colors.white30, size: 20),
+                              tooltip: "Analizi Düzenle",
+                              onPressed: _editDescription,
+                            ),
+                          )
+                        ],
+                      ),
+                      const SizedBox(height: 50),
+
+                      // BİLGİ ÇUBUKLARI (INFO TAGS) - ARTIK BURADA
+                      Wrap(
+                        spacing: 15,
+                        runSpacing: 10,
+                        children: [
+                          _buildInfoTag(
+                              Icons.science,
+                              t("CHEM_L", widget.lang),
+                              t(player.chemistryStyle, widget.lang),
+                              Colors.purpleAccent),
+                          _buildInfoTag(
+                              Icons.theater_comedy,
+                              t("ROLE_L", widget.lang),
+                              t(player.role, widget.lang), // ROLÜ ÇEVİR
+                              Colors.orangeAccent),
+                          // YENİ SIRALAMA: Kimya -> Rol -> Stil -> Skill
+                          _buildInfoTag(Icons.style, t("STYLE_L", widget.lang),
+                              styleDisplay, Colors.cyanAccent,
+                              isNeon: true),
+                          _buildInfoTag(Icons.star, t("SKILL_L", widget.lang),
+                              "${player.skillMoves} ✭", Colors.yellowAccent),
+                          _buildInfoTag(
+                              Icons.sports_football,
+                              t("WF_L", widget.lang),
+                              "${player.stats['WF'] ?? 3} ✭",
+                              Colors.redAccent),
+                          _buildInfoTag(Icons.euro, t("VAL_L", widget.lang),
+                              player.marketValue, Colors.greenAccent),
+                        ],
+                      ),
+                    ],
+                  ),
+                )
+              ],
+            ),
+            const SizedBox(height: 40),
+            const Divider(color: Colors.white12),
+            const SizedBox(height: 20),
+
+            // --- İSTATİSTİKLER VE PERFORMANS (YAN YANA) ---
+            Flex(
+              direction: isMobile ? Axis.vertical : Axis.horizontal,
+              crossAxisAlignment: isMobile
+                  ? CrossAxisAlignment.center
+                  : CrossAxisAlignment.start,
+              children: [
+                // SOL: İSTATİSTİKLER
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    children: (isGK
+                            ? [
+                                MapEntry("KALECİLİK", pd.gkStatsList),
+                              ]
+                            : pd.statSegments.entries.toList())
+                        .map((entry) {
+                      String category = entry.key;
+                      List<String> statsList = entry.value;
+
+                      String catTrans = t(category, widget.lang);
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.bar_chart,
+                                    color: Colors.cyanAccent, size: 20),
+                                const SizedBox(width: 10),
+                                Text(catTrans.toUpperCase(),
+                                    style: GoogleFonts.russoOne(
+                                        color: Colors.cyanAccent,
+                                        fontSize: 18)),
+                              ],
+                            ),
+                          ),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: statsList.map((statName) {
+                              int value = player.stats[statName] ?? 0;
+                              return _buildModernStatBox(
+                                  pd.PaleHaxLoc.stat(statName), value);
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 10),
+                          const Divider(color: Colors.white10),
+                        ],
+                      );
+                    }).toList(),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 30),
-              // SAĞ: PERFORMANS GRAFİĞİ
-              Expanded(flex: 2, child: _buildMatchPerformanceSection()),
-            ],
-          ),
-        ],
+                const SizedBox(width: 30),
+                // SAĞ: PERFORMANS GRAFİĞİ
+                Expanded(flex: 2, child: _buildMatchPerformanceSection()),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
