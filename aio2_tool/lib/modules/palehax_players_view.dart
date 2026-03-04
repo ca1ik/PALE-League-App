@@ -2232,6 +2232,24 @@ class SubTabRoles extends StatelessWidget {
 // YARDIMCI FONKSİYONLAR: PNG İNDİRME
 // ============================================================================
 
+/// Windows dahil tüm platformlarda güvenilir İndirilenler yolunu döndürür.
+Future<String> _getDownloadsPath() async {
+  if (Platform.isWindows) {
+    final userProfile = Platform.environment['USERPROFILE'];
+    if (userProfile != null && userProfile.isNotEmpty) {
+      final dir = Directory('$userProfile\\Downloads');
+      if (await dir.exists()) return dir.path;
+      // yoksa oluştur
+      await dir.create(recursive: true);
+      return dir.path;
+    }
+  }
+  final dir = await getDownloadsDirectory();
+  if (dir != null) return dir.path;
+  final docs = await getApplicationDocumentsDirectory();
+  return docs.path;
+}
+
 /// Oyuncu kartını PNG olarak indirir.
 /// Dosya adı: {oyuncu_adı}-{kart_tipi}.png (küçük harf, Türkçe/boşluk temizlenmiş)
 Future<void> _downloadCardPng(Player player, BuildContext context) async {
@@ -2251,8 +2269,7 @@ Future<void> _downloadCardPng(Player player, BuildContext context) async {
     if (image == null) return;
 
     // İndirmeler klasörü
-    final Directory? downloadsDir = await getDownloadsDirectory();
-    if (downloadsDir == null) return;
+    final String downloadsPath = await _getDownloadsPath();
 
     // Dosya adı: "kai-temel.png", "pies-draft.png" gibi
     final String rawName =
@@ -2262,8 +2279,7 @@ Future<void> _downloadCardPng(Player player, BuildContext context) async {
         .replaceAll(' ', '-')
         .replaceAll(RegExp(r'[^a-z0-9\-]'), '');
     final String fileName = '$rawName-$rawType.png';
-    final File file =
-        File('${downloadsDir.path}${Platform.pathSeparator}$fileName');
+    final File file = File('$downloadsPath${Platform.pathSeparator}$fileName');
 
     await file.writeAsBytes(image);
 
@@ -2876,22 +2892,27 @@ class _ViewUltimateState extends State<_ViewUltimate> {
         ),
       );
 
-      final Uint8List? image = await _ultimateController.captureFromLongWidget(
-        InheritedTheme.captureAll(ctx, captureWidget),
+      final Uint8List? image = await _ultimateController.captureFromWidget(
+        InheritedTheme.captureAll(
+          ctx,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 900),
+            child: captureWidget,
+          ),
+        ),
         pixelRatio: 2.0,
-        delay: const Duration(milliseconds: 300),
+        delay: const Duration(milliseconds: 500),
+        context: ctx,
       );
 
       if (image == null) return;
 
-      final Directory? downloadsDir = await getDownloadsDirectory();
-      if (downloadsDir == null) return;
-
+      final String downloadsPath = await _getDownloadsPath();
       final String rawName =
           player.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
       final String fileName = '$rawName-ultimate-analiz.png';
       final File file =
-          File('${downloadsDir.path}${Platform.pathSeparator}$fileName');
+          File('$downloadsPath${Platform.pathSeparator}$fileName');
 
       await file.writeAsBytes(image);
 
