@@ -221,11 +221,11 @@ class CardTypeRegistry {
     ),
     CardType.staff: CardTypeInfo(
       type: CardType.staff,
-      name: 'STAFF',
-      turkishName: 'Personel',
+      name: 'FUNCUP',
+      turkishName: 'FunCup',
       icon: Icons.badge,
       color: const Color(0xFF1E40AF),
-      description: 'Staff - Özel personel kartı.',
+      description: 'FunCup - Özel FunCup kartı.',
       backgroundImagePath: 'assets/cards/s/Staff.png',
     ),
     CardType.pclChampion: CardTypeInfo(
@@ -257,11 +257,11 @@ class CardTypeRegistry {
     ),
     CardType.funCupChampion: CardTypeInfo(
       type: CardType.funCupChampion,
-      name: 'FUNCUP CHAMPION',
-      turkishName: 'FunCup Şampiyonu',
+      name: 'DRAFT',
+      turkishName: 'Draft',
       icon: Icons.celebration,
       color: const Color(0xFFEC4899),
-      description: 'FunCup Champion - Eğlence kupası şampiyonu.',
+      description: 'Draft - Taslak oyuncu kartı.',
       backgroundImagePath: 'assets/cards/s/FuncupChampion.png',
     ),
     CardType.classicVII: CardTypeInfo(
