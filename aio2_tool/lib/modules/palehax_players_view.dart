@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -497,11 +498,11 @@ final Map<String, String> cardTypeDescriptions = {
   "EVOLUTION": "Evolution - Gelişim ve dönüşüm kartı.",
   "EVOLUTION PLUS": "Geliştirilmiş Evrim kartı.",
   "END OF AN ERA": "Efsane oyuncuların veda kartı.",
-  "STAFF": "Özel personel kartı.",
+  "FUNCUP": "Özel FunCup kartı.",
   "PCL CHAMPION": "PCL şampiyonluk kartı.",
   "PEL CHAMPION": "PEL şampiyonluk kartı.",
   "PECL CHAMPION": "PECL şampiyonluk kartı.",
-  "FUNCUP CHAMPION": "FunCup şampiyonluk kartı.",
+  "DRAFT": "Taslak oyuncu kartı.",
   "CLASSIC VII": "Vintage klasik kart.",
   "DEFENDER": "Defans odaklı özel kart.",
   "MIDFIELDER": "Orta saha odaklı özel kart.",
@@ -3656,7 +3657,7 @@ Color _getCardTypeColor(String t) {
       return const Color(0xFFA78BFA);
     case "END OF AN ERA":
       return const Color(0xFF9CA3AF);
-    case "STAFF":
+    case "FUNCUP":
       return const Color(0xFF1E40AF);
     case "PCL CHAMPION":
       return const Color(0xFFDC2626);
@@ -3664,7 +3665,7 @@ Color _getCardTypeColor(String t) {
       return const Color(0xFF3B82F6);
     case "PECL CHAMPION":
       return const Color(0xFFF97316);
-    case "FUNCUP CHAMPION":
+    case "DRAFT":
       return const Color(0xFFEC4899);
     case "CLASSIC VII":
       return const Color(0xFF92400E);
@@ -4339,7 +4340,9 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
     "TOTS ICON",
     "TRAILBRAZERS",
     "ULTIMATE",
-    "VS CHAMPION"
+    "VS CHAMPION",
+    "FUNCUP",
+    "DRAFT"
   ];
 
   // 7 Pozisyon: 0:GK, 1:LCB, 2:RCB, 3:CAM, 4:LW, 5:RW, 6:ST
