@@ -351,9 +351,9 @@ class Player extends HiveObject {
       "TRICKSTER",
       "BIRTHDAY",
       "PECL CHAMPION",
-      "FUNCUP CHAMPION"
+      "DRAFT"
     ].contains(cardType)) return 3;
-    if (["PCL PRO", "STAFF", "FM PRO", "CLASSIC VII", "END OF AN ERA"]
+    if (["PCL PRO", "FUNCUP", "FM PRO", "CLASSIC VII", "END OF AN ERA"]
         .contains(cardType)) return 2;
     return 1;
   }
@@ -449,11 +449,11 @@ final List<String> globalCardTypes = [
   "EVOLUTION",
   "EVOLUTION PLUS",
   "END OF AN ERA",
-  "STAFF",
+  "FUNCUP",
   "PCL CHAMPION",
   "PEL CHAMPION",
   "PECL CHAMPION",
-  "FUNCUP CHAMPION",
+  "DRAFT",
   "CLASSIC VII",
   "DEFENDER",
   "MIDFIELDER",
@@ -491,11 +491,11 @@ final Map<String, String> _cardTypeAssetFileNames = {
   "EVOLUTION": "Evolution.png",
   "EVOLUTION PLUS": "EvolutionPlus.png",
   "END OF AN ERA": "EndofanEra.png",
-  "STAFF": "Staff.png",
+  "FUNCUP": "Staff.png",
   "PCL CHAMPION": "PCLChamp.png",
   "PEL CHAMPION": "PELChamp.png",
   "PECL CHAMPION": "PECLChamp.png",
-  "FUNCUP CHAMPION": "FuncupChampion.png",
+  "DRAFT": "FuncupChampion.png",
   "CLASSIC VII": "ClassicVII.png",
   "DEFENDER": "DEFENDER.png",
   "MIDFIELDER": "MIDFIELDER.png",
