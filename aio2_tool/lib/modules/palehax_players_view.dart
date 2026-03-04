@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -2711,10 +2712,6 @@ class _ViewUltimateState extends State<_ViewUltimate> {
     try {
       Player player = widget.player;
       bool isGK = player.position.contains("GK");
-      String? teamLogo = pd.teamLogos[player.team];
-      if (player.team == "CA RIVER PLATE")
-        teamLogo = "assets/takimlar/riverplate.png";
-      if (player.team == "It Spor") teamLogo = "assets/takimlar/itspor.png";
       String styleDisplay = t(player.style, widget.lang);
       if (player.styleTier == 1) styleDisplay += "+";
       if (player.styleTier == 2) styleDisplay += "++";
