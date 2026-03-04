@@ -638,7 +638,6 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
   String _displayCardTitle(String t) {
     if (t == "BALLONDOR") return "BALLON D'OR";
     if (t == "ELO CHAMPION") return "ELO CHAMP";
-    if (t == "FUNCUP CHAMPION") return "FUNCUP";
     if (t == "EVOLUTION PLUS") return "EVO+";
     return t;
   }
@@ -714,7 +713,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         return const Color(0xFFFFD700);
       case "END OF AN ERA":
         return const Color(0xFF9CA3AF);
-      case "STAFF":
+      case "FUNCUP":
         return const Color(0xFF1E40AF);
       case "PCL CHAMPION":
         return const Color(0xFFDC2626);
@@ -722,7 +721,7 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
         return const Color(0xFF3B82F6);
       case "PECL CHAMPION":
         return const Color(0xFFF97316);
-      case "FUNCUP CHAMPION":
+      case "DRAFT":
         return const Color(0xFFEC4899);
       case "DRAFT CHAMPION":
         return const Color(0xFF059669);
