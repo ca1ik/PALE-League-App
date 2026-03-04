@@ -154,7 +154,7 @@ class _SquadBuilderModuleState extends State<SquadBuilderModule> {
                                       feedback: Material(
                                           color: Colors.transparent,
                                           child: Transform.scale(
-                                              scale: 0.3,
+                                              scale: 0.5,
                                               child:
                                                   FCAnimatedCard(player: p))),
                                       child: _buildSidebarPlayerTile(p));
@@ -173,8 +173,8 @@ class _SquadBuilderModuleState extends State<SquadBuilderModule> {
             onAccept: (player) => setState(() => squad[posName] = player),
             builder: (c, cand, rej) {
               return Container(
-                  width: 130,
-                  height: 180,
+                  width: 200,
+                  height: 280,
                   decoration: p == null
                       ? BoxDecoration(
                           color: Colors.black26,
@@ -192,8 +192,12 @@ class _SquadBuilderModuleState extends State<SquadBuilderModule> {
                       : GestureDetector(
                           onDoubleTap: () =>
                               setState(() => squad[posName] = null),
-                          child: Transform.scale(
-                              scale: 0.45, child: FCAnimatedCard(player: p))));
+                          child: FittedBox(
+                              fit: BoxFit.contain,
+                              child: SizedBox(
+                                  width: 340,
+                                  height: 480,
+                                  child: FCAnimatedCard(player: p)))));
             }));
   }
 
