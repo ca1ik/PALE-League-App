@@ -4868,6 +4868,12 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
   List<PlayStyle> selectedPlayStyles = [];
   Map<String, int> stats = {};
 
+  // AI Stat Yardımcısı
+  bool _showAiPanel = false;
+  final TextEditingController _aiOverallCtrl =
+      TextEditingController(text: '75');
+  String? _aiType;
+
   @override
   void initState() {
     super.initState();
@@ -4899,6 +4905,350 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
     }
   }
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _teamController.dispose();
+    _ratingController.dispose();
+    _marketValueController.dispose();
+    _aiOverallCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── AI STAT HELPER ─────────────────────────────────────────────────────────
+  void _applyAiStats(int overall, String playerType) {
+    final offsets = _getAiStatOffsets(playerType);
+    final newStats = Map<String, int>.from(stats);
+    for (final segment in pd.statSegments.entries) {
+      for (final statName in segment.value) {
+        final offset = offsets[statName] ?? 0;
+        newStats[statName] = (overall + offset).clamp(40, 99);
+      }
+    }
+    setState(() {
+      stats = newStats;
+      _ratingController.text = overall.toString();
+    });
+  }
+
+  Map<String, int> _getAiStatOffsets(String playerType) {
+    switch (playerType) {
+      case 'Şutör':
+        return {
+          'Hız': 3,
+          'Hızlanma': 3,
+          'Çeviklik': 0,
+          'Denge': 0,
+          'Top Sürme': 5,
+          'Duvar Kabiliyeti': -3,
+          'Teknik': 8,
+          'Şut Gücü': 10,
+          'Pozisyon Alma': 8,
+          'Bitiricilik': 10,
+          'Uzaktan Şut': 7,
+          'Soğukkanlılık': 5,
+          'Karar Alma': 5,
+          'Roket Şut': 8,
+          'Top Kapma': -15,
+          'Savunma Farkındalığı': -15,
+          'Sert Duruş': -15,
+          'Güç': -5,
+          'Saldırganlık': -5,
+          'Markaj': -15,
+          'Top Kesme': -10,
+          'Pas': -7,
+          'Ara Pas': -7,
+          'Takım Oyunu': -5,
+          'Görüş': -3,
+          'Topsuz Alan': -5,
+          'Orta Yapma': -7,
+          'Top Kontrolü': -3,
+        };
+      case 'Pasör':
+        return {
+          'Hız': -3,
+          'Hızlanma': -3,
+          'Çeviklik': 0,
+          'Denge': 0,
+          'Top Sürme': 0,
+          'Duvar Kabiliyeti': -3,
+          'Teknik': 3,
+          'Şut Gücü': -12,
+          'Pozisyon Alma': -5,
+          'Bitiricilik': -12,
+          'Uzaktan Şut': -10,
+          'Soğukkanlılık': -3,
+          'Karar Alma': 3,
+          'Roket Şut': -12,
+          'Top Kapma': -10,
+          'Savunma Farkındalığı': -8,
+          'Sert Duruş': -10,
+          'Güç': -3,
+          'Saldırganlık': -5,
+          'Markaj': -10,
+          'Top Kesme': -8,
+          'Pas': 10,
+          'Ara Pas': 10,
+          'Takım Oyunu': 8,
+          'Görüş': 8,
+          'Topsuz Alan': 5,
+          'Orta Yapma': 7,
+          'Top Kontrolü': 5,
+        };
+      case 'Defansif':
+        return {
+          'Hız': -5,
+          'Hızlanma': -5,
+          'Çeviklik': -5,
+          'Denge': -3,
+          'Top Sürme': -10,
+          'Duvar Kabiliyeti': 0,
+          'Teknik': -8,
+          'Şut Gücü': -15,
+          'Pozisyon Alma': -10,
+          'Bitiricilik': -15,
+          'Uzaktan Şut': -12,
+          'Soğukkanlılık': -5,
+          'Karar Alma': 0,
+          'Roket Şut': -12,
+          'Top Kapma': 10,
+          'Savunma Farkındalığı': 10,
+          'Sert Duruş': 8,
+          'Güç': 5,
+          'Saldırganlık': 5,
+          'Markaj': 10,
+          'Top Kesme': 8,
+          'Pas': -7,
+          'Ara Pas': -7,
+          'Takım Oyunu': -3,
+          'Görüş': -5,
+          'Topsuz Alan': 3,
+          'Orta Yapma': -7,
+          'Top Kontrolü': -5,
+        };
+      case 'Hızlı':
+        return {
+          'Hız': 12,
+          'Hızlanma': 12,
+          'Çeviklik': 8,
+          'Denge': 3,
+          'Top Sürme': 5,
+          'Duvar Kabiliyeti': -3,
+          'Teknik': 0,
+          'Şut Gücü': -5,
+          'Pozisyon Alma': -3,
+          'Bitiricilik': -5,
+          'Uzaktan Şut': -8,
+          'Soğukkanlılık': -3,
+          'Karar Alma': 0,
+          'Roket Şut': -5,
+          'Top Kapma': -10,
+          'Savunma Farkındalığı': -10,
+          'Sert Duruş': -10,
+          'Güç': -5,
+          'Saldırganlık': -3,
+          'Markaj': -10,
+          'Top Kesme': -7,
+          'Pas': -7,
+          'Ara Pas': -7,
+          'Takım Oyunu': -3,
+          'Görüş': -3,
+          'Topsuz Alan': -3,
+          'Orta Yapma': -5,
+          'Top Kontrolü': -3,
+        };
+      case 'Dribbling':
+        return {
+          'Hız': 3,
+          'Hızlanma': 3,
+          'Çeviklik': 8,
+          'Denge': 8,
+          'Top Sürme': 12,
+          'Duvar Kabiliyeti': 5,
+          'Teknik': 10,
+          'Şut Gücü': -8,
+          'Pozisyon Alma': -5,
+          'Bitiricilik': -8,
+          'Uzaktan Şut': -10,
+          'Soğukkanlılık': -3,
+          'Karar Alma': 3,
+          'Roket Şut': -8,
+          'Top Kapma': -12,
+          'Savunma Farkındalığı': -12,
+          'Sert Duruş': -12,
+          'Güç': -5,
+          'Saldırganlık': -3,
+          'Markaj': -12,
+          'Top Kesme': -8,
+          'Pas': -5,
+          'Ara Pas': -5,
+          'Takım Oyunu': -3,
+          'Görüş': -3,
+          'Topsuz Alan': -3,
+          'Orta Yapma': -5,
+          'Top Kontrolü': 10,
+        };
+      case 'Skiller':
+        return {
+          'Hız': 0,
+          'Hızlanma': 0,
+          'Çeviklik': 8,
+          'Denge': 8,
+          'Top Sürme': 10,
+          'Duvar Kabiliyeti': 10,
+          'Teknik': 12,
+          'Şut Gücü': -5,
+          'Pozisyon Alma': -5,
+          'Bitiricilik': -5,
+          'Uzaktan Şut': -8,
+          'Soğukkanlılık': -3,
+          'Karar Alma': 0,
+          'Roket Şut': -3,
+          'Top Kapma': -12,
+          'Savunma Farkındalığı': -12,
+          'Sert Duruş': -12,
+          'Güç': -5,
+          'Saldırganlık': -3,
+          'Markaj': -12,
+          'Top Kesme': -8,
+          'Pas': -5,
+          'Ara Pas': -5,
+          'Takım Oyunu': -3,
+          'Görüş': -3,
+          'Topsuz Alan': -3,
+          'Orta Yapma': -5,
+          'Top Kontrolü': 8,
+        };
+      case 'Box2Box':
+        // Dengeli — tüm statlar overall değerinde
+        return {};
+      default:
+        return {};
+    }
+  }
+
+  Widget _buildAiPanel() {
+    const roles = [
+      'Şutör',
+      'Pasör',
+      'Defansif',
+      'Hızlı',
+      'Dribbling',
+      'Skiller',
+      'Box2Box'
+    ];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.purple.withOpacity(0.08),
+        border: Border.all(color: Colors.purpleAccent.withOpacity(0.4)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_fix_high,
+                  color: Colors.purpleAccent, size: 14),
+              const SizedBox(width: 6),
+              Text('AI Stat Yardımcısı',
+                  style: GoogleFonts.orbitron(
+                      color: Colors.purpleAccent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Text('Overall:',
+                  style: TextStyle(color: Colors.white70, fontSize: 12)),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 64,
+                height: 32,
+                child: TextField(
+                  controller: _aiOverallCtrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.black38,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: roles.map((role) {
+              final isSelected = _aiType == role;
+              return GestureDetector(
+                onTap: () => setState(() => _aiType = isSelected ? null : role),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.purpleAccent.withOpacity(0.25)
+                        : Colors.white.withOpacity(0.05),
+                    border: Border.all(
+                        color:
+                            isSelected ? Colors.purpleAccent : Colors.white24),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(role,
+                      style: TextStyle(
+                          color:
+                              isSelected ? Colors.purpleAccent : Colors.white54,
+                          fontSize: 11,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal)),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton(
+              onPressed: _aiType == null
+                  ? null
+                  : () {
+                      final ov = int.tryParse(_aiOverallCtrl.text) ?? 75;
+                      _applyAiStats(ov, _aiType!);
+                      setState(() => _showAiPanel = false);
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purpleAccent,
+                disabledBackgroundColor: Colors.white10,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                minimumSize: Size.zero,
+              ),
+              child: const Text('Uygula',
+                  style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── BUILD ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -5161,25 +5511,62 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            const SizedBox(height: 12),
+            Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(t("CANCEL", widget.lang),
-                        style: const TextStyle(color: Colors.white54))),
-                const SizedBox(width: 20),
-                ElevatedButton.icon(
-                    onPressed: _submit,
-                    icon: const Icon(Icons.save, color: Colors.black),
-                    label: Text(t("SAVE", widget.lang),
-                        style: const TextStyle(
-                            color: Colors.black, fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.cyanAccent,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 30, vertical: 15)))
+                if (_showAiPanel) _buildAiPanel(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Sol alt: AI yardımcısı butonu
+                    SizedBox(
+                      height: 36,
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            setState(() => _showAiPanel = !_showAiPanel),
+                        icon: Icon(
+                          _showAiPanel ? Icons.close : Icons.auto_fix_high,
+                          color: Colors.purpleAccent,
+                          size: 15,
+                        ),
+                        label: Text(
+                          _showAiPanel ? 'Kapat' : 'AI',
+                          style: const TextStyle(
+                              color: Colors.purpleAccent, fontSize: 12),
+                        ),
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.purple.withOpacity(0.15),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 0),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                    // Sağ: İptal + Kaydet
+                    Row(
+                      children: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text(t("CANCEL", widget.lang),
+                                style: const TextStyle(color: Colors.white54))),
+                        const SizedBox(width: 20),
+                        ElevatedButton.icon(
+                            onPressed: _submit,
+                            icon: const Icon(Icons.save, color: Colors.black),
+                            label: Text(t("SAVE", widget.lang),
+                                style: const TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.cyanAccent,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 30, vertical: 15))),
+                      ],
+                    ),
+                  ],
+                ),
               ],
             )
           ],
