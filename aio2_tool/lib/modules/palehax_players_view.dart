@@ -4481,12 +4481,15 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
                               Positioned.fill(
                                   child: Opacity(
                                       opacity: 0.28,
-                                      child: Image.asset(
-                                          pd.cardTypeToAssetPath(
-                                              _selectedMapType)!,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (c, e, s) =>
-                                              const SizedBox.shrink()))),
+                                      child: ImageFiltered(
+                                          imageFilter: ImageFilter.blur(
+                                              sigmaX: 3.0, sigmaY: 3.0),
+                                          child: Image.asset(
+                                              pd.cardTypeToAssetPath(
+                                                  _selectedMapType)!,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (c, e, s) =>
+                                                  const SizedBox.shrink())))),
                             Positioned.fill(
                                 child: Container(
                                     color: Colors.black.withOpacity(0.38))),
