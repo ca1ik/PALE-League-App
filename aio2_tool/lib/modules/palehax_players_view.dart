@@ -2835,8 +2835,13 @@ class _ViewUltimateState extends State<_ViewUltimate> {
                 Wrap(
                   spacing: 10,
                   runSpacing: 10,
-                  children:
-                      (isGK ? pd.gkStatsList : pd.allStatKeys).map((statName) {
+                  children: (isGK
+                          ? pd.gkStatsList
+                          : pd.statSegments.values
+                              .expand((e) => e)
+                              .toSet()
+                              .toList())
+                      .map((statName) {
                     int value = player.stats[statName] ?? 0;
                     return _buildModernStatBox(
                         pd.PaleHaxLoc.stat(statName), value);
