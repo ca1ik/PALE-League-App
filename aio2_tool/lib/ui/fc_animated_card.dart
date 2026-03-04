@@ -122,18 +122,28 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
       "CLASSIC VII",
       "DREAMCHASERS",
       "BIRTHDAY",
-      "AWARD WINNERS"
+      "AWARD WINNERS",
+      "DRAFT",
+      "DRAFT CHAMPION"
     ].contains(normalizedType);
 
+    // Draft kartı için siyah/beyaz kontrast renk şeması
+    final bool isDraftCard =
+        normalizedType == "DRAFT" || normalizedType == "DRAFT CHAMPION";
+
     // Metin renkleri
-    final Color mainTextColor =
-        isDarkTextCard ? const Color(0xFF1A1A1A) : const Color(0xFFE8E8E8);
-    final Color subTextColor =
-        isDarkTextCard ? const Color(0xFF333333) : const Color(0xFFCCCCCC);
-    final Color statValueColor =
-        isDarkTextCard ? const Color(0xFF1A1A1A) : const Color(0xFFE8E8E8);
-    final Color statLabelColor =
-        isDarkTextCard ? const Color(0xFF444444) : const Color(0xFFBBBBBB);
+    final Color mainTextColor = isDraftCard
+        ? Colors.white
+        : (isDarkTextCard ? const Color(0xFF1A1A1A) : const Color(0xFFE8E8E8));
+    final Color subTextColor = isDraftCard
+        ? Colors.black87
+        : (isDarkTextCard ? const Color(0xFF333333) : const Color(0xFFCCCCCC));
+    final Color statValueColor = isDraftCard
+        ? Colors.white
+        : (isDarkTextCard ? const Color(0xFF1A1A1A) : const Color(0xFFE8E8E8));
+    final Color statLabelColor = isDraftCard
+        ? Colors.black87
+        : (isDarkTextCard ? const Color(0xFF444444) : const Color(0xFFBBBBBB));
 
     return FittedBox(
       fit: BoxFit.contain,
@@ -304,10 +314,12 @@ class _FCAnimatedCardState extends State<FCAnimatedCard>
                                           child: Text(p.name.toUpperCase(),
                                               style: GoogleFonts.outfit(
                                                   fontSize: 20,
-                                                  color: isDarkTextCard
-                                                      ? _getTitleColor(
-                                                          normalizedType)
-                                                      : mainTextColor,
+                                                  color: isDraftCard
+                                                      ? Colors.white
+                                                      : (isDarkTextCard
+                                                          ? _getTitleColor(
+                                                              normalizedType)
+                                                          : mainTextColor),
                                                   fontWeight: FontWeight.w800,
                                                   letterSpacing: 2.5,
                                                   shadows: _buildNameLedShadows(
