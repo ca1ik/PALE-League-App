@@ -5192,13 +5192,44 @@ class _SquadBuilderDialogState extends State<_SquadBuilderDialog> {
   }
 
   void _capture() async {
-    final image =
-        await _screenshotController.capture(pixelRatio: 3.0); // Yüksek Kalite
-    if (image != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(t("IMG_SAVED", widget.lang)),
-          backgroundColor: Colors.green));
-      // Burada dosya kaydetme işlemi yapılabilir (path_provider ile)
+    try {
+      final Uint8List? image =
+          await _screenshotController.capture(pixelRatio: 3.0);
+      if (image == null) return;
+
+      final String downloadsPath = await _getDownloadsPath();
+      final String rawName = _teamNameController.text
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]'), '-')
+          .replaceAll(RegExp(r'-+'), '-')
+          .replaceAll(RegExp(r'^-|-$'), '');
+      final String fileName =
+          '${rawName.isEmpty ? 'kadro' : rawName}-${_selectedMapType.toLowerCase().replaceAll(' ', '-')}.png';
+      final File file =
+          File('$downloadsPath${Platform.pathSeparator}$fileName');
+      await file.writeAsBytes(image);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Row(children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+                child: Text('İndirildi: $fileName',
+                    style: const TextStyle(color: Colors.white))),
+          ]),
+          backgroundColor: Colors.green.shade700,
+          duration: const Duration(seconds: 3),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('İndirme hatası: $e',
+              style: const TextStyle(color: Colors.white)),
+          backgroundColor: Colors.red.shade700,
+        ));
+      }
     }
   }
 }
