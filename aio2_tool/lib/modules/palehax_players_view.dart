@@ -656,6 +656,7 @@ final Map<String, Map<String, String>> _appStrings = {
     "NORMAL_PS": "NORMAL PS",
     "PLUS_PS": "PLUS PS",
     "SEARCH": "Ara...",
+    "SEARCH_PLAYER": "Oyuncu ara...",
     "FILTER": "Tümü",
     "SORT_RTG": "Reyting",
     "SORT_AZ": "A-Z",
@@ -864,6 +865,7 @@ final Map<String, Map<String, String>> _appStrings = {
     "NORMAL_PS": "NORMAL PS",
     "PLUS_PS": "PLUS PS",
     "SEARCH": "Search...",
+    "SEARCH_PLAYER": "Search player...",
     "FILTER": "All",
     "SORT_RTG": "Rating",
     "SORT_AZ": "A-Z",
@@ -1072,6 +1074,7 @@ final Map<String, Map<String, String>> _appStrings = {
     "NORMAL_PS": "PS NORMAL",
     "PLUS_PS": "PS PLUS",
     "SEARCH": "Buscar...",
+    "SEARCH_PLAYER": "Buscar jugador...",
     "FILTER": "Todos",
     "SORT_RTG": "Valoración",
     "SORT_AZ": "A-Z",
@@ -1349,6 +1352,8 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
   Player? selectedPlayer;
   int currentCardIndex = 0;
   late TabController _innerTabController;
+  String _playerSearch = "";
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -1359,6 +1364,7 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
   @override
   void dispose() {
     _innerTabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -1461,8 +1467,13 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
           if (currentCardIndex >= versions.length) currentCardIndex = 0;
           Player displayPlayer = versions[currentCardIndex];
 
-          // Sidebar için sadece TEMEL kartları filtrele
-          final sidebarList = all.where((p) => p.cardType == "Temel").toList();
+          // Sidebar için sadece TEMEL kartları filtrele ve ara
+          final sidebarList = all
+              .where((p) => p.cardType == "Temel")
+              .where((p) =>
+                  _playerSearch.isEmpty ||
+                  p.name.toLowerCase().contains(_playerSearch.toLowerCase()))
+              .toList();
 
           return LayoutBuilder(builder: (context, constraints) {
             bool isMobile = constraints.maxWidth < 900;
@@ -1579,6 +1590,44 @@ class _SubTabPlayersState extends State<_SubTabPlayers>
                                   fontWeight: FontWeight.bold)),
                           style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.cyanAccent)))),
+              // --- SEARCH BAR ---
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                child: TextField(
+                  controller: _searchController,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  onChanged: (v) => setState(() => _playerSearch = v),
+                  decoration: InputDecoration(
+                    hintText: t("SEARCH_PLAYER", widget.lang),
+                    hintStyle:
+                        const TextStyle(color: Colors.white38, fontSize: 13),
+                    prefixIcon: const Icon(Icons.search,
+                        color: Colors.white38, size: 18),
+                    suffixIcon: _playerSearch.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear,
+                                color: Colors.white38, size: 16),
+                            onPressed: () => setState(() {
+                              _playerSearch = "";
+                              _searchController.clear();
+                            }),
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.07),
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(
+                            color: Colors.cyanAccent, width: 1)),
+                  ),
+                ),
+              ),
               Expanded(
                   child: ListView.builder(
                       itemCount: sidebarList.length,
