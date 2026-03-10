@@ -130,6 +130,8 @@ class _NatBallGameViewState extends State<NatBallGameView>
   int _gkSaveTimer = 0;
 
   // Dinamik insan markajcısı (her tick güncellenir)
+  _NbPlayer? _humanMarker;
+
   @override
   void initState() {
     super.initState();
