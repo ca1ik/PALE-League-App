@@ -9,6 +9,7 @@ import '../data/player_data.dart';
 import '../services/database_service.dart';
 import '../ui/fc_animated_card.dart';
 import 'palehax_match_engine.dart';
+import 'natball_game.dart';
 
 // =============================================================================
 // MODELS
@@ -77,6 +78,7 @@ class UltimateTeamProvider extends ChangeNotifier {
   // Economy
   int tokens = 100;
   bool isRanked = false;
+  bool isNatBall = false;
 
   // Market
   List<MarketListing> transferMarket = [];
@@ -208,6 +210,12 @@ class UltimateTeamProvider extends ChangeNotifier {
 
   void setRanked(bool v) {
     isRanked = v;
+    notifyListeners();
+  }
+
+  void setPlayMode(String mode) {
+    isRanked = mode == 'ranked';
+    isNatBall = mode == 'natball';
     notifyListeners();
   }
 
@@ -680,10 +688,11 @@ class _UltimateRootState extends State<_UltimateRoot> {
         // Token LED display
         _TokenLED(tokens: prov.tokens),
         const SizedBox(width: 16),
-        // Normal / Ranked toggle
+        // Normal / Ranked / NatBall toggle
         _ModeToggle(
           isRanked: prov.isRanked,
-          onToggle: (v) => prov.setRanked(v),
+          isNatBall: prov.isNatBall,
+          onMode: (mode) => prov.setPlayMode(mode),
         ),
         const SizedBox(width: 16),
       ]),
@@ -748,6 +757,23 @@ class _UltimateRootState extends State<_UltimateRoot> {
           const SnackBar(content: Text('Lütfen 7 oyuncuyu sahaya dizin!')));
       return;
     }
+
+    // ── NatBall: insan kontrollü mod ─────────────────────────────────────────
+    if (prov.isNatBall) {
+      var opp = prov.generateOpponent();
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => NatBallGameView(
+                  myTeam: prov.starters,
+                  oppTeam: opp,
+                  onExit: () => Navigator.pop(context),
+                )),
+      );
+      return;
+    }
+
+    // ── Normal / Ranked: simülasyon modu ─────────────────────────────────────
     var opp = prov.generateOpponent();
     Navigator.push(
       context,
@@ -935,15 +961,20 @@ class _TokenLED extends StatelessWidget {
 
 class _ModeToggle extends StatelessWidget {
   final bool isRanked;
-  final ValueChanged<bool> onToggle;
-  const _ModeToggle({required this.isRanked, required this.onToggle});
+  final bool isNatBall;
+  final ValueChanged<String> onMode; // 'normal' | 'ranked' | 'natball'
+  const _ModeToggle(
+      {required this.isRanked, required this.isNatBall, required this.onMode});
 
   @override
   Widget build(BuildContext context) {
+    bool isNormal = !isRanked && !isNatBall;
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      _btn('NORMAL', !isRanked, Colors.cyanAccent, () => onToggle(false)),
+      _btn('NORMAL', isNormal, Colors.cyanAccent, () => onMode('normal')),
       const SizedBox(width: 4),
-      _btn('RANKED', isRanked, Colors.redAccent, () => onToggle(true)),
+      _btn('RANKED', isRanked, Colors.redAccent, () => onMode('ranked')),
+      const SizedBox(width: 4),
+      _btn('NATBALL', isNatBall, Colors.greenAccent, () => onMode('natball')),
     ]);
   }
 
@@ -3320,11 +3351,19 @@ class _AIChatButtonState extends State<_AIChatButton>
           'Ayrıca kartlarını Sell sekmesinden satabilirsin.';
     }
 
-    // --- Ranked vs Normal ---
-    if (q.contains('ranked') || q.contains('normal mod')) {
+    // --- Ranked vs Normal vs NatBall ---
+    if (q.contains('ranked') ||
+        q.contains('normal mod') ||
+        q.contains('natball')) {
+      String current = prov.isNatBall
+          ? 'NATBALL 🎮'
+          : prov.isRanked
+              ? 'RANKED ✅'
+              : 'NORMAL';
       return '🏆 Ranked Mod: Token ödülü 2kat, sıralamanın görünür.\n'
           '⚽ Normal Mod: Sıralama etkisi yok, rahat oyun.\n'
-          'Şu an: ${prov.isRanked ? "RANKED ✅" : "NORMAL"}';
+          '🎮 NatBall Mod: Sen oynarsın! Yön tuşu hareket, X şut, Shift pas.\n'
+          'Şu an: $current';
     }
 
     // --- Speed ---
