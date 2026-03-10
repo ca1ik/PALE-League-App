@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:window_manager/window_manager.dart';
 import '../data/player_data.dart';
 
 // =============================================================================
@@ -12,24 +13,23 @@ import '../data/player_data.dart';
 // Kontroller: Yön tuşları hareket | X şut | Shift pas
 // =============================================================================
 
-// ─── Sabitler ─────────────────────────────────────────────────────────────────
-const double _kGoalY1 = 0.38; // kale açıklığı üst sınırı (normalize)
-const double _kGoalY2 = 0.62; // kale açıklığı alt sınırı (normalize)
+// ─── Sabitler ──────────────────────────────────────────────────────────────
+const double _kGoalY1 = 0.34;
+const double _kGoalY2 = 0.66;
 const double _kPlayerR = 0.012; // oyuncu yarıçapı
-const double _kBallR = 0.006; // top yarıçapı
-const double _kNatBallPickupR = 0.026; // top alma mesafesi
-const double _kShootPower = 0.020; // şut başlangıç hızı – HaxBall gibi
-const double _kPassPower = 0.012; // pas başlangıç hızı
-const double _kPlayerAccel = 0.0011; // oyuncu ivme – yavaş/HaxBall
-const double _kPlayerDamp = 0.78; // oyuncu hız sönümleme
-const double _kBallFric = 0.983; // top sürtünme (daha fazla)
-const double _kBallBounce = 1.00; // mükemmel yansıma (enerji kaybı yok)
-const double _kAiAccel = 0.0011; // yapay-zeka ivmesi – oyuncuyla eşit
-const double _kMaxSpeed = 0.0070; // maksimum hız – HaxBall gibi yavaş
-const double _kAiPassChancePct = 5; // her tick'teki pas olasılığı (%)
-const double _kMatchDurationSec = 120.0; // maç süresi
-const double _kGkRange = 0.14; // kaleci çalışma yarıçapı
-const double _kStealRange = 0.038; // top çalma mesafesi (insan → rakip)
+const double _kBallR = 0.009; // top yarıçapı
+const double _kPickupR = 0.030; // sahiplik alma menzili
+const double _kStealRange = 0.038; // çalma menzili
+const double _kPlayerAccel = 0.0009; // ivme – yavaş ve kontrollü
+const double _kPlayerDamp = 0.82; // durma sönümü
+const double _kMaxSpeed = 0.005; // maks oyuncu hızı
+const double _kBallFric = 0.972; // top sürtünmesi
+const double _kBallBounce = 0.65; // duvar sekmesi
+const double _kShootPower = 0.025; // şut gücü
+const double _kPassPower = 0.015; // pas gücü
+const double _kAiAccel = 0.0009;
+const double _kMatchDurationSec = 120.0;
+const double _kGkRange = 0.15;
 
 // =============================================================================
 // OYUNCU VERİSİ
@@ -38,14 +38,12 @@ class _NbPlayer {
   String name;
   double x, y;
   double vx = 0, vy = 0;
-  double facingAngle; // radyan; 0=sağ, π=sol
+  double facingAngle;
   final bool isHuman;
   final bool isTeamA;
   final double homeX, homeY;
   final bool isGk;
-
-  // Yapay zeka – takım arkadaşı pas sayacı
-  int _aiPassCountdown = 0;
+  double _aiPassSec = 0.0;
 
   _NbPlayer({
     required this.name,
@@ -65,7 +63,17 @@ class _NbPlayer {
 class _NbBall {
   double x = 0.5, y = 0.5;
   double vx = 0, vy = 0;
-  _NbPlayer? owner;
+  _NbPlayer? owner; // topa sahip oyuncu (null = serbest)
+}
+
+// =============================================================================
+// CHAT MESAJI
+// =============================================================================
+class _ChatMessage {
+  final String sender;
+  final String text;
+  final bool isSystem;
+  _ChatMessage(this.sender, this.text, {this.isSystem = false});
 }
 
 // =============================================================================
@@ -95,15 +103,12 @@ class _NatBallGameViewState extends State<NatBallGameView>
   final _rng = Random();
   Ticker? _ticker;
   Duration _lastFrame = Duration.zero;
-  double _accumulator = 0;
-  static const double _simDt = 1.0 / 60.0;
 
-  late List<_NbPlayer> _teamA; // insan + 6 yapay-zeka
-  late List<_NbPlayer> _teamB; // 7 yapay-zeka rakip
-  late _NbPlayer _human; // insan oyuncusu
+  late List<_NbPlayer> _teamA;
+  late List<_NbPlayer> _teamB;
+  late _NbPlayer _human;
   final _NbBall _ball = _NbBall();
 
-  // Klavye durumu
   final Set<LogicalKeyboardKey> _keys = {};
   final FocusNode _focusNode = FocusNode();
 
@@ -111,30 +116,40 @@ class _NatBallGameViewState extends State<NatBallGameView>
   double _elapsedSec = 0;
   bool _isGoal = false;
   String _goalText = '';
-  int _goalPauseTicks = 0;
+  double _goalPauseSec = 0;
   bool _isMatchOver = false;
 
-  // İnsan pas attıktan sonra takım arkadaşları topa koşsun
-  int _runToBallTicks = 0;
+  // İnsan kontrol – saniye cinsinden (FPS bağımsız)
+  double _kickCooldownSec = 0.0;
+  double _xDoubleTapSec = 0.0;
+  double _runToBallSec = 0.0;
+  bool _xWasHeld = false;
+  bool _shiftWasHeld = false;
+  bool _zWasHeld = false;
+  bool _humanWantsPass = false;
 
-  // Şut/pas soğuma sayacı
-  int _kickCooldown = 0;
-
-  // Double-tap X (köşe triği)
-  bool _xHeld = false;
-  bool _shiftHeld = false;
-  int _xDoubleTapWindow = 0;
-
-  // GK kayıt animasyonu
+  // GK animasyonu
   bool _gkSaveAnim = false;
-  int _gkSaveTimer = 0;
+  double _gkSaveSec = 0.0;
 
-  // Dinamik insan markajcısı (her tick güncellenir)
+  // FPS / dt takibi
+  double _fps = 0;
+  double _dt = 1 / 60.0;
+
+  // Dinamik markajcı
   _NbPlayer? _humanMarker;
 
-  // Nickname girişi
+  // Nickname
   bool _showNicknameInput = true;
+  bool _isFullscreen = false;
   final TextEditingController _nickCtrl = TextEditingController();
+
+  // Chat
+  bool _isChatOpen = false;
+  final TextEditingController _chatInputCtrl = TextEditingController();
+  final FocusNode _chatFocusNode = FocusNode();
+  final List<_ChatMessage> _chatMessages = [];
+  final ScrollController _chatScrollCtrl = ScrollController();
 
   @override
   void initState() {
@@ -149,7 +164,10 @@ class _NatBallGameViewState extends State<NatBallGameView>
     _ticker?.stop();
     _ticker?.dispose();
     _focusNode.dispose();
+    _chatFocusNode.dispose();
     _nickCtrl.dispose();
+    _chatInputCtrl.dispose();
+    _chatScrollCtrl.dispose();
     super.dispose();
   }
 
@@ -160,13 +178,15 @@ class _NatBallGameViewState extends State<NatBallGameView>
     _elapsedSec = 0;
     _isGoal = false;
     _isMatchOver = false;
-    _runToBallTicks = 0;
-    _kickCooldown = 0;
-    _xHeld = false;
-    _shiftHeld = false;
-    _xDoubleTapWindow = 0;
+    _kickCooldownSec = 0;
+    _xDoubleTapSec = 0;
+    _runToBallSec = 0;
+    _xWasHeld = false;
+    _shiftWasHeld = false;
+    _zWasHeld = false;
+    _humanWantsPass = false;
     _gkSaveAnim = false;
-    _gkSaveTimer = 0;
+    _gkSaveSec = 0;
     _keys.clear();
     _buildPlayers();
     _kickoff(teamAStarts: true);
@@ -217,110 +237,84 @@ class _NatBallGameViewState extends State<NatBallGameView>
       out.add(p.name);
     }
     while (out.length < count) {
-      out.add('P${out.length + 1}');
+      out.add('Player${out.length + 1}');
     }
     return out.take(count).toList();
   }
 
   void _kickoff({required bool teamAStarts}) {
-    // Oyuncuları kendi yarılarına döndür
     for (var p in [..._teamA, ..._teamB]) {
-      double kx =
-          p.isTeamA ? p.homeX.clamp(0.05, 0.48) : p.homeX.clamp(0.52, 0.95);
-      p.x = kx;
+      p.x = p.isTeamA ? p.homeX.clamp(0.05, 0.48) : p.homeX.clamp(0.52, 0.95);
       p.y = p.homeY;
       p.vx = 0;
       p.vy = 0;
       p.facingAngle = p.isTeamA ? 0 : pi;
+      p._aiPassSec = 0.10 + _rng.nextDouble() * 0.25;
     }
-    // Topu merkeze, başlayan takımın forvetine ver
     _ball.x = 0.5;
     _ball.y = 0.5;
     _ball.vx = 0;
     _ball.vy = 0;
-    if (teamAStarts) {
-      _human.x = 0.5;
-      _human.y = 0.5;
-      _ball.owner = _human;
-    } else {
-      _ball.owner = _teamB[6]; // Rakip forvet
-      _teamB[6].x = 0.5;
-      _teamB[6].y = 0.5;
-    }
+    _ball.owner = teamAStarts ? _human : _teamB[3];
+    _kickCooldownSec = 0;
+    _runToBallSec = 0;
   }
 
-  // ─── OYUN DÖNGÜSÜ ───────────────────────────────────────────────────────────
+  // ─── OYUN DÖNGÜSÜ – Sınırsız FPS ──────────────────────────────────────────
   void _onTick(Duration elapsed) {
     if (!mounted) return;
-    final wallDt = (elapsed - _lastFrame).inMicroseconds / 1e6;
+    final dt = ((elapsed - _lastFrame).inMicroseconds / 1e6).clamp(0.0, 0.05)
+        as double;
     _lastFrame = elapsed;
-    _accumulator += wallDt.clamp(0.0, 0.1);
-    while (_accumulator >= _simDt) {
-      _accumulator -= _simDt;
-      _simStep();
-    }
+    if (dt > 0) _fps = _fps * 0.9 + (1.0 / dt) * 0.1;
+    _simStep(dt);
     setState(() {});
   }
 
-  void _simStep() {
-    if (_showNicknameInput) return; // Nickname girilmeden oyun başlamaz
+  void _simStep(double dt) {
+    _dt = dt.clamp(0.001, 0.05);
+    if (_showNicknameInput) return;
+    if (_isChatOpen) return; // chat açıkken oyun durur
     if (_isMatchOver) return;
 
     if (_isGoal) {
-      _goalPauseTicks--;
-      if (_goalPauseTicks <= 0) {
+      _goalPauseSec -= dt;
+      if (_goalPauseSec <= 0) {
         _isGoal = false;
-        _kickoff(teamAStarts: _ball.x > 0.5); // gol yeyen takım başlar
+        _kickoff(teamAStarts: _scoreB > _scoreA); // gol yiyen devam eder
       }
       return;
     }
 
     if (_gkSaveAnim) {
-      _gkSaveTimer--;
-      if (_gkSaveTimer <= 0) _gkSaveAnim = false;
+      _gkSaveSec -= dt;
+      if (_gkSaveSec <= 0) _gkSaveAnim = false;
     }
 
-    _elapsedSec += _simDt;
+    _elapsedSec += dt;
     if (_elapsedSec >= _kMatchDurationSec) {
       _isMatchOver = true;
       return;
     }
 
-    if (_kickCooldown > 0) _kickCooldown--;
-    if (_runToBallTicks > 0) _runToBallTicks--;
+    if (_kickCooldownSec > 0) _kickCooldownSec -= dt;
+    if (_xDoubleTapSec > 0) _xDoubleTapSec -= dt;
+    if (_runToBallSec > 0) _runToBallSec -= dt;
 
-    // İnsan hareketi
     _updateHuman();
 
-    // Takım A yapay-zeka
     for (var p in _teamA) {
       if (p.isHuman) continue;
       _updateAiTeammate(p);
     }
 
-    // Takım B yapay-zeka
-    // En yakın B oyuncusunu dinamik insan markajcısı olarak seç
-    _humanMarker = null;
-    double _nearestBDist = double.infinity;
-    for (var p in _teamB) {
-      if (p.isGk || _ball.owner == p) continue;
-      final double d = sqrt(pow(p.x - _human.x, 2) + pow(p.y - _human.y, 2));
-      if (d < _nearestBDist) {
-        _nearestBDist = d;
-        _humanMarker = p;
-      }
-    }
+    _updateHumanMarker();
     for (var p in _teamB) {
       _updateAiOpponent(p);
     }
 
-    // Top fiziği
-    _updateBall();
-
-    // Top sahiplik kontrolü
     _checkPickup();
-
-    // Gol kontrolü
+    _updateBall();
     _checkGoal();
   }
 
@@ -332,137 +326,186 @@ class _NatBallGameViewState extends State<NatBallGameView>
     if (_keys.contains(LogicalKeyboardKey.arrowUp)) my -= 1;
     if (_keys.contains(LogicalKeyboardKey.arrowDown)) my += 1;
 
+    final double dtScale = (_dt * 60.0).clamp(0.0, 2.0);
+    // Exponential damping = truly FPS-independent
+    final double dampF = (pow(_kPlayerDamp, dtScale) as double).clamp(0.0, 1.0);
     if (mx != 0 || my != 0) {
       double len = sqrt(mx * mx + my * my);
       mx /= len;
       my /= len;
-      _human.vx += mx * _kPlayerAccel;
-      _human.vy += my * _kPlayerAccel;
-      _human.facingAngle = atan2(my, mx);
+      _human.vx += mx * _kPlayerAccel * dtScale;
+      _human.vy += my * _kPlayerAccel * dtScale;
+      // Bakış açısı hedefe yumuşak dönüş – 8 yön yerine sonsuz ara açıdan geçer
+      final double targetAngle = atan2(my, mx);
+      final double turnRate = (0.32 * dtScale).clamp(0.0, 1.0);
+      _human.facingAngle =
+          _lerpAngle(_human.facingAngle, targetAngle, turnRate);
+    } else {
+      // Tuş bırakıldıktan sonra momentum sırasında hız vektörüne hizalan
+      final double spd = sqrt(_human.vx * _human.vx + _human.vy * _human.vy);
+      if (spd > _kMaxSpeed * 0.18) {
+        final double velAngle = atan2(_human.vy, _human.vx);
+        final double coastTurn = (0.10 * dtScale).clamp(0.0, 1.0);
+        _human.facingAngle =
+            _lerpAngle(_human.facingAngle, velAngle, coastTurn);
+      }
+    }
+    _human.vx = (_human.vx * dampF).clamp(-_kMaxSpeed, _kMaxSpeed);
+    _human.vy = (_human.vy * dampF).clamp(-_kMaxSpeed, _kMaxSpeed);
+    _human.x =
+        (_human.x + _human.vx * dtScale).clamp(_kPlayerR, 1.0 - _kPlayerR);
+    _human.y =
+        (_human.y + _human.vy * dtScale).clamp(_kPlayerR, 1.0 - _kPlayerR);
+
+    bool xNow = _keys.contains(LogicalKeyboardKey.keyX);
+    bool shNow = _keys.contains(LogicalKeyboardKey.shiftLeft) ||
+        _keys.contains(LogicalKeyboardKey.shiftRight);
+    bool xFired = xNow && !_xWasHeld && _kickCooldownSec <= 0;
+    bool shFired = shNow && !_shiftWasHeld && _kickCooldownSec <= 0;
+    _xWasHeld = xNow;
+    _shiftWasHeld = shNow;
+
+    // ── Z tuşu: anında pas iste ───────────────────────────────────────────────
+    bool zNow = _keys.contains(LogicalKeyboardKey.keyZ);
+    bool zFired = zNow && !_zWasHeld;
+    _zWasHeld = zNow;
+    if (zFired) {
+      if (_ball.owner != _human) {
+        _humanWantsPass = true;
+        for (var p in _teamA) {
+          if (!p.isHuman && _ball.owner == p) {
+            p._aiPassSec = 0; // hemen pas at
+          }
+        }
+      }
     }
 
-    // Hız sınırlama + sönümleme
-    _human.vx = (_human.vx * _kPlayerDamp).clamp(-_kMaxSpeed, _kMaxSpeed);
-    _human.vy = (_human.vy * _kPlayerDamp).clamp(-_kMaxSpeed, _kMaxSpeed);
-
-    // Hareket
-    _human.x = (_human.x + _human.vx).clamp(_kPlayerR, 1.0 - _kPlayerR);
-    _human.y = (_human.y + _human.vy).clamp(_kPlayerR, 1.0 - _kPlayerR);
-
-    // Tuş durumu – tek basış tespiti (key-repeat'i engeller)
-    bool xNow = _keys.contains(LogicalKeyboardKey.keyX);
-    bool shiftNow = _keys.contains(LogicalKeyboardKey.shiftLeft) ||
-        _keys.contains(LogicalKeyboardKey.shiftRight);
-    bool xFired = xNow && !_xHeld && _kickCooldown == 0;
-    bool shiftFired = shiftNow && !_shiftHeld && _kickCooldown == 0;
-    if (_xDoubleTapWindow > 0) _xDoubleTapWindow--;
-    _xHeld = xNow;
-    _shiftHeld = shiftNow;
-
-    // ── Topa sahipse → taşı + vuruş ──────────────────────────────────────────
+    // ── İnsan topa sahip ─────────────────────────────────────────────────────
     if (_ball.owner == _human) {
+      // Top insanın önünde gezinir
       _ball.x =
           _human.x + cos(_human.facingAngle) * (_kPlayerR + _kBallR + 0.003);
       _ball.y =
           _human.y + sin(_human.facingAngle) * (_kPlayerR + _kBallR + 0.003);
 
       if (xFired) {
-        if (_xDoubleTapWindow > 0) {
-          _humanCornerTrick(); // Double-tap X → köşe triği
-          _xDoubleTapWindow = 0;
+        if (_xDoubleTapSec > 0) {
+          // Çift-X: duvara yakınsa roket şut, değilse köşe numarası
+          bool nearWall = _human.y < 0.12 ||
+              _human.y > 0.88 ||
+              _human.x < 0.12 ||
+              _human.x > 0.88;
+          if (nearWall) {
+            _humanWallRocket();
+          } else {
+            _humanCornerTrick();
+          }
+          _xDoubleTapSec = 0;
         } else {
           _humanShoot();
-          _xDoubleTapWindow = 18; // 18 tick içinde tekrar X → köşe triği
+          _xDoubleTapSec = 0.28;
         }
-        _kickCooldown = 26;
-      } else if (shiftFired) {
+        _kickCooldownSec = 0.40;
+      } else if (shFired) {
         _humanWallPass();
-        _kickCooldown = 26;
+        _kickCooldownSec = 0.40;
       }
     }
-    // ── Top serbest → yakınsa X/Shift ile vur ────────────────────────────────
+    // ── Top serbest → yakınsa vur ─────────────────────────────────────────────
     else if (_ball.owner == null) {
       double bd = sqrt(pow(_human.x - _ball.x, 2) + pow(_human.y - _ball.y, 2));
-      if (bd < _kNatBallPickupR * 2.4) {
+      if (bd < _kPickupR * 2.2) {
         if (xFired) {
-          if (_xDoubleTapWindow > 0) {
+          if (_xDoubleTapSec > 0) {
             _humanCornerTrick();
-            _xDoubleTapWindow = 0;
+            _xDoubleTapSec = 0;
           } else {
             _humanShootLoose();
-            _xDoubleTapWindow = 18;
+            _xDoubleTapSec = 0.30;
           }
-          _kickCooldown = 24;
-        } else if (shiftFired) {
+          _kickCooldownSec = 0.40;
+        } else if (shFired) {
           _humanWallPassLoose();
-          _kickCooldown = 24;
+          _kickCooldownSec = 0.40;
         }
       }
     }
-    // ── Takım arkadaşı topa sahipse → X/Shift ile hemen pas iste ─────────────
+    // ── Takım arkadaşı sahipse → pas iste ────────────────────────────────────
     else if (_ball.owner!.isTeamA && !_ball.owner!.isHuman) {
-      if (xFired || shiftFired) {
-        _ball.owner!._aiPassCountdown = 0;
-        _kickCooldown = 18;
+      if (xFired || shFired) {
+        _ball.owner!._aiPassSec = 0;
+        _kickCooldownSec = 0.28;
       }
     }
-    // ── Rakip topa sahipse → yakınsa X/Shift ile çal ─────────────────────────
+    // ── Rakip sahipse → çal ───────────────────────────────────────────────────
     else if (!_ball.owner!.isTeamA) {
-      if (xFired || shiftFired) {
+      if (xFired || shFired) {
         double d = sqrt(pow(_human.x - _ball.owner!.x, 2) +
             pow(_human.y - _ball.owner!.y, 2));
         if (d < _kStealRange) {
           _ball.owner = _human;
-          _kickCooldown = 32;
+          _kickCooldownSec = 0.53;
         }
       }
     }
   }
 
-  // ─── İNSAN ŞUT ─────────────────────────────────────────────────────────────
   void _humanShoot() {
     _ball.owner = null;
-
-    const double goalX = 1.0; // Rakip kale sağda
-    const double goalY = 0.5;
-
-    // İnsan kaledeki açıya mı bakıyor?
+    const double goalX = 1.0, goalY = 0.5;
     double toGoalAngle = atan2(goalY - _human.y, goalX - _human.x);
     double diff = (_normalizeAngle(_human.facingAngle - toGoalAngle)).abs();
-    bool isPowerShot = diff < (pi / 2.5); // 72 derece içinde güçlü şut
-
-    double power = isPowerShot ? _kShootPower * 1.65 : _kShootPower;
-
+    bool isPower = diff < (pi / 2.5);
+    double power = isPower ? _kShootPower * 1.65 : _kShootPower;
     double targetY = goalY + (_rng.nextDouble() - 0.5) * 0.18;
-    double dx = goalX - _human.x;
-    double dy = targetY - _human.y;
+    double dx = isPower ? goalX - _human.x : cos(_human.facingAngle);
+    double dy = isPower ? targetY - _human.y : sin(_human.facingAngle);
     double len = sqrt(dx * dx + dy * dy);
     if (len == 0) len = 0.001;
-
-    if (!isPowerShot) {
-      // Baktığı yöne doğru vur
-      dx = cos(_human.facingAngle);
-      dy = sin(_human.facingAngle);
-      len = 1.0;
-    }
-
     _ball.vx = (dx / len) * power;
     _ball.vy = (dy / len) * power;
     _ball.x = _human.x;
     _ball.y = _human.y;
   }
 
-  // ─── BOŞ TOP VURUŞU (top serbest, sahpsiz) ──────────────────────────────────
   void _humanShootLoose() {
     _ball.vx = cos(_human.facingAngle) * _kShootPower * 0.9;
     _ball.vy = sin(_human.facingAngle) * _kShootPower * 0.9;
   }
 
+  void _humanWallPass() {
+    _ball.owner = null;
+    double dTop = _human.y, dBot = 1.0 - _human.y;
+    double dLeft = _human.x, dRight = 1.0 - _human.x;
+    double minD = [dTop, dBot, dLeft, dRight].reduce(min);
+    double mirrorX, mirrorY;
+    if (minD == dTop) {
+      mirrorX = _human.x;
+      mirrorY = -_human.y;
+    } else if (minD == dBot) {
+      mirrorX = _human.x;
+      mirrorY = 2.0 - _human.y;
+    } else if (minD == dLeft) {
+      mirrorX = -_human.x;
+      mirrorY = _human.y;
+    } else {
+      mirrorX = 2.0 - _human.x;
+      mirrorY = _human.y;
+    }
+    double dx = mirrorX - _human.x;
+    double dy = mirrorY - _human.y;
+    double dist = sqrt(dx * dx + dy * dy);
+    if (dist == 0) dist = 0.001;
+    _ball.vx = (dx / dist) * _kPassPower * 3.8;
+    _ball.vy = (dy / dist) * _kPassPower * 3.8;
+    _ball.x = _human.x;
+    _ball.y = _human.y;
+    _runToBallSec = 1.2;
+  }
+
   void _humanWallPassLoose() {
-    double dTop = _ball.y;
-    double dBot = 1.0 - _ball.y;
-    double dLeft = _ball.x;
-    double dRight = 1.0 - _ball.x;
+    double dTop = _ball.y, dBot = 1.0 - _ball.y;
+    double dLeft = _ball.x, dRight = 1.0 - _ball.x;
     double minD = [dTop, dBot, dLeft, dRight].reduce(min);
     double mirrorX, mirrorY;
     if (minD == dTop) {
@@ -482,87 +525,60 @@ class _NatBallGameViewState extends State<NatBallGameView>
     double dy = mirrorY - _ball.y;
     double dist = sqrt(dx * dx + dy * dy);
     if (dist == 0) dist = 0.001;
-    _ball.vx = (dx / dist) * _kPassPower * 2.8;
-    _ball.vy = (dy / dist) * _kPassPower * 2.8;
-    _runToBallTicks = 60;
+    _ball.vx = (dx / dist) * _kPassPower * 3.8;
+    _ball.vy = (dy / dist) * _kPassPower * 3.8;
+    _runToBallSec = 1.2;
   }
 
-  // ─── KÖŞE TRİĞİ – Double-tap X ──────────────────────────────────────────────
-  // Top en yakın köşeye çapraz atılır; bounce=1.0 ile duvarlarda hiç enerji
-  // kaybetmeden yansır ve oyuncuya geri döner.
   void _humanCornerTrick() {
     _ball.owner = null;
-    const cs = [
+    const corners = [
       [0.01, 0.01],
       [0.99, 0.01],
       [0.01, 0.99],
       [0.99, 0.99]
     ];
-    double bestDist = double.infinity;
+    double bestD = double.infinity;
     double cx = 0.01, cy = 0.01;
-    for (var c in cs) {
+    for (var c in corners) {
       double d = sqrt(pow(_human.x - c[0], 2) + pow(_human.y - c[1], 2));
-      if (d < bestDist) {
-        bestDist = d;
+      if (d < bestD) {
+        bestD = d;
         cx = c[0];
         cy = c[1];
       }
     }
-    double dx = cx - _human.x;
-    double dy = cy - _human.y;
+    double dx = cx - _human.x, dy = cy - _human.y;
     double dist = sqrt(dx * dx + dy * dy);
     if (dist == 0) dist = 0.001;
-    _ball.vx = (dx / dist) * _kShootPower * 2.4;
-    _ball.vy = (dy / dist) * _kShootPower * 2.4;
+    // Köşeye güçlü şut – sekerken yeterli hız kalacak şekilde
+    _ball.vx = (dx / dist) * _kShootPower * 3.4;
+    _ball.vy = (dy / dist) * _kShootPower * 3.4;
     _ball.x = _human.x;
     _ball.y = _human.y;
+    _runToBallSec = 2.0; // oyuncu dönen topa koşsun
   }
 
-  // ─── İNSAN DUVAR PASI (Shift) ────────────────────────────────────────────────
-  // Top en yakın duvara gider, sekrep geri bana gelir (bilardo yansıması)
-  void _humanWallPass() {
+  // Duvara yakın çift-X → kaleye roket şut
+  void _humanWallRocket() {
     _ball.owner = null;
-
-    double dTop = _human.y;
-    double dBot = 1.0 - _human.y;
-    double dLeft = _human.x;
-    double dRight = 1.0 - _human.x;
-    double minD = [dTop, dBot, dLeft, dRight].reduce(min);
-
-    // Duvar üzerindeki ayna noktası: top buraya gidince yansıyıp bana gelir
-    double mirrorX, mirrorY;
-    if (minD == dTop) {
-      mirrorX = _human.x;
-      mirrorY = -_human.y; // y=0 üzerinde ayna
-    } else if (minD == dBot) {
-      mirrorX = _human.x;
-      mirrorY = 2.0 - _human.y; // y=1 üzerinde ayna
-    } else if (minD == dLeft) {
-      mirrorX = -_human.x; // x=0 üzerinde ayna
-      mirrorY = _human.y;
-    } else {
-      mirrorX = 2.0 - _human.x; // x=1 üzerinde ayna
-      mirrorY = _human.y;
-    }
-
-    double dx = mirrorX - _human.x;
-    double dy = mirrorY - _human.y;
-    double dist = sqrt(dx * dx + dy * dy);
-    if (dist == 0) dist = 0.001;
-
-    double power = _kPassPower * 2.8;
-    _ball.vx = (dx / dist) * power;
-    _ball.vy = (dy / dist) * power;
+    const double goalX = 1.0;
+    // Kale aralığında rastgele nokta hedef
+    double goalY = _kGoalY1 +
+        (_rng.nextDouble() * (_kGoalY2 - _kGoalY1) * 0.8) +
+        (_kGoalY2 - _kGoalY1) * 0.1;
+    double dx = goalX - _human.x;
+    double dy = goalY - _human.y;
+    double len = sqrt(dx * dx + dy * dy);
+    if (len == 0) len = 0.001;
+    _ball.vx = (dx / len) * _kShootPower * 2.7; // roket güç
+    _ball.vy = (dy / len) * _kShootPower * 2.7;
     _ball.x = _human.x;
     _ball.y = _human.y;
-
-    // Takım arkadaşları ~1 sn boyunca topa yaklaşsın
-    _runToBallTicks = 60;
   }
 
-  // ─── TAKIM A YAPAY-ZEKASI (takım arkadaşı) ─────────────────────────────────
+  // ─── TAKIM A YAPAY-ZEKASI ──────────────────────────────────────────────────
   void _updateAiTeammate(_NbPlayer p) {
-    // Kaleciyse → kalede kal
     if (p.isGk) {
       _updateTeamAGk(p);
       return;
@@ -571,90 +587,138 @@ class _NatBallGameViewState extends State<NatBallGameView>
     double tx, ty;
 
     if (_ball.owner == p) {
-      // Topa sahipse: her zaman insana pas at
+      // Rakip kaleye yakınsa doğrudan şut çek
+      if (p.x > 0.72) {
+        _aiTeamAShoot(p);
+        return;
+      }
       _doTeamPassToHuman(p);
       return;
     }
 
-    if (_runToBallTicks > 0) {
-      // İnsan pas attıktan sonra → topa koş
+    if (_runToBallSec > 0) {
       tx = _ball.x;
       ty = _ball.y;
     } else if (_ball.owner == null) {
-      // Top serbest → insan uzaksa yaklaş
       double humanDist =
           sqrt(pow(_human.x - _ball.x, 2) + pow(_human.y - _ball.y, 2));
-      if (humanDist > 0.22) {
+      if (humanDist > 0.20) {
         tx = _ball.x;
         ty = _ball.y;
       } else {
-        // Destek pozisyonu
         tx = p.homeX * 0.6 + _ball.x * 0.4;
         ty = p.homeY * 0.6 + _ball.y * 0.4;
       }
     } else if (_ball.owner!.isTeamA) {
-      // Takım arkadaşı topa sahip → destek pozisyonu
-      tx = (_ball.x + p.homeX + 0.05) / 2;
-      ty = p.homeY + (_rng.nextDouble() - 0.5) * 0.08;
+      // İleri pozisyon al – paslık yarat
+      double forwardX =
+          (_ball.x + 0.12 + (p.homeX - 0.5) * 0.18).clamp(0.10, 0.90);
+      tx = forwardX;
+      ty = p.homeY;
     } else {
-      // Rakip topa sahip → savunma
       tx = p.homeX * 0.85;
       ty = p.homeY;
     }
-
     _aiMoveTo(p, tx, ty, _kAiAccel);
   }
 
-  // Takım A kalecisi
   void _updateTeamAGk(_NbPlayer gk) {
     double tx = gk.homeX;
     double ty = _ball.y.clamp(gk.homeY - _kGkRange, gk.homeY + _kGkRange);
     _aiMoveTo(gk, tx, ty, _kAiAccel * 1.1);
-
-    // Top yakın ve sahip olmayan: toplu al
     if (_ball.owner == null) {
       double d = sqrt(pow(gk.x - _ball.x, 2) + pow(gk.y - _ball.y, 2));
-      if (d < _kNatBallPickupR * 1.5) {
-        _ball.owner = gk; // kurtarış
+      if (d < _kPickupR * 1.5) {
+        _ball.owner = gk;
         _gkSaveAnim = true;
-        _gkSaveTimer = 40;
+        _gkSaveSec = 0.67;
       }
     }
-
-    // Kurtarıştaysa → topa pas at insana
-    if (_ball.owner == gk && _rng.nextInt(100) < 8) {
+    if (_ball.owner == gk && _rng.nextDouble() < 0.08 * _dt * 60) {
       _doTeamPassToHuman(gk);
     }
   }
 
-  // Takım A – topa sahip yapay-zeka insana pas at
   void _doTeamPassToHuman(_NbPlayer passer) {
-    passer._aiPassCountdown--;
-    if (passer._aiPassCountdown > 0) {
-      // Bekle, insana doğru yavaşça ilerle
-      _aiMoveTo(passer, _human.x * 0.4 + passer.homeX * 0.6, passer.homeY,
-          _kAiAccel * 0.5);
+    passer._aiPassSec -= _dt;
+    if (passer._aiPassSec > 0 && !_humanWantsPass) {
+      // Topa sahipken ileri doğru süre
+      double tx = (passer.x + 0.07).clamp(0.05, 0.90);
+      _aiMoveTo(passer, tx, passer.homeY + (_rng.nextDouble() - 0.5) * 0.04,
+          _kAiAccel * 0.55);
       return;
     }
-    // Sayaç sıfırsa pas at
-    passer._aiPassCountdown =
-        18 + _rng.nextInt(20); // 18-37 tick bekle sonra tekrar
 
+    // Pas zamanı – kime atacağına karar ver
+    passer._aiPassSec = 0.17 + _rng.nextDouble() * 0.30;
+
+    // İnsan pas istiyorsa veya yakınsa → ona at
+    double distToHuman =
+        sqrt(pow(_human.x - passer.x, 2) + pow(_human.y - passer.y, 2));
+    bool passToHuman =
+        _humanWantsPass || distToHuman < 0.28 || _rng.nextInt(100) < 55;
+
+    if (passToHuman) {
+      _humanWantsPass = false;
+      _passBallTo(passer, _human);
+      return;
+    }
+
+    // En iyi konumdaki takım arkadaşını bul (ileri + açık)
+    _NbPlayer? best;
+    double bestScore = double.infinity;
+    for (var t in _teamA) {
+      if (t == passer || t.isGk || t.isHuman) continue;
+      double d = sqrt(pow(t.x - passer.x, 2) + pow(t.y - passer.y, 2));
+      if (d < 0.08) continue; // çok yakın, gerek yok
+      double score = d - t.x * 0.6; // ileri oyuncular tercihli
+      if (score < bestScore) {
+        bestScore = score;
+        best = t;
+      }
+    }
+
+    if (best != null) {
+      _passBallTo(passer, best);
+    } else {
+      _humanWantsPass = false;
+      _passBallTo(passer, _human);
+    }
+  }
+
+  void _passBallTo(_NbPlayer passer, _NbPlayer target) {
     _ball.owner = null;
-    double dx = _human.x - passer.x + (_rng.nextDouble() - 0.5) * 0.07;
-    double dy = _human.y - passer.y + (_rng.nextDouble() - 0.5) * 0.07;
-    double dist = sqrt(dx * dx + dy * dy);
-    if (dist == 0) dist = 0.001;
+    double dist =
+        sqrt(pow(target.x - passer.x, 2) + pow(target.y - passer.y, 2));
     double power =
-        (_kPassPower + dist * 0.55).clamp(_kPassPower, _kPassPower * 2.2);
-
-    _ball.vx = (dx / dist) * power;
-    _ball.vy = (dy / dist) * power;
+        (_kPassPower + dist * 0.45).clamp(_kPassPower, _kPassPower * 2.4);
+    // Öncül pas: top geldikten sonra hedefin olacağı yeri hesapla
+    double flightFactor = dist / power; // ≈ kare sayısı
+    double predictX = (target.x + target.vx * flightFactor).clamp(0.05, 0.95);
+    double predictY = (target.y + target.vy * flightFactor).clamp(0.05, 0.95);
+    double dx = predictX - passer.x + (_rng.nextDouble() - 0.5) * 0.035;
+    double dy = predictY - passer.y + (_rng.nextDouble() - 0.5) * 0.035;
+    double d = sqrt(dx * dx + dy * dy);
+    if (d == 0) d = 0.001;
+    _ball.vx = (dx / d) * power;
+    _ball.vy = (dy / d) * power;
     _ball.x = passer.x;
     _ball.y = passer.y;
   }
 
-  // ─── TAKIM B YAPAY-ZEKASI (rakip) ──────────────────────────────────────────
+  void _aiTeamAShoot(_NbPlayer p) {
+    _ball.owner = null;
+    double dx = 1.0 - p.x + (_rng.nextDouble() - 0.5) * 0.12;
+    double dy = 0.5 - p.y + (_rng.nextDouble() - 0.5) * 0.14;
+    double len = sqrt(dx * dx + dy * dy);
+    if (len == 0) len = 0.001;
+    _ball.vx = (dx / len) * _kShootPower * 1.45;
+    _ball.vy = (dy / len) * _kShootPower * 1.45;
+    _ball.x = p.x;
+    _ball.y = p.y;
+  }
+
+  // ─── TAKIM B YAPAY-ZEKASI ──────────────────────────────────────────────────
   void _updateAiOpponent(_NbPlayer p) {
     if (p.isGk) {
       _updateTeamBGk(p);
@@ -663,16 +727,15 @@ class _NatBallGameViewState extends State<NatBallGameView>
 
     double tx, ty;
 
-    // ── Topa sahipse → saldır ─────────────────────────────────────────────────
     if (_ball.owner == p) {
       bool canShoot = p.x < 0.30;
-      p._aiPassCountdown--;
-      if (canShoot && p._aiPassCountdown <= 0) {
+      p._aiPassSec -= _dt;
+      if (canShoot && p._aiPassSec <= 0) {
         _aiShoot(p);
-        p._aiPassCountdown = 28 + _rng.nextInt(22);
-      } else if (!canShoot && p._aiPassCountdown <= 0) {
+        p._aiPassSec = 0.47 + _rng.nextDouble() * 0.37;
+      } else if (!canShoot && p._aiPassSec <= 0) {
         _aiTeamBPass(p);
-        p._aiPassCountdown = 20 + _rng.nextInt(18);
+        p._aiPassSec = 0.33 + _rng.nextDouble() * 0.30;
       } else {
         tx = 0.10 + _rng.nextDouble() * 0.04;
         ty = 0.38 + _rng.nextDouble() * 0.24;
@@ -681,63 +744,49 @@ class _NatBallGameViewState extends State<NatBallGameView>
       return;
     }
 
-    // ── En yakın B oyuncusu: insanı uzaktan açı kapatır ──────────────────────
     if (p == _humanMarker) {
-      // İnsan ile B kalesi (x≈0) arasında, 0.12 mesafede dur → pasını kes
       const double gx = 0.03, gy = 0.50;
-      double ddx = gx - _human.x;
-      double ddy = gy - _human.y;
+      double ddx = gx - _human.x, ddy = gy - _human.y;
       double ddist = sqrt(ddx * ddx + ddy * ddy);
       if (ddist < 0.001) ddist = 0.001;
-      const double coverDist = 0.12;
-      tx = _human.x + (ddx / ddist) * coverDist;
-      ty = _human.y + (ddy / ddist) * coverDist;
+      tx = _human.x + (ddx / ddist) * 0.12;
+      ty = _human.y + (ddy / ddist) * 0.12;
       _aiMoveTo(p, tx, ty, _kAiAccel * 1.05);
       return;
     }
 
-    // ── Diğerleri: adam adama markaj – karşılıklı A oyuncusunu takip et ──────
     final int bIdx = _teamB.indexOf(p);
     if (bIdx > 0 && bIdx < _teamA.length) {
-      final _NbPlayer markA = _teamA[bIdx];
-      // A oyuncusunun B kalesine bakan tarafında biraz önünde dur
-      tx = markA.x - 0.06;
-      ty = markA.y;
+      tx = _teamA[bIdx].x - 0.06;
+      ty = _teamA[bIdx].y;
       _aiMoveTo(p, tx, ty, _kAiAccel * 0.95);
       return;
     }
 
-    // ── Fallback: ev pozisyonu ────────────────────────────────────────────────
-    tx = p.homeX + 0.04;
-    ty = p.homeY;
-    _aiMoveTo(p, tx, ty, _kAiAccel);
+    _aiMoveTo(p, p.homeX + 0.04, p.homeY, _kAiAccel);
   }
 
   void _updateTeamBGk(_NbPlayer gk) {
     double tx = gk.homeX;
     double ty = _ball.y.clamp(gk.homeY - _kGkRange, gk.homeY + _kGkRange);
     _aiMoveTo(gk, tx, ty, _kAiAccel * 1.05);
-
     if (_ball.owner == null) {
       double d = sqrt(pow(gk.x - _ball.x, 2) + pow(gk.y - _ball.y, 2));
-      if (d < _kNatBallPickupR * 1.4) {
+      if (d < _kPickupR * 1.4) {
         _ball.owner = gk;
         _gkSaveAnim = true;
-        _gkSaveTimer = 40;
+        _gkSaveSec = 0.67;
       }
     }
-
-    if (_ball.owner == gk && _rng.nextInt(100) < 7) {
+    if (_ball.owner == gk && _rng.nextDouble() < 0.07 * _dt * 60) {
       _aiClearBall(gk);
     }
   }
 
   void _aiShoot(_NbPlayer p) {
     _ball.owner = null;
-    double goalX = 0.0;
-    double goalY = 0.5;
-    double dx = goalX - p.x + (_rng.nextDouble() - 0.5) * 0.14;
-    double dy = goalY - p.y + (_rng.nextDouble() - 0.5) * 0.14;
+    double dx = 0.0 - p.x + (_rng.nextDouble() - 0.5) * 0.14;
+    double dy = 0.5 - p.y + (_rng.nextDouble() - 0.5) * 0.14;
     double len = sqrt(dx * dx + dy * dy);
     if (len == 0) len = 0.001;
     _ball.vx = (dx / len) * _kShootPower * 1.25;
@@ -746,26 +795,13 @@ class _NatBallGameViewState extends State<NatBallGameView>
     _ball.y = p.y;
   }
 
-  void _aiClearBall(_NbPlayer gk) {
-    // Rakipten uzağa uzun pas at
-    _ball.owner = null;
-    _ball.vx = _kPassPower * 1.5 * (gk.isTeamA ? 1 : -1);
-    _ball.vy = (_rng.nextDouble() - 0.5) * _kPassPower;
-    _ball.x = gk.x;
-    _ball.y = gk.y;
-  }
-
-  // ─── TAKIM B İÇ PASI ──────────────────────────────────────────────────────────
-  // Takım B oyuncusu topa sahipken en önde duran takım arkadaşına pas atar
   void _aiTeamBPass(_NbPlayer passer) {
     _NbPlayer? target;
     double bestScore = double.infinity;
     for (var t in _teamB) {
       if (t == passer || t.isGk) continue;
       double dist = sqrt(pow(t.x - passer.x, 2) + pow(t.y - passer.y, 2));
-      // Küçük x = daha önde (B için sol yön = gol yönü)
-      double xBonus = t.x * 0.35;
-      double score = dist + xBonus;
+      double score = dist + t.x * 0.35;
       if (score < bestScore) {
         bestScore = score;
         target = t;
@@ -788,95 +824,55 @@ class _NatBallGameViewState extends State<NatBallGameView>
     _ball.y = passer.y;
   }
 
-  bool _isNearestToBall(List<_NbPlayer> team, _NbPlayer p) {
-    double myDist = sqrt(pow(p.x - _ball.x, 2) + pow(p.y - _ball.y, 2));
-    for (var q in team) {
-      if (q == p) continue;
-      double d = sqrt(pow(q.x - _ball.x, 2) + pow(q.y - _ball.y, 2));
-      if (d < myDist) return false;
+  void _aiClearBall(_NbPlayer gk) {
+    _ball.owner = null;
+    _ball.vx = _kPassPower * 1.5 * (gk.isTeamA ? 1 : -1);
+    _ball.vy = (_rng.nextDouble() - 0.5) * _kPassPower;
+    _ball.x = gk.x;
+    _ball.y = gk.y;
+  }
+
+  // ─── YARDIMCILAR ────────────────────────────────────────────────────────────
+  void _updateHumanMarker() {
+    _humanMarker = null;
+    double nearestD = double.infinity;
+    for (var p in _teamB) {
+      if (p.isGk) continue;
+      double d = sqrt(pow(p.x - _human.x, 2) + pow(p.y - _human.y, 2));
+      if (d < nearestD) {
+        nearestD = d;
+        _humanMarker = p;
+      }
     }
-    return true;
   }
 
   void _aiMoveTo(_NbPlayer p, double tx, double ty, double accel) {
-    double dx = tx - p.x;
-    double dy = ty - p.y;
+    final double dtScale = (_dt * 60.0).clamp(0.0, 2.0);
+    // Exponential damping = truly FPS-independent
+    final double dampF = (pow(_kPlayerDamp, dtScale) as double).clamp(0.0, 1.0);
+    double dx = tx - p.x, dy = ty - p.y;
     double dist = sqrt(dx * dx + dy * dy);
     if (dist < 0.005) {
-      p.vx *= _kPlayerDamp;
-      p.vy *= _kPlayerDamp;
+      p.vx *= dampF;
+      p.vy *= dampF;
     } else {
-      p.vx += (dx / dist) * accel;
-      p.vy += (dy / dist) * accel;
+      p.vx += (dx / dist) * accel * dtScale;
+      p.vy += (dy / dist) * accel * dtScale;
       p.facingAngle = atan2(dy, dx);
     }
-    p.vx = (p.vx * _kPlayerDamp).clamp(-_kMaxSpeed, _kMaxSpeed);
-    p.vy = (p.vy * _kPlayerDamp).clamp(-_kMaxSpeed, _kMaxSpeed);
-    p.x = (p.x + p.vx).clamp(_kPlayerR, 1.0 - _kPlayerR);
-    p.y = (p.y + p.vy).clamp(_kPlayerR, 1.0 - _kPlayerR);
-  }
-
-  // ─── TOP FİZİĞİ ─────────────────────────────────────────────────────────────
-  void _updateBall() {
-    if (_ball.owner != null) return; // Sahip taşıyor, ayrıca güncellenmiyor
-
-    _ball.x += _ball.vx;
-    _ball.y += _ball.vy;
-    _ball.vx *= _kBallFric;
-    _ball.vy *= _kBallFric;
-
-    // Üst/Alt duvar sekmesi
-    if (_ball.y < _kBallR) {
-      _ball.y = _kBallR;
-      _ball.vy = -_ball.vy * _kBallBounce;
-    }
-    if (_ball.y > 1.0 - _kBallR) {
-      _ball.y = 1.0 - _kBallR;
-      _ball.vy = -_ball.vy * _kBallBounce;
-    }
-
-    // Sol duvar (kale alanı hariç)
-    if (_ball.x < _kBallR) {
-      bool inGoal = _ball.y >= _kGoalY1 && _ball.y <= _kGoalY2;
-      if (!inGoal) {
-        _ball.x = _kBallR;
-        _ball.vx = -_ball.vx * _kBallBounce;
-      }
-    }
-    // Sağ duvar (kale alanı hariç)
-    if (_ball.x > 1.0 - _kBallR) {
-      bool inGoal = _ball.y >= _kGoalY1 && _ball.y <= _kGoalY2;
-      if (!inGoal) {
-        _ball.x = 1.0 - _kBallR;
-        _ball.vx = -_ball.vx * _kBallBounce;
-      }
-    }
-
-    // Oyuncu → topa itme (sahip olmayan oyuncularda)
-    for (var p in [..._teamA, ..._teamB]) {
-      double dx = _ball.x - p.x;
-      double dy = _ball.y - p.y;
-      double dist = sqrt(dx * dx + dy * dy);
-      double minD = _kBallR + _kPlayerR;
-      if (dist < minD && dist > 0.001) {
-        double nx = dx / dist;
-        double ny = dy / dist;
-        double spd = sqrt(_ball.vx * _ball.vx + _ball.vy * _ball.vy);
-        spd = max(spd, 0.007);
-        _ball.vx = nx * spd * 1.3;
-        _ball.vy = ny * spd * 1.3;
-        _ball.x = p.x + nx * (minD + 0.002);
-        _ball.y = p.y + ny * (minD + 0.002);
-      }
-    }
+    p.vx = (p.vx * dampF).clamp(-_kMaxSpeed, _kMaxSpeed);
+    p.vy = (p.vy * dampF).clamp(-_kMaxSpeed, _kMaxSpeed);
+    p.x = (p.x + p.vx * dtScale).clamp(_kPlayerR, 1.0 - _kPlayerR);
+    p.y = (p.y + p.vy * dtScale).clamp(_kPlayerR, 1.0 - _kPlayerR);
   }
 
   // ─── SAHİPLİK KONTROLÜ ──────────────────────────────────────────────────────
   void _checkPickup() {
     if (_ball.owner != null) return;
     double ballSpd = sqrt(_ball.vx * _ball.vx + _ball.vy * _ball.vy);
-    if (ballSpd > 0.032) return; // Top çok hızlıyken sahiplik olmaz
-
+    // Köşe numarası veya duvar pası sonrası dönen topa koşarken daha yüksek hızda yakala
+    double speedLimit = _runToBallSec > 0 ? 0.050 : 0.012;
+    if (ballSpd > speedLimit) return;
     _NbPlayer? closest;
     double closestDist = double.infinity;
     for (var p in [..._teamA, ..._teamB]) {
@@ -886,25 +882,56 @@ class _NatBallGameViewState extends State<NatBallGameView>
         closest = p;
       }
     }
-    if (closest != null && closestDist < _kNatBallPickupR) {
+    if (closest != null && closestDist < _kPickupR) {
       _ball.owner = closest;
-      // Topa yeni sahip olan yapay zeka için pas sayacını tazele
       if (!closest.isHuman) {
-        closest._aiPassCountdown = 8 + _rng.nextInt(14);
+        closest._aiPassSec = 0.10 + _rng.nextDouble() * 0.23;
+      }
+    }
+  }
+
+  // ─── TOP FİZİĞİ ─────────────────────────────────────────────────────────────
+  void _updateBall() {
+    if (_ball.owner != null) return; // sahip taşıyor
+
+    final double dtScale = (_dt * 60.0).clamp(0.0, 2.0);
+    // Exponential friction = truly FPS-independent
+    final double fricF = (pow(_kBallFric, dtScale) as double).clamp(0.0, 1.0);
+    _ball.x += _ball.vx * dtScale;
+    _ball.y += _ball.vy * dtScale;
+    _ball.vx *= fricF;
+    _ball.vy *= fricF;
+
+    if (_ball.y < _kBallR) {
+      _ball.y = _kBallR;
+      _ball.vy = _ball.vy.abs() * _kBallBounce;
+    } else if (_ball.y > 1.0 - _kBallR) {
+      _ball.y = 1.0 - _kBallR;
+      _ball.vy = -_ball.vy.abs() * _kBallBounce;
+    }
+    if (_ball.x < _kBallR) {
+      if (!(_ball.y >= _kGoalY1 && _ball.y <= _kGoalY2)) {
+        _ball.x = _kBallR;
+        _ball.vx = _ball.vx.abs() * _kBallBounce;
+      }
+    }
+    if (_ball.x > 1.0 - _kBallR) {
+      if (!(_ball.y >= _kGoalY1 && _ball.y <= _kGoalY2)) {
+        _ball.x = 1.0 - _kBallR;
+        _ball.vx = -_ball.vx.abs() * _kBallBounce;
       }
     }
   }
 
   // ─── GOL KONTROLÜ ───────────────────────────────────────────────────────────
   void _checkGoal() {
-    // Sağ kale: Takım A gol atar (x > 1, y ∈ [_kGoalY1, _kGoalY2])
+    if (_ball.owner != null) return; // sahipte top kale üzerinden geçemez
     if (_ball.x > 1.0 && _ball.y >= _kGoalY1 && _ball.y <= _kGoalY2) {
       _scoreA++;
-      _goalText = '⚽ GOL! Sen attın!';
+      _goalText = '⚽ GOL! Sen Attın!';
       _triggerGoal();
       return;
     }
-    // Sol kale: Takım B gol atar
     if (_ball.x < 0.0 && _ball.y >= _kGoalY1 && _ball.y <= _kGoalY2) {
       _scoreB++;
       _goalText = '😔 Gol Yedik!';
@@ -914,17 +941,25 @@ class _NatBallGameViewState extends State<NatBallGameView>
 
   void _triggerGoal() {
     _isGoal = true;
-    _goalPauseTicks = 130; // ~2.2 saniye
+    _goalPauseSec = 2.2;
     _ball.owner = null;
     _ball.vx = 0;
     _ball.vy = 0;
+    _ball.x = 0.5;
+    _ball.y = 0.5;
   }
 
-  // ─── YARDIMCI ───────────────────────────────────────────────────────────────
   double _normalizeAngle(double a) {
     while (a > pi) a -= 2 * pi;
     while (a < -pi) a += 2 * pi;
     return a;
+  }
+
+  /// Açıyı (radyan) t oranlı lerp ile hedef açıya döndürür.
+  /// Kısa yolu seçer (–π … π arası döner).
+  double _lerpAngle(double from, double to, double t) {
+    final double diff = _normalizeAngle(to - from);
+    return from + diff * t;
   }
 
   // ─── BUILD ──────────────────────────────────────────────────────────────────
@@ -939,6 +974,28 @@ class _NatBallGameViewState extends State<NatBallGameView>
         } else if (event is KeyUpEvent) {
           _keys.remove(event.logicalKey);
         }
+        // F11 → tam ekran aç/kapat
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.f11) {
+          _isFullscreen = !_isFullscreen;
+          windowManager.setFullScreen(_isFullscreen);
+        }
+        // " tuşu → chat aç/kapat
+        if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.quoteSingle ||
+            event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.quote) {
+          setState(() {
+            _isChatOpen = !_isChatOpen;
+            if (_isChatOpen) {
+              _chatInputCtrl.clear();
+              WidgetsBinding.instance
+                  .addPostFrameCallback((_) => _chatFocusNode.requestFocus());
+            } else {
+              _focusNode.requestFocus();
+            }
+          });
+        }
       },
       child: Scaffold(
         backgroundColor: Colors.black,
@@ -947,16 +1004,30 @@ class _NatBallGameViewState extends State<NatBallGameView>
           child: Stack(children: [
             // Saha
             Positioned.fill(child: _buildArena()),
-            // HUD (skor / süre)
-            _buildHUD(),
-            // Kontrol ipucu
-            _buildControlsHint(),
+            // Tam ekran modunda sadece saha göster
+            if (!_isFullscreen) ...[
+              // HUD (skor / süre)
+              _buildHUD(),
+              // Kontrol ipucu
+              _buildControlsHint(),
+              // FPS sayacı
+              Positioned(
+                bottom: 10,
+                right: 16,
+                child: Text(
+                  'FPS: ${_fps.toStringAsFixed(0)}',
+                  style: const TextStyle(color: Colors.white30, fontSize: 9),
+                ),
+              ),
+            ],
             // Gol animasyonu
             if (_isGoal) _buildGoalOverlay(),
             // Maç sonu
             if (_isMatchOver) _buildMatchOverScreen(),
             // GK kurtarış
-            if (_gkSaveAnim) _buildGkSaveLabel(),
+            if (!_isFullscreen && _gkSaveAnim) _buildGkSaveLabel(),
+            // Chat
+            if (!_showNicknameInput) _buildChatOverlay(),
             // Nickname giriş ekranı
             if (_showNicknameInput) _buildNicknameOverlay(),
           ]),
@@ -966,88 +1037,237 @@ class _NatBallGameViewState extends State<NatBallGameView>
   }
 
   Widget _buildNicknameOverlay() {
+    // Takım isimleri (nickname girilmeden önce mevcut isimler)
+    final teamANames =
+        _teamA.where((p) => !p.isHuman).map((p) => p.name).toList();
+    final teamBNames = _teamB.map((p) => p.name).toList();
+
     return Positioned.fill(
       child: Container(
-        color: Colors.black.withOpacity(0.82),
+        color: Colors.black.withOpacity(0.88),
         child: Center(
-          child: Container(
-            width: 340,
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0D1B2A),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                  color: Colors.greenAccent.withOpacity(0.6), width: 1.6),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.greenAccent.withOpacity(0.18),
-                    blurRadius: 24,
-                    spreadRadius: 2),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('NATBALL',
-                    style: GoogleFonts.orbitron(
-                        color: Colors.greenAccent,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 3)),
-                const SizedBox(height: 8),
-                Text('Nicknameni gir',
-                    style: GoogleFonts.orbitron(
-                        color: Colors.white54, fontSize: 11, letterSpacing: 1)),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _nickCtrl,
-                  autofocus: true,
-                  maxLength: 16,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.orbitron(
-                      color: Colors.white, fontSize: 14, letterSpacing: 1.5),
-                  decoration: InputDecoration(
-                    counterText: '',
-                    hintText: 'OYUNCU',
-                    hintStyle: GoogleFonts.orbitron(
-                        color: Colors.white24, fontSize: 13),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.07),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                          color: Colors.greenAccent.withOpacity(0.7),
-                          width: 1.4),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
+          child: SingleChildScrollView(
+            child: Container(
+              width: 520,
+              padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0A1628),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                    color: Colors.greenAccent.withOpacity(0.65), width: 2),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.greenAccent.withOpacity(0.22),
+                      blurRadius: 40,
+                      spreadRadius: 4),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Başlık
+                  Text('NATBALL',
+                      style: GoogleFonts.orbitron(
+                          color: Colors.greenAccent,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 5)),
+                  const SizedBox(height: 6),
+                  Text('7 vs 7 – Tam Sahada',
+                      style: GoogleFonts.orbitron(
+                          color: Colors.white38,
+                          fontSize: 11,
+                          letterSpacing: 2)),
+                  const Divider(
+                      color: Colors.white12, height: 32, thickness: 1),
+
+                  // Takım önizlemesi
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Takım A
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                      color: Colors.lightBlueAccent,
+                                      shape: BoxShape.circle)),
+                              const SizedBox(width: 6),
+                              Text('Takımın',
+                                  style: GoogleFonts.orbitron(
+                                      color: Colors.lightBlueAccent,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold)),
+                            ]),
+                            const SizedBox(height: 8),
+                            // Oyuncunun kendisi
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              margin: const EdgeInsets.only(bottom: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.greenAccent.withOpacity(0.12),
+                                border: Border.all(
+                                    color: Colors.greenAccent.withOpacity(0.5)),
+                                borderRadius: BorderRadius.circular(7),
+                              ),
+                              child: Row(children: [
+                                const Icon(Icons.person,
+                                    color: Colors.greenAccent, size: 13),
+                                const SizedBox(width: 5),
+                                Text('SEN',
+                                    style: GoogleFonts.orbitron(
+                                        color: Colors.greenAccent,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold)),
+                              ]),
+                            ),
+                            ...teamANames.map((n) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 5),
+                                  margin: const EdgeInsets.only(bottom: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.lightBlueAccent
+                                        .withOpacity(0.07),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(n,
+                                      style: GoogleFonts.orbitron(
+                                          color: Colors.lightBlueAccent
+                                              .withOpacity(0.8),
+                                          fontSize: 10)),
+                                )),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // VS ayraç
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text('VS',
+                            style: GoogleFonts.orbitron(
+                                color: Colors.white24,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 16),
+                      // Takım B
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Text('Rakip',
+                                      style: GoogleFonts.orbitron(
+                                          color: Colors.redAccent,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold)),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                          color: Colors.redAccent,
+                                          shape: BoxShape.circle)),
+                                ]),
+                            const SizedBox(height: 8),
+                            ...teamBNames.map((n) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 5),
+                                  margin: const EdgeInsets.only(bottom: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.redAccent.withOpacity(0.07),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(n,
+                                      textAlign: TextAlign.right,
+                                      style: GoogleFonts.orbitron(
+                                          color:
+                                              Colors.redAccent.withOpacity(0.8),
+                                          fontSize: 10)),
+                                )),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  onSubmitted: (_) => _confirmNickname(),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _confirmNickname,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.greenAccent,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+
+                  const Divider(
+                      color: Colors.white12, height: 32, thickness: 1),
+
+                  // Nickname giriş
+                  Text('NİCKNAMENİ GİR',
+                      style: GoogleFonts.orbitron(
+                          color: Colors.white60,
+                          fontSize: 13,
+                          letterSpacing: 2)),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _nickCtrl,
+                    autofocus: true,
+                    maxLength: 16,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.orbitron(
+                        color: Colors.white,
+                        fontSize: 20,
+                        letterSpacing: 2,
+                        fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      counterText: '',
+                      hintText: 'OYUNCU',
+                      hintStyle: GoogleFonts.orbitron(
+                          color: Colors.white24, fontSize: 18),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.06),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                            color: Colors.greenAccent.withOpacity(0.8),
+                            width: 2),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 18),
                     ),
-                    child: Text('OYNA',
-                        style: GoogleFonts.orbitron(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            letterSpacing: 2)),
+                    onSubmitted: (_) => _confirmNickname(),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _confirmNickname,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.greenAccent,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text('OYNA',
+                          style: GoogleFonts.orbitron(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              letterSpacing: 3)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text('F11 → Tam Ekran',
+                      style: GoogleFonts.orbitron(
+                          color: Colors.white24,
+                          fontSize: 9,
+                          letterSpacing: 1)),
+                ],
+              ),
             ),
           ),
         ),
@@ -1166,9 +1386,155 @@ class _NatBallGameViewState extends State<NatBallGameView>
           border: Border.all(color: Colors.white10),
         ),
         child: const Text(
-          '← → ↑ ↓ Hareket  |  X Şut  |  Shift Duvar Pas  |  X/Shift (rakip yakın) Top Çal',
+          '← → ↑ ↓ Hareket  |  X Şut  |  Çift-X Duvarda: Roket Şut  |  Shift Duvar Pas  |  X/Shift Çal  |  Z Pas İste  |  " Chat',
           style: TextStyle(color: Colors.white38, fontSize: 10),
         ),
+      ),
+    );
+  }
+
+  // ─── CHAT ─────────────────────────────────────────────────────────────────
+  void _sendChatMessage() {
+    final text = _chatInputCtrl.text.trim();
+    if (text.isEmpty) return;
+    setState(() {
+      _chatMessages.add(_ChatMessage(_human.name, text));
+      _chatInputCtrl.clear();
+      // Kaydır
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_chatScrollCtrl.hasClients) {
+          _chatScrollCtrl.animateTo(
+            _chatScrollCtrl.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    });
+  }
+
+  Widget _buildChatOverlay() {
+    return Positioned(
+      bottom: 36,
+      left: 16,
+      width: 360,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Mesaj listesi (son 8 mesaj)
+          if (_chatMessages.isNotEmpty)
+            Container(
+              constraints: const BoxConstraints(maxHeight: 180),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.62),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(10),
+                  topRight: Radius.circular(10),
+                  bottomRight: Radius.circular(10),
+                ),
+              ),
+              child: ListView.builder(
+                controller: _chatScrollCtrl,
+                shrinkWrap: true,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                itemCount: _chatMessages.length,
+                itemBuilder: (_, i) {
+                  final msg = _chatMessages[i];
+                  if (msg.isSystem) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Text(msg.text,
+                          style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 10,
+                              fontStyle: FontStyle.italic)),
+                    );
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: RichText(
+                      text: TextSpan(children: [
+                        TextSpan(
+                          text: '${msg.sender}: ',
+                          style: GoogleFonts.orbitron(
+                              color: Colors.greenAccent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(
+                          text: msg.text,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 11),
+                        ),
+                      ]),
+                    ),
+                  );
+                },
+              ),
+            ),
+          // Giriş alanı (sadece chat açıkken görünür)
+          if (_isChatOpen)
+            Container(
+              margin: const EdgeInsets.only(top: 2),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: Colors.greenAccent.withOpacity(0.6), width: 1.4),
+              ),
+              child: Row(
+                children: [
+                  // Prefix: nickname:
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      '${_human.name}: ',
+                      style: GoogleFonts.orbitron(
+                          color: Colors.greenAccent,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  // Metin girişi
+                  Expanded(
+                    child: KeyboardListener(
+                      focusNode: FocusNode(),
+                      onKeyEvent: (e) {
+                        if (e is KeyDownEvent &&
+                            e.logicalKey == LogicalKeyboardKey.enter) {
+                          _sendChatMessage();
+                        }
+                        if (e is KeyDownEvent &&
+                            (e.logicalKey == LogicalKeyboardKey.quoteSingle ||
+                                e.logicalKey == LogicalKeyboardKey.quote)) {
+                          setState(() {
+                            _isChatOpen = false;
+                            _focusNode.requestFocus();
+                          });
+                        }
+                      },
+                      child: TextField(
+                        controller: _chatInputCtrl,
+                        focusNode: _chatFocusNode,
+                        maxLength: 80,
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 11),
+                        decoration: const InputDecoration(
+                          counterText: '',
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onSubmitted: (_) => _sendChatMessage(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1396,9 +1762,19 @@ class _NatBallPainter extends CustomPainter {
     final pos = _s(p.x, p.y);
     final double pr = _r(_kPlayerR);
 
-    Color base = p.isTeamA
-        ? const Color(0xFF0D47A1) // koyu mavi
-        : const Color(0xFFB71C1C); // koyu kırmızı
+    // Topa sahipse → ince parlayan halka
+    if (p == ball.owner) {
+      canvas.drawCircle(
+          pos,
+          pr + 5.0,
+          Paint()
+            ..color = (p.isTeamA ? Colors.lightBlueAccent : Colors.orangeAccent)
+                .withOpacity(0.55)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.0);
+    }
+
+    Color base = p.isTeamA ? const Color(0xFF0D47A1) : const Color(0xFFB71C1C);
     Color accent = p.isTeamA ? Colors.lightBlueAccent : Colors.redAccent;
 
     // Gölge
