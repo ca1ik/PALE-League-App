@@ -35,7 +35,7 @@ const double _kStealRange = 0.038; // top çalma mesafesi (insan → rakip)
 // OYUNCU VERİSİ
 // =============================================================================
 class _NbPlayer {
-  final String name;
+  String name;
   double x, y;
   double vx = 0, vy = 0;
   double facingAngle; // radyan; 0=sağ, π=sol
@@ -132,6 +132,10 @@ class _NatBallGameViewState extends State<NatBallGameView>
   // Dinamik insan markajcısı (her tick güncellenir)
   _NbPlayer? _humanMarker;
 
+  // Nickname girişi
+  bool _showNicknameInput = true;
+  final TextEditingController _nickCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -145,6 +149,7 @@ class _NatBallGameViewState extends State<NatBallGameView>
     _ticker?.stop();
     _ticker?.dispose();
     _focusNode.dispose();
+    _nickCtrl.dispose();
     super.dispose();
   }
 
@@ -258,6 +263,7 @@ class _NatBallGameViewState extends State<NatBallGameView>
   }
 
   void _simStep() {
+    if (_showNicknameInput) return; // Nickname girilmeden oyun başlamaz
     if (_isMatchOver) return;
 
     if (_isGoal) {
@@ -926,7 +932,7 @@ class _NatBallGameViewState extends State<NatBallGameView>
   Widget build(BuildContext context) {
     return KeyboardListener(
       focusNode: _focusNode,
-      autofocus: true,
+      autofocus: !_showNicknameInput,
       onKeyEvent: (event) {
         if (event is KeyDownEvent || event is KeyRepeatEvent) {
           _keys.add(event.logicalKey);
@@ -951,10 +957,114 @@ class _NatBallGameViewState extends State<NatBallGameView>
             if (_isMatchOver) _buildMatchOverScreen(),
             // GK kurtarış
             if (_gkSaveAnim) _buildGkSaveLabel(),
+            // Nickname giriş ekranı
+            if (_showNicknameInput) _buildNicknameOverlay(),
           ]),
         ),
       ),
     );
+  }
+
+  Widget _buildNicknameOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withOpacity(0.82),
+        child: Center(
+          child: Container(
+            width: 340,
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D1B2A),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                  color: Colors.greenAccent.withOpacity(0.6), width: 1.6),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.greenAccent.withOpacity(0.18),
+                    blurRadius: 24,
+                    spreadRadius: 2),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('NATBALL',
+                    style: GoogleFonts.orbitron(
+                        color: Colors.greenAccent,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 3)),
+                const SizedBox(height: 8),
+                Text('Nicknameni gir',
+                    style: GoogleFonts.orbitron(
+                        color: Colors.white54, fontSize: 11, letterSpacing: 1)),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: _nickCtrl,
+                  autofocus: true,
+                  maxLength: 16,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.orbitron(
+                      color: Colors.white, fontSize: 14, letterSpacing: 1.5),
+                  decoration: InputDecoration(
+                    counterText: '',
+                    hintText: 'OYUNCU',
+                    hintStyle: GoogleFonts.orbitron(
+                        color: Colors.white24, fontSize: 13),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.07),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                          color: Colors.greenAccent.withOpacity(0.7),
+                          width: 1.4),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                  ),
+                  onSubmitted: (_) => _confirmNickname(),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _confirmNickname,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.greenAccent,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: Text('OYNA',
+                        style: GoogleFonts.orbitron(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            letterSpacing: 2)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmNickname() {
+    final nick = _nickCtrl.text.trim();
+    setState(() {
+      _human.name = nick.isEmpty ? 'SEN' : nick;
+      _showNicknameInput = false;
+    });
+    // Oyun sahası klavye odağını al
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
   }
 
   Widget _buildArena() {
