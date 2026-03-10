@@ -15,21 +15,21 @@ import '../data/player_data.dart';
 // ─── Sabitler ─────────────────────────────────────────────────────────────────
 const double _kGoalY1 = 0.38; // kale açıklığı üst sınırı (normalize)
 const double _kGoalY2 = 0.62; // kale açıklığı alt sınırı (normalize)
-const double _kPlayerR = 0.019; // oyuncu yarıçapı – FM gibi küçük
-const double _kBallR = 0.009; // top yarıçapı – küçük
-const double _kNatBallPickupR = 0.034; // top alma mesafesi
-const double _kShootPower = 0.028; // şut başlangıç hızı – biraz yavaş
+const double _kPlayerR = 0.012; // oyuncu yarıçapı – çok küçük
+const double _kBallR = 0.006; // top yarıçapı – çok küçük
+const double _kNatBallPickupR = 0.028; // top alma mesafesi
+const double _kShootPower = 0.028; // şut başlangıç hızı
 const double _kPassPower = 0.016; // pas başlangıç hızı
-const double _kPlayerAccel = 0.0018; // oyuncu ivme (frame başına) – yavaş
+const double _kPlayerAccel = 0.0018; // oyuncu ivme
 const double _kPlayerDamp = 0.80; // oyuncu hız sönümleme
 const double _kBallFric = 0.986; // top sürtünme (frame başına)
-const double _kBallBounce = 0.66; // duvar sekmesi katsayısı
-const double _kAiAccel = 0.0014; // yapay-zeka ivmesi
-const double _kMaxSpeed = 0.011; // maksimum oyuncu hızı
+const double _kBallBounce = 1.00; // mükemmel yansıma (enerji kaybı yok)
+const double _kAiAccel = 0.0018; // yapay-zeka ivmesi – oyuncuyla eşit
+const double _kMaxSpeed = 0.011; // maksimum hız (tüm oyuncularda aynı)
 const double _kAiPassChancePct = 5; // her tick'teki pas olasılığı (%)
 const double _kMatchDurationSec = 120.0; // maç süresi
 const double _kGkRange = 0.14; // kaleci çalışma yarıçapı
-const double _kStealRange = 0.042; // top çalma mesafesi (insan → rakip)
+const double _kStealRange = 0.038; // top çalma mesafesi (insan → rakip)
 
 // =============================================================================
 // OYUNCU VERİSİ
@@ -43,6 +43,7 @@ class _NbPlayer {
   final bool isTeamA;
   final double homeX, homeY;
   final bool isGk;
+  bool isMarker = false; // true = her zaman insanı markajlar
 
   // Yapay zeka – takım arkadaşı pas sayacı
   int _aiPassCountdown = 0;
@@ -120,6 +121,11 @@ class _NatBallGameViewState extends State<NatBallGameView>
   // Şut/pas soğuma sayacı
   int _kickCooldown = 0;
 
+  // Double-tap X (köşe triği)
+  bool _xHeld = false;
+  bool _shiftHeld = false;
+  int _xDoubleTapWindow = 0;
+
   // GK kayıt animasyonu
   bool _gkSaveAnim = false;
   int _gkSaveTimer = 0;
@@ -149,6 +155,9 @@ class _NatBallGameViewState extends State<NatBallGameView>
     _isMatchOver = false;
     _runToBallTicks = 0;
     _kickCooldown = 0;
+    _xHeld = false;
+    _shiftHeld = false;
+    _xDoubleTapWindow = 0;
     _gkSaveAnim = false;
     _gkSaveTimer = 0;
     _keys.clear();
@@ -193,6 +202,8 @@ class _NatBallGameViewState extends State<NatBallGameView>
         isGk: i == 0,
       );
     });
+    // Sadece 1 rakip oyuncu insanı markajlar
+    _teamB[2].isMarker = true;
   }
 
   List<String> _safeNames(List<Player> players, int count) {
@@ -321,46 +332,66 @@ class _NatBallGameViewState extends State<NatBallGameView>
     _human.x = (_human.x + _human.vx).clamp(_kPlayerR, 1.0 - _kPlayerR);
     _human.y = (_human.y + _human.vy).clamp(_kPlayerR, 1.0 - _kPlayerR);
 
+    // Tuş durumu – tek basış tespiti (key-repeat'i engeller)
+    bool xNow = _keys.contains(LogicalKeyboardKey.keyX);
+    bool shiftNow = _keys.contains(LogicalKeyboardKey.shiftLeft) ||
+        _keys.contains(LogicalKeyboardKey.shiftRight);
+    bool xFired = xNow && !_xHeld && _kickCooldown == 0;
+    bool shiftFired = shiftNow && !_shiftHeld && _kickCooldown == 0;
+    if (_xDoubleTapWindow > 0) _xDoubleTapWindow--;
+    _xHeld = xNow;
+    _shiftHeld = shiftNow;
+
     // ── Topa sahipse → taşı + vuruş ──────────────────────────────────────────
     if (_ball.owner == _human) {
       _ball.x =
-          _human.x + cos(_human.facingAngle) * (_kPlayerR + _kBallR + 0.004);
+          _human.x + cos(_human.facingAngle) * (_kPlayerR + _kBallR + 0.003);
       _ball.y =
-          _human.y + sin(_human.facingAngle) * (_kPlayerR + _kBallR + 0.004);
+          _human.y + sin(_human.facingAngle) * (_kPlayerR + _kBallR + 0.003);
 
-      bool xDown = _keys.contains(LogicalKeyboardKey.keyX);
-      bool shiftDown = _keys.contains(LogicalKeyboardKey.shiftLeft) ||
-          _keys.contains(LogicalKeyboardKey.shiftRight);
-
-      if (xDown && _kickCooldown == 0) {
-        _humanShoot();
+      if (xFired) {
+        if (_xDoubleTapWindow > 0) {
+          _humanCornerTrick(); // Double-tap X → köşe triği
+          _xDoubleTapWindow = 0;
+        } else {
+          _humanShoot();
+          _xDoubleTapWindow = 18; // 18 tick içinde tekrar X → köşe triği
+        }
         _kickCooldown = 26;
-      } else if (shiftDown && _kickCooldown == 0) {
+      } else if (shiftFired) {
         _humanWallPass();
         _kickCooldown = 26;
       }
     }
+    // ── Top serbest → yakınsa X/Shift ile vur ────────────────────────────────
+    else if (_ball.owner == null) {
+      double bd = sqrt(pow(_human.x - _ball.x, 2) + pow(_human.y - _ball.y, 2));
+      if (bd < _kNatBallPickupR * 2.4) {
+        if (xFired) {
+          if (_xDoubleTapWindow > 0) {
+            _humanCornerTrick();
+            _xDoubleTapWindow = 0;
+          } else {
+            _humanShootLoose();
+            _xDoubleTapWindow = 18;
+          }
+          _kickCooldown = 24;
+        } else if (shiftFired) {
+          _humanWallPassLoose();
+          _kickCooldown = 24;
+        }
+      }
+    }
     // ── Takım arkadaşı topa sahipse → X/Shift ile hemen pas iste ─────────────
-    else if (_ball.owner != null &&
-        _ball.owner!.isTeamA &&
-        !_ball.owner!.isHuman &&
-        _kickCooldown == 0) {
-      bool xDown = _keys.contains(LogicalKeyboardKey.keyX);
-      bool shiftDown = _keys.contains(LogicalKeyboardKey.shiftLeft) ||
-          _keys.contains(LogicalKeyboardKey.shiftRight);
-      if (xDown || shiftDown) {
-        _ball.owner!._aiPassCountdown = 0; // bir sonraki tickte hemen pas at
+    else if (_ball.owner!.isTeamA && !_ball.owner!.isHuman) {
+      if (xFired || shiftFired) {
+        _ball.owner!._aiPassCountdown = 0;
         _kickCooldown = 18;
       }
     }
-    // ── Rakip topa sahipse → yakınsa X/Shift ile çal ──────────────────────────
-    else if (_ball.owner != null &&
-        !_ball.owner!.isTeamA &&
-        _kickCooldown == 0) {
-      bool xDown = _keys.contains(LogicalKeyboardKey.keyX);
-      bool shiftDown = _keys.contains(LogicalKeyboardKey.shiftLeft) ||
-          _keys.contains(LogicalKeyboardKey.shiftRight);
-      if (xDown || shiftDown) {
+    // ── Rakip topa sahipse → yakınsa X/Shift ile çal ─────────────────────────
+    else if (!_ball.owner!.isTeamA) {
+      if (xFired || shiftFired) {
         double d = sqrt(pow(_human.x - _ball.owner!.x, 2) +
             pow(_human.y - _ball.owner!.y, 2));
         if (d < _kStealRange) {
@@ -400,6 +431,72 @@ class _NatBallGameViewState extends State<NatBallGameView>
 
     _ball.vx = (dx / len) * power;
     _ball.vy = (dy / len) * power;
+    _ball.x = _human.x;
+    _ball.y = _human.y;
+  }
+
+  // ─── BOŞ TOP VURUŞU (top serbest, sahpsiz) ──────────────────────────────────
+  void _humanShootLoose() {
+    _ball.vx = cos(_human.facingAngle) * _kShootPower * 0.9;
+    _ball.vy = sin(_human.facingAngle) * _kShootPower * 0.9;
+  }
+
+  void _humanWallPassLoose() {
+    double dTop = _ball.y;
+    double dBot = 1.0 - _ball.y;
+    double dLeft = _ball.x;
+    double dRight = 1.0 - _ball.x;
+    double minD = [dTop, dBot, dLeft, dRight].reduce(min);
+    double mirrorX, mirrorY;
+    if (minD == dTop) {
+      mirrorX = _ball.x;
+      mirrorY = -_ball.y;
+    } else if (minD == dBot) {
+      mirrorX = _ball.x;
+      mirrorY = 2.0 - _ball.y;
+    } else if (minD == dLeft) {
+      mirrorX = -_ball.x;
+      mirrorY = _ball.y;
+    } else {
+      mirrorX = 2.0 - _ball.x;
+      mirrorY = _ball.y;
+    }
+    double dx = mirrorX - _ball.x;
+    double dy = mirrorY - _ball.y;
+    double dist = sqrt(dx * dx + dy * dy);
+    if (dist == 0) dist = 0.001;
+    _ball.vx = (dx / dist) * _kPassPower * 2.8;
+    _ball.vy = (dy / dist) * _kPassPower * 2.8;
+    _runToBallTicks = 60;
+  }
+
+  // ─── KÖŞE TRİĞİ – Double-tap X ──────────────────────────────────────────────
+  // Top en yakın köşeye çapraz atılır; bounce=1.0 ile duvarlarda hiç enerji
+  // kaybetmeden yansır ve oyuncuya geri döner.
+  void _humanCornerTrick() {
+    _ball.owner = null;
+    const cs = [
+      [0.01, 0.01],
+      [0.99, 0.01],
+      [0.01, 0.99],
+      [0.99, 0.99]
+    ];
+    double bestDist = double.infinity;
+    double cx = 0.01, cy = 0.01;
+    for (var c in cs) {
+      double d = sqrt(pow(_human.x - c[0], 2) + pow(_human.y - c[1], 2));
+      if (d < bestDist) {
+        bestDist = d;
+        cx = c[0];
+        cy = c[1];
+      }
+    }
+    double dx = cx - _human.x;
+    double dy = cy - _human.y;
+    double dist = sqrt(dx * dx + dy * dy);
+    if (dist == 0) dist = 0.001;
+    _ball.vx = (dx / dist) * _kShootPower * 2.4;
+    _ball.vy = (dy / dist) * _kShootPower * 2.4;
     _ball.x = _human.x;
     _ball.y = _human.y;
   }
@@ -544,6 +641,14 @@ class _NatBallGameViewState extends State<NatBallGameView>
   void _updateAiOpponent(_NbPlayer p) {
     if (p.isGk) {
       _updateTeamBGk(p);
+      return;
+    }
+
+    // ── Markaj oyuncusu: her zaman insanı yakından takip et ──────────────────
+    if (p.isMarker && _ball.owner != p) {
+      double tx = _human.x + 0.055;
+      double ty = _human.y;
+      _aiMoveTo(p, tx, ty, _kAiAccel * 1.08);
       return;
     }
 
@@ -1230,24 +1335,55 @@ class _NatBallPainter extends CustomPainter {
     final double br = _r(_kBallR);
 
     // Gölge
-    canvas.drawCircle(
-        pos.translate(1.0, 1.0), br, Paint()..color = Colors.black54);
+    canvas.drawCircle(pos.translate(1.2, 1.2), br * 1.15,
+        Paint()..color = Colors.black.withOpacity(0.40));
 
-    // Top (beyaz)
+    // Beyaz zemin
     canvas.drawCircle(pos, br, Paint()..color = Colors.white);
 
-    // Parlaklık
-    canvas.drawCircle(pos.translate(-br * 0.28, -br * 0.28), br * 0.42,
-        Paint()..color = Colors.white70);
+    final blackPaint = Paint()..color = Colors.black;
 
-    // Siyah detay
+    // ── Siyah-beyaz futbol topu desen ────────────────────────────────────────
+    // Merkez siyah beşgen
+    final cPath = Path();
+    for (int i = 0; i < 5; i++) {
+      double a = i * 2 * pi / 5 - pi / 2;
+      double rx = pos.dx + cos(a) * br * 0.38;
+      double ry = pos.dy + sin(a) * br * 0.38;
+      if (i == 0)
+        cPath.moveTo(rx, ry);
+      else
+        cPath.lineTo(rx, ry);
+    }
+    cPath.close();
+    canvas.drawPath(cPath, blackPaint);
+
+    // 5 çevre siyah beşgen yamalar
+    for (int i = 0; i < 5; i++) {
+      double ca = i * 2 * pi / 5 - pi / 10;
+      final hc = pos + Offset(cos(ca) * br * 0.76, sin(ca) * br * 0.76);
+      final pPath = Path();
+      for (int j = 0; j < 5; j++) {
+        double pa = ca + j * 2 * pi / 5;
+        double rx2 = hc.dx + cos(pa) * br * 0.27;
+        double ry2 = hc.dy + sin(pa) * br * 0.27;
+        if (j == 0)
+          pPath.moveTo(rx2, ry2);
+        else
+          pPath.lineTo(rx2, ry2);
+      }
+      pPath.close();
+      canvas.drawPath(pPath, blackPaint);
+    }
+
+    // Dış sınır çizgisi
     canvas.drawCircle(
         pos,
         br,
         Paint()
-          ..color = Colors.black.withOpacity(0.22)
+          ..color = Colors.black
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.8);
+          ..strokeWidth = 0.7);
   }
 
   void _drawText(
