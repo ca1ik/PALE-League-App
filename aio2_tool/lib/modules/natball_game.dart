@@ -15,17 +15,17 @@ import '../data/player_data.dart';
 // ─── Sabitler ─────────────────────────────────────────────────────────────────
 const double _kGoalY1 = 0.38; // kale açıklığı üst sınırı (normalize)
 const double _kGoalY2 = 0.62; // kale açıklığı alt sınırı (normalize)
-const double _kPlayerR = 0.012; // oyuncu yarıçapı – çok küçük
-const double _kBallR = 0.006; // top yarıçapı – çok küçük
-const double _kNatBallPickupR = 0.028; // top alma mesafesi
-const double _kShootPower = 0.028; // şut başlangıç hızı
-const double _kPassPower = 0.016; // pas başlangıç hızı
-const double _kPlayerAccel = 0.0018; // oyuncu ivme
-const double _kPlayerDamp = 0.80; // oyuncu hız sönümleme
-const double _kBallFric = 0.986; // top sürtünme (frame başına)
+const double _kPlayerR = 0.012; // oyuncu yarıçapı
+const double _kBallR = 0.006; // top yarıçapı
+const double _kNatBallPickupR = 0.026; // top alma mesafesi
+const double _kShootPower = 0.020; // şut başlangıç hızı – HaxBall gibi
+const double _kPassPower = 0.012; // pas başlangıç hızı
+const double _kPlayerAccel = 0.0011; // oyuncu ivme – yavaş/HaxBall
+const double _kPlayerDamp = 0.78; // oyuncu hız sönümleme
+const double _kBallFric = 0.983; // top sürtünme (daha fazla)
 const double _kBallBounce = 1.00; // mükemmel yansıma (enerji kaybı yok)
-const double _kAiAccel = 0.0018; // yapay-zeka ivmesi – oyuncuyla eşit
-const double _kMaxSpeed = 0.011; // maksimum hız (tüm oyuncularda aynı)
+const double _kAiAccel = 0.0011; // yapay-zeka ivmesi – oyuncuyla eşit
+const double _kMaxSpeed = 0.0070; // maksimum hız – HaxBall gibi yavaş
 const double _kAiPassChancePct = 5; // her tick'teki pas olasılığı (%)
 const double _kMatchDurationSec = 120.0; // maç süresi
 const double _kGkRange = 0.14; // kaleci çalışma yarıçapı
@@ -43,7 +43,6 @@ class _NbPlayer {
   final bool isTeamA;
   final double homeX, homeY;
   final bool isGk;
-  bool isMarker = false; // true = her zaman insanı markajlar
 
   // Yapay zeka – takım arkadaşı pas sayacı
   int _aiPassCountdown = 0;
@@ -130,6 +129,7 @@ class _NatBallGameViewState extends State<NatBallGameView>
   bool _gkSaveAnim = false;
   int _gkSaveTimer = 0;
 
+  // Dinamik insan markajcısı (her tick güncellenir)
   @override
   void initState() {
     super.initState();
@@ -202,8 +202,6 @@ class _NatBallGameViewState extends State<NatBallGameView>
         isGk: i == 0,
       );
     });
-    // Sadece 1 rakip oyuncu insanı markajlar
-    _teamB[2].isMarker = true;
   }
 
   List<String> _safeNames(List<Player> players, int count) {
@@ -293,6 +291,17 @@ class _NatBallGameViewState extends State<NatBallGameView>
     }
 
     // Takım B yapay-zeka
+    // En yakın B oyuncusunu dinamik insan markajcısı olarak seç
+    _humanMarker = null;
+    double _nearestBDist = double.infinity;
+    for (var p in _teamB) {
+      if (p.isGk || _ball.owner == p) continue;
+      final double d = sqrt(pow(p.x - _human.x, 2) + pow(p.y - _human.y, 2));
+      if (d < _nearestBDist) {
+        _nearestBDist = d;
+        _humanMarker = p;
+      }
+    }
     for (var p in _teamB) {
       _updateAiOpponent(p);
     }
@@ -644,29 +653,19 @@ class _NatBallGameViewState extends State<NatBallGameView>
       return;
     }
 
-    // ── Markaj oyuncusu: her zaman insanı yakından takip et ──────────────────
-    if (p.isMarker && _ball.owner != p) {
-      double tx = _human.x + 0.055;
-      double ty = _human.y;
-      _aiMoveTo(p, tx, ty, _kAiAccel * 1.08);
-      return;
-    }
-
     double tx, ty;
 
+    // ── Topa sahipse → saldır ─────────────────────────────────────────────────
     if (_ball.owner == p) {
       bool canShoot = p.x < 0.30;
       p._aiPassCountdown--;
       if (canShoot && p._aiPassCountdown <= 0) {
-        // Şut
         _aiShoot(p);
         p._aiPassCountdown = 28 + _rng.nextInt(22);
       } else if (!canShoot && p._aiPassCountdown <= 0) {
-        // Takım arkadaşına pas ver
         _aiTeamBPass(p);
         p._aiPassCountdown = 20 + _rng.nextInt(18);
       } else {
-        // Kaleye doğru ilerle
         tx = 0.10 + _rng.nextDouble() * 0.04;
         ty = 0.38 + _rng.nextDouble() * 0.24;
         _aiMoveTo(p, tx, ty, _kAiAccel);
@@ -674,25 +673,35 @@ class _NatBallGameViewState extends State<NatBallGameView>
       return;
     }
 
-    // En yakın rakip topu kovalasın
-    bool isNearest = _isNearestToBall(_teamB, p);
-    if (isNearest) {
-      tx = _ball.x;
-      ty = _ball.y;
-    } else if (_ball.owner != null && _ball.owner!.isTeamA) {
-      // İnsan takımı topa sahip → press yap
-      tx = _ball.x + (_rng.nextDouble() - 0.5) * 0.12;
-      ty = _ball.y + (_rng.nextDouble() - 0.5) * 0.12;
-    } else if (_ball.owner != null && !_ball.owner!.isTeamA) {
-      // Takım arkadaşı topa sahip → ileri koş, pas al
-      tx = p.homeX - 0.07;
-      ty = p.homeY + (_rng.nextDouble() - 0.5) * 0.10;
-    } else {
-      // Top serbest – savunma pozisyonu
-      tx = p.homeX + 0.04;
-      ty = p.homeY;
+    // ── En yakın B oyuncusu: insanı uzaktan açı kapatır ──────────────────────
+    if (p == _humanMarker) {
+      // İnsan ile B kalesi (x≈0) arasında, 0.12 mesafede dur → pasını kes
+      const double gx = 0.03, gy = 0.50;
+      double ddx = gx - _human.x;
+      double ddy = gy - _human.y;
+      double ddist = sqrt(ddx * ddx + ddy * ddy);
+      if (ddist < 0.001) ddist = 0.001;
+      const double coverDist = 0.12;
+      tx = _human.x + (ddx / ddist) * coverDist;
+      ty = _human.y + (ddy / ddist) * coverDist;
+      _aiMoveTo(p, tx, ty, _kAiAccel * 1.05);
+      return;
     }
 
+    // ── Diğerleri: adam adama markaj – karşılıklı A oyuncusunu takip et ──────
+    final int bIdx = _teamB.indexOf(p);
+    if (bIdx > 0 && bIdx < _teamA.length) {
+      final _NbPlayer markA = _teamA[bIdx];
+      // A oyuncusunun B kalesine bakan tarafında biraz önünde dur
+      tx = markA.x - 0.06;
+      ty = markA.y;
+      _aiMoveTo(p, tx, ty, _kAiAccel * 0.95);
+      return;
+    }
+
+    // ── Fallback: ev pozisyonu ────────────────────────────────────────────────
+    tx = p.homeX + 0.04;
+    ty = p.homeY;
     _aiMoveTo(p, tx, ty, _kAiAccel);
   }
 
