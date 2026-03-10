@@ -10,6 +10,7 @@ import '../services/database_service.dart';
 import '../ui/fc_animated_card.dart';
 import 'palehax_match_engine.dart';
 import 'natball_game.dart';
+import 'natball3d_game.dart';
 
 // =============================================================================
 // MODELS
@@ -79,6 +80,7 @@ class UltimateTeamProvider extends ChangeNotifier {
   int tokens = 100;
   bool isRanked = false;
   bool isNatBall = false;
+  bool isNatBall3D = false;
 
   // Market
   List<MarketListing> transferMarket = [];
@@ -216,6 +218,7 @@ class UltimateTeamProvider extends ChangeNotifier {
   void setPlayMode(String mode) {
     isRanked = mode == 'ranked';
     isNatBall = mode == 'natball';
+    isNatBall3D = mode == 'natball3d';
     notifyListeners();
   }
 
@@ -692,6 +695,7 @@ class _UltimateRootState extends State<_UltimateRoot> {
         _ModeToggle(
           isRanked: prov.isRanked,
           isNatBall: prov.isNatBall,
+          isNatBall3D: prov.isNatBall3D,
           onMode: (mode) => prov.setPlayMode(mode),
         ),
         const SizedBox(width: 16),
@@ -765,6 +769,21 @@ class _UltimateRootState extends State<_UltimateRoot> {
         context,
         MaterialPageRoute(
             builder: (_) => NatBallGameView(
+                  myTeam: prov.starters,
+                  oppTeam: opp,
+                  onExit: () => Navigator.pop(context),
+                )),
+      );
+      return;
+    }
+
+    // ── NatBall3D: perspektif 3D mod ─────────────────────────────────────────
+    if (prov.isNatBall3D) {
+      var opp = prov.generateOpponent();
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => NatBall3DGameView(
                   myTeam: prov.starters,
                   oppTeam: opp,
                   onExit: () => Navigator.pop(context),
@@ -962,19 +981,26 @@ class _TokenLED extends StatelessWidget {
 class _ModeToggle extends StatelessWidget {
   final bool isRanked;
   final bool isNatBall;
-  final ValueChanged<String> onMode; // 'normal' | 'ranked' | 'natball'
+  final bool isNatBall3D;
+  final ValueChanged<String> onMode;
   const _ModeToggle(
-      {required this.isRanked, required this.isNatBall, required this.onMode});
+      {required this.isRanked,
+      required this.isNatBall,
+      this.isNatBall3D = false,
+      required this.onMode});
 
   @override
   Widget build(BuildContext context) {
-    bool isNormal = !isRanked && !isNatBall;
+    bool isNormal = !isRanked && !isNatBall && !isNatBall3D;
     return Row(mainAxisSize: MainAxisSize.min, children: [
       _btn('NORMAL', isNormal, Colors.cyanAccent, () => onMode('normal')),
       const SizedBox(width: 4),
       _btn('RANKED', isRanked, Colors.redAccent, () => onMode('ranked')),
       const SizedBox(width: 4),
       _btn('NATBALL', isNatBall, Colors.greenAccent, () => onMode('natball')),
+      const SizedBox(width: 4),
+      _btn('NATBALL 3D', isNatBall3D, Colors.purpleAccent,
+          () => onMode('natball3d')),
     ]);
   }
 
