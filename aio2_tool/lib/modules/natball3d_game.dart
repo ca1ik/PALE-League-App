@@ -36,26 +36,38 @@ const double _k3GoalY1 = 0.34;
 const double _k3GoalY2 = 0.66;
 
 // ─── Perspektif yardımcıları ─────────────────────────────────────────────────
-// Saha: x∈[0,1] sol-sağ, y∈[0,1] uzak-yakın (0=top, 1=alt)
-// Kale sol: x≈0, Kale sağ: x≈1
-// Perspektif: y→0 = uzak = küçük, y→1 = yakın = büyük
+// Saha koordinatları:
+//   fieldX ∈ [0,1]: sol kale → sağ kale
+//   fieldY ∈ [0,1]: uzak kenar (arka) → yakın kenar (ön)
+// Stadyum kamerası: biraz yukarıdan hafif eğim, yatay geniş görünüm
 
-double _perspScale(double y, {double near = 1.25, double far = 0.55}) {
+// Perspektif ölçek: y=0 (uzak) → daha küçük, y=1 (yakın) → daha büyük
+double _perspScale(double y, {double near = 1.18, double far = 0.60}) {
   return far + (near - far) * y;
 }
 
 Offset _project(double fieldX, double fieldY, Size sz) {
-  // Saha zeminini trapez şeklinde çizer
-  // Sol üst ↔ Sağ üst: daraltılmış (perspektif vanish)
-  const double horizonY = 0.10; // horizon saha içi oranı
-  const double marginX = 0.05; // sol/sağ kenar boşluk
-  double scaleY = horizonY + (1.0 - horizonY) * fieldY;
-  double screenY = sz.height * (0.08 + 0.85 * fieldY);
+  // Horizon yüksekliği: ekranın %18'i
+  const double horizonRatio = 0.18;
+  // Alt kenar: ekranın %96'sı (neredeyse dibe kadar)
+  const double bottomRatio = 0.96;
+  // Saha yan marjinler (perspektifle değişir)
+  const double leftMarginFar = 0.08; // uzakta saha sol kenarı
+  const double rightMarginFar = 0.92; // uzakta saha sağ kenarı
+  const double leftMarginNear = 0.01; // yakında saha sol kenarı
+  const double rightMarginNear = 0.99; // yakında saha sağ kenarı
+
+  // Y ekranı: horizon → alt arasında linear
+  double screenY =
+      sz.height * (horizonRatio + (bottomRatio - horizonRatio) * fieldY);
+
+  // X: uzak kenarda daralmış, yakın kenarda genişlemiş trapez
   double leftEdge =
-      sz.width * (marginX + (0.5 - marginX) * (1 - scaleY / 1.0) * 0.72);
+      sz.width * (leftMarginFar + (leftMarginNear - leftMarginFar) * fieldY);
   double rightEdge =
-      sz.width * (1 - marginX - (0.5 - marginX) * (1 - scaleY / 1.0) * 0.72);
+      sz.width * (rightMarginFar + (rightMarginNear - rightMarginFar) * fieldY);
   double screenX = leftEdge + (rightEdge - leftEdge) * fieldX;
+
   return Offset(screenX, screenY);
 }
 
@@ -1495,18 +1507,48 @@ class _Arena3DPainter extends CustomPainter {
     _drawBall(canvas, size);
   }
 
-  // Gökyüzü (gradient arka plan)
+  // Gökyüzü + stadyum arka planı
   void _drawSky(Canvas canvas, Size size) {
+    // Tüm arka plan
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..color = const Color(0xFF040A14),
+    );
+    // Gökyüzü gradyanı (üstten horizon'a kadar)
+    final horizonY = size.height * 0.18;
     final grad = LinearGradient(
       begin: Alignment.topCenter,
-      end: Alignment.center,
-      colors: [const Color(0xFF050D1A), const Color(0xFF0A1428)],
+      end: Alignment.bottomCenter,
+      colors: [
+        const Color(0xFF060F22),
+        const Color(0xFF0A1830),
+        const Color(0xFF0D2040),
+      ],
     );
     canvas.drawRect(
-        Rect.fromLTWH(0, 0, size.width, size.height),
+      Rect.fromLTWH(0, 0, size.width, horizonY),
+      Paint()
+        ..shader = grad.createShader(Rect.fromLTWH(0, 0, size.width, horizonY)),
+    );
+    // Stadyum tribün çizgisi (horizon)
+    canvas.drawLine(
+      Offset(0, horizonY),
+      Offset(size.width, horizonY),
+      Paint()
+        ..color = Colors.white.withOpacity(0.06)
+        ..strokeWidth = 1.0,
+    );
+    // Stadyum flaş ışıkları efekti
+    for (int i = 0; i < 5; i++) {
+      double lx = size.width * (0.1 + i * 0.2);
+      canvas.drawCircle(
+        Offset(lx, horizonY * 0.4),
+        size.width * 0.012,
         Paint()
-          ..shader =
-              grad.createShader(Rect.fromLTWH(0, 0, size.width, size.height)));
+          ..color = Colors.white.withOpacity(0.04)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+      );
+    }
   }
 
   // Saha zemini
@@ -1523,27 +1565,15 @@ class _Arena3DPainter extends CustomPainter {
     path.lineTo(bl.dx, bl.dy);
     path.close();
 
-    // Zemin gradyan (koyu çim)
-    final fieldGrad = LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [
-        const Color(0xFF0A2A0A),
-        const Color(0xFF0F3A0F),
-        const Color(0xFF0C2E0C)
-      ],
-      stops: const [0.0, 0.5, 1.0],
-    );
+    // Zemin ana renk
     canvas.drawPath(
-        path,
-        Paint()
-          ..shader = fieldGrad.createShader(
-              Rect.fromLTWH(0, tl.dy, size.width, bl.dy - tl.dy)));
+      path,
+      Paint()..color = const Color(0xFF0C3012),
+    );
 
-    // Çim şeritleri (zebra)
-    for (int i = 0; i < 8; i++) {
-      if (i % 2 == 0) continue;
-      double y0 = i / 8.0, y1 = (i + 1) / 8.0;
+    // Çim şeritleri yatay (perspektifli): her şerit biraz farklı yeşil
+    for (int i = 0; i < 10; i++) {
+      double y0 = i / 10.0, y1 = (i + 1) / 10.0;
       final stripe = Path();
       Offset s0 = _project(0, y0, size);
       Offset s1 = _project(1, y0, size);
@@ -1554,8 +1584,10 @@ class _Arena3DPainter extends CustomPainter {
       stripe.lineTo(s2.dx, s2.dy);
       stripe.lineTo(s3.dx, s3.dy);
       stripe.close();
-      canvas.drawPath(
-          stripe, Paint()..color = const Color(0xFF0D3510).withOpacity(0.5));
+      Color stripeColor = i % 2 == 0
+          ? const Color(0xFF0E3814).withOpacity(0.85)
+          : const Color(0xFF0A2A0F).withOpacity(0.85);
+      canvas.drawPath(stripe, Paint()..color = stripeColor);
     }
   }
 
@@ -1631,102 +1663,169 @@ class _Arena3DPainter extends CustomPainter {
   }
 
   void _drawOneGoal(Canvas canvas, Size size, {required bool isLeft}) {
-    double gx = isLeft ? 0.0 : 1.0;
-    double depthDir = isLeft ? -0.10 : 0.10;
+    // Kale saha koordinatları
+    double frontX = isLeft ? 0.0 : 1.0;
+    double backX = isLeft ? -0.11 : 1.11; // kale derinliği saha dışına uzanır
 
-    double gy1 = _k3GoalY1, gy2 = _k3GoalY2;
+    double gy1 = _k3GoalY1;
+    double gy2 = _k3GoalY2;
 
-    // Arka direğin sahaya yansıması
-    double bx = gx + depthDir;
-    Offset frontTop = _project(gx, gy1, size);
-    Offset frontBot = _project(gx, gy2, size);
-    Offset backTop = _project(bx, gy1, size);
-    Offset backBot = _project(bx, gy2, size);
+    // 4 ön köşe (saha düzlemi, z=0)
+    Offset fTL = _project(frontX, gy1, size); // ön sol üst
+    Offset fBL = _project(frontX, gy2, size); // ön sağ üst
+    Offset bTL = _project(backX, gy1, size); // arka sol üst
+    Offset bBL = _project(backX, gy2, size); // arka sağ üst
 
-    // Kale yükseklik (z perspektifi)
-    double fTopZ = _projRadius(gy1, 0.045, size);
-    double fBotZ = _projRadius(gy2, 0.045, size);
+    // Kale yüksekliği (perspektife göre)
+    double fTH = _projRadius(gy1, 0.050, size); // ön sol yükseklik
+    double fBH = _projRadius(gy2, 0.050, size); // ön sağ yükseklik
+    double bTH =
+        _projRadius(gy1, 0.050, size) * 0.72; // arka sol yükseklik (daha küçük)
+    double bBH = _projRadius(gy2, 0.050, size) * 0.72; // arka sağ yükseklik
 
-    // Kale gövdesi (ağ alanı) - gradient
-    final netPath = Path();
-    netPath.moveTo(frontTop.dx, frontTop.dy - fTopZ);
-    netPath.lineTo(frontBot.dx, frontBot.dy - fBotZ);
-    netPath.lineTo(backBot.dx, backBot.dy - fBotZ * 0.7);
-    netPath.lineTo(backTop.dx, backTop.dy - fTopZ * 0.7);
-    netPath.close();
+    // 8 köşe noktası
+    Offset ftl = Offset(fTL.dx, fTL.dy - fTH); // ön sol üst üst
+    Offset fbl = Offset(fBL.dx, fBL.dy - fBH); // ön sağ üst üst
+    Offset btl = Offset(bTL.dx, bTL.dy - bTH); // arka sol üst üst
+    Offset bbl = Offset(bBL.dx, bBL.dy - bBH); // arka sağ üst üst
 
-    Color netColor = isLeft ? Colors.redAccent : Colors.lightBlueAccent;
-    canvas.drawPath(
-        netPath,
-        Paint()
-          ..color = netColor.withOpacity(0.08)
-          ..style = PaintingStyle.fill);
+    // Zemin köşeleri
+    Offset ftr = fTL; // ön sol alt
+    Offset fbr = fBL; // ön sağ alt
+    Offset btr = bTL; // arka sol alt
+    Offset bbr = bBL; // arka sağ alt
 
-    // Ağ çizgisi griezi (yatay + dikey)
+    Color netColor = isLeft
+        ? const Color(0xFFFF4444).withOpacity(0.15)
+        : const Color(0xFF44BBFF).withOpacity(0.15);
+    Color postColor = Colors.white.withOpacity(0.92);
+    Color backPostColor = Colors.white.withOpacity(0.55);
+
+    // ── Ağ dolgusu (arka + yan + üst yüzler) ───────────────────────────────
+    // Arka yüz
+    Path backFace = Path()
+      ..moveTo(btl.dx, btl.dy)
+      ..lineTo(bbl.dx, bbl.dy)
+      ..lineTo(bbr.dx, bbr.dy)
+      ..lineTo(btr.dx, btr.dy)
+      ..close();
+    canvas.drawPath(backFace, Paint()..color = netColor.withOpacity(0.25));
+
+    // Üst yüz
+    Path topFace = Path()
+      ..moveTo(ftl.dx, ftl.dy)
+      ..lineTo(fbl.dx, fbl.dy)
+      ..lineTo(bbl.dx, bbl.dy)
+      ..lineTo(btl.dx, btl.dy)
+      ..close();
+    canvas.drawPath(topFace, Paint()..color = netColor.withOpacity(0.18));
+
+    // Sol–sağ yan yüzler
+    Path sideFace1 = Path()
+      ..moveTo(ftl.dx, ftl.dy)
+      ..lineTo(ftr.dx, ftr.dy)
+      ..lineTo(btr.dx, btr.dy)
+      ..lineTo(btl.dx, btl.dy)
+      ..close();
+    canvas.drawPath(sideFace1, Paint()..color = netColor.withOpacity(0.12));
+
+    Path sideFace2 = Path()
+      ..moveTo(fbl.dx, fbl.dy)
+      ..lineTo(fbr.dx, fbr.dy)
+      ..lineTo(bbr.dx, bbr.dy)
+      ..lineTo(bbl.dx, bbl.dy)
+      ..close();
+    canvas.drawPath(sideFace2, Paint()..color = netColor.withOpacity(0.12));
+
+    // ── Kale ağı çizgileri ──────────────────────────────────────────────────
     Paint netLinePaint = Paint()
-      ..color = Colors.white.withOpacity(0.18)
-      ..strokeWidth = 0.7
+      ..color = Colors.white.withOpacity(0.22)
+      ..strokeWidth = 0.65
       ..style = PaintingStyle.stroke;
 
-    // Dikey ağ çizgileri
-    for (int i = 0; i <= 5; i++) {
-      double t = i / 5.0;
-      Offset fL = Offset.lerp(frontTop, frontBot, t)!;
-      Offset bL = Offset.lerp(backTop, backBot, t)!;
-      double zL = fTopZ + (fBotZ - fTopZ) * t;
-      canvas.drawLine(Offset(fL.dx, fL.dy - zL * (1 - t * 0.3)),
-          Offset(bL.dx, bL.dy - zL * 0.7), netLinePaint);
+    // Arka yüz ağ - yatay çizgiler
+    for (int j = 0; j <= 5; j++) {
+      double t = j / 5.0;
+      Offset L = Offset.lerp(btl, btr, t)!;
+      Offset R = Offset.lerp(bbl, bbr, t)!;
+      canvas.drawLine(L, R, netLinePaint);
     }
-    // Yatay ağ çizgileri
-    for (int j = 0; j <= 4; j++) {
-      double tt = j / 4.0;
-      Offset tFront = Offset.lerp(Offset(frontTop.dx, frontTop.dy - fTopZ),
-          Offset(frontBot.dx, frontBot.dy - fBotZ), tt)!;
-      Offset tBack = Offset.lerp(Offset(backTop.dx, backTop.dy - fTopZ * 0.7),
-          Offset(backBot.dx, backBot.dy - fBotZ * 0.7), tt)!;
-      canvas.drawLine(tFront, tBack, netLinePaint);
+    // Arka yüz ağ - dikey çizgiler
+    for (int i = 0; i <= 6; i++) {
+      double t = i / 6.0;
+      Offset T = Offset.lerp(btl, bbl, t)!;
+      Offset B = Offset.lerp(btr, bbr, t)!;
+      canvas.drawLine(T, B, netLinePaint);
     }
 
-    // Direkler
-    Paint postPaint = Paint()
-      ..color = Colors.white.withOpacity(0.9)
-      ..strokeWidth = 2.5
+    // Üst yüz ağ - boyuna çizgiler (ön-arka)
+    for (int i = 0; i <= 6; i++) {
+      double t = i / 6.0;
+      Offset F = Offset.lerp(ftl, fbl, t)!;
+      Offset B = Offset.lerp(btl, bbl, t)!;
+      canvas.drawLine(F, B, netLinePaint);
+    }
+    // Üst yüz ağ - enine çizgiler (sol-sağ)
+    for (int j = 1; j <= 3; j++) {
+      double t = j / 4.0;
+      Offset L = Offset.lerp(ftl, btl, t)!;
+      Offset R = Offset.lerp(fbl, bbl, t)!;
+      canvas.drawLine(L, R, netLinePaint);
+    }
+
+    // Sol yan ağ
+    for (int j = 0; j <= 5; j++) {
+      double t = j / 5.0;
+      Offset T = Offset.lerp(ftl, ftr, t)!;
+      Offset B = Offset.lerp(btl, btr, t)!;
+      canvas.drawLine(T, B, netLinePaint);
+    }
+    // Sağ yan ağ
+    for (int j = 0; j <= 5; j++) {
+      double t = j / 5.0;
+      Offset T = Offset.lerp(fbl, fbr, t)!;
+      Offset B = Offset.lerp(bbl, bbr, t)!;
+      canvas.drawLine(T, B, netLinePaint);
+    }
+
+    // ── Direkler ────────────────────────────────────────────────────────────
+    Paint pp = Paint()
+      ..color = postColor
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
-    Paint backPostPaint = Paint()
-      ..color = Colors.white.withOpacity(0.5)
-      ..strokeWidth = 1.8
+    Paint bpp = Paint()
+      ..color = backPostColor
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
-    // Üst çıta
-    canvas.drawLine(Offset(frontTop.dx, frontTop.dy - fTopZ),
-        Offset(frontBot.dx, frontBot.dy - fBotZ), postPaint);
-    // Sol direk (ön)
-    canvas.drawLine(
-        frontTop, Offset(frontTop.dx, frontTop.dy - fTopZ), postPaint);
-    // Sağ direk (ön)
-    canvas.drawLine(
-        frontBot, Offset(frontBot.dx, frontBot.dy - fBotZ), postPaint);
-    // Arka çıta
-    canvas.drawLine(Offset(backTop.dx, backTop.dy - fTopZ * 0.7),
-        Offset(backBot.dx, backBot.dy - fBotZ * 0.7), backPostPaint);
-    // Arka direkten öne yan çıtalar
-    canvas.drawLine(Offset(frontTop.dx, frontTop.dy - fTopZ),
-        Offset(backTop.dx, backTop.dy - fTopZ * 0.7), backPostPaint);
-    canvas.drawLine(Offset(frontBot.dx, frontBot.dy - fBotZ),
-        Offset(backBot.dx, backBot.dy - fBotZ * 0.7), backPostPaint);
+    // Ön çerçeve (kalın)
+    canvas.drawLine(fTL, ftl, pp); // sol direk
+    canvas.drawLine(fBL, fbl, pp); // sağ direk
+    canvas.drawLine(ftl, fbl, pp); // üst çıta
 
-    // Zemin çizgisi
-    canvas.drawLine(frontTop, backTop, backPostPaint);
-    canvas.drawLine(frontBot, backBot, backPostPaint);
+    // Arka çerçeve (ince)
+    canvas.drawLine(bTL, btl, bpp);
+    canvas.drawLine(bBL, bbl, bpp);
+    canvas.drawLine(btl, bbl, bpp);
 
-    // Kale parlama (glow)
-    canvas.drawCircle(
-        Offset((frontTop.dx + frontBot.dx) / 2,
-            (frontTop.dy + frontBot.dy) / 2 - (fTopZ + fBotZ) / 4),
-        (fTopZ + fBotZ) * 0.8,
-        Paint()
-          ..color = netColor.withOpacity(0.06)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18));
+    // Yanal bağlantılar
+    canvas.drawLine(ftl, btl, bpp); // üst sol
+    canvas.drawLine(fbl, bbl, bpp); // üst sağ
+    canvas.drawLine(fTL, bTL, bpp); // alt sol
+    canvas.drawLine(fBL, bBL, bpp); // alt sağ
+
+    // Ön kale glow
+    Color glowColor = isLeft ? Colors.redAccent : Colors.lightBlueAccent;
+    canvas.drawLine(
+      fTL,
+      fBL,
+      Paint()
+        ..color = glowColor.withOpacity(0.30)
+        ..strokeWidth = 8.0
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+    );
   }
 
   // Oyuncu gölgesi
