@@ -30,7 +30,7 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
   List<DraggableText> texts = [];
   List<String> undoStack = [];
   List<String> redoStack = [];
-  late Box<StrategyModel> strategyBox;
+  Box<StrategyModel>? strategyBox;
 
   @override
   void initState() {
@@ -41,10 +41,7 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
 
   Future<void> _openBox() async {
     strategyBox = await Hive.openBox<StrategyModel>('palehax_strategies');
-    setState(() {});
-    setState(() {});
-    setState(() {});
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   void _resetPlayers() {
@@ -182,54 +179,56 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
               })
         ],
       ),
-      body: ValueListenableBuilder(
-        valueListenable: strategyBox.listenable(),
-        builder: (context, Box<StrategyModel> box, _) {
-          if (box.isEmpty)
-            return const Center(
-                child: Text("Kayıtlı strateji yok.",
-                    style: TextStyle(color: Colors.white54)));
-          return GridView.builder(
-            padding: const EdgeInsets.all(20),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                crossAxisSpacing: 15,
-                mainAxisSpacing: 15,
-                childAspectRatio: 1.5),
-            itemCount: box.length,
-            itemBuilder: (context, index) {
-              final s = box.getAt(index);
-              return GestureDetector(
-                onTap: () {
-                  _loadState(s.jsonData);
-                  setState(() => isEditing = true);
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(15),
-                      border: Border.all(color: Colors.white12)),
-                  child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.hub,
-                            color: Colors.cyanAccent, size: 40),
-                        const SizedBox(height: 10),
-                        Text(s!.name,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold)),
-                        IconButton(
-                            icon: const Icon(Icons.delete,
-                                color: Colors.red, size: 20),
-                            onPressed: () => box.deleteAt(index))
-                      ]),
-                ),
-              );
-            },
-          );
-        },
-      ),
+      body: strategyBox == null
+          ? const Center(child: CircularProgressIndicator())
+          : ValueListenableBuilder(
+              valueListenable: strategyBox!.listenable(),
+              builder: (context, Box<StrategyModel> box, _) {
+                if (box.isEmpty)
+                  return const Center(
+                      child: Text("Kayıtlı strateji yok.",
+                          style: TextStyle(color: Colors.white54)));
+                return GridView.builder(
+                  padding: const EdgeInsets.all(20),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      crossAxisSpacing: 15,
+                      mainAxisSpacing: 15,
+                      childAspectRatio: 1.5),
+                  itemCount: box.length,
+                  itemBuilder: (context, index) {
+                    final s = box.getAt(index);
+                    return GestureDetector(
+                      onTap: () {
+                        _loadState(s.jsonData);
+                        setState(() => isEditing = true);
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(color: Colors.white12)),
+                        child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.hub,
+                                  color: Colors.cyanAccent, size: 40),
+                              const SizedBox(height: 10),
+                              Text(s!.name,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold)),
+                              IconButton(
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.red, size: 20),
+                                  onPressed: () => box.deleteAt(index))
+                            ]),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
     );
   }
 
@@ -491,7 +490,7 @@ class _StrategyMakerModuleState extends State<StrategyMakerModule> {
                 ElevatedButton(
                     onPressed: () {
                       if (c.text.isNotEmpty) {
-                        strategyBox.add(StrategyModel(
+                        strategyBox?.add(StrategyModel(
                             name: c.text, jsonData: _getCurrentStateJson()));
                         Navigator.pop(context);
                         setState(() => isEditing = false);

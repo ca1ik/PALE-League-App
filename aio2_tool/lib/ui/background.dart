@@ -62,8 +62,8 @@ class Particle {
   void reset(Random rng, bool randomY) {
     x = rng.nextDouble();
     y = randomY ? rng.nextDouble() : 1.1;
-    speedX = (rng.nextDouble() - 0.5) * 0.001;
-    speedY = -(rng.nextDouble() * 0.002 + 0.0005);
+    speedX = (rng.nextDouble() - 0.5) * 0.0002;
+    speedY = -(rng.nextDouble() * 0.0004 + 0.0001);
     size = rng.nextDouble() * 2 + 1;
     opacity = rng.nextDouble() * 0.5 + 0.2;
   }

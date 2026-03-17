@@ -593,8 +593,30 @@ final Map<String, String> teamLogos = {
   "Werder Weremem": "assets/takimlar/werderweremem.png",
 };
 final Map<String, List<String>> roleCategories = {
-  "(1) GK": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
-  "(9) ST": ["Hedef Forvet"]
+  "GK (Kaleci)": ["Çizgi Kalecisi", "Süpürücü Kaleci", "Oyun Kurucu Kaleci"],
+  "CDM/CB (Savunma)": [
+    "Savunmatik",
+    "Libero",
+    "Oyun Kurucu Stoper",
+    "Tutucu",
+    "Derin Oyun Kurucu",
+    "Savaşçı"
+  ],
+  "CM/CAM (Orta Saha)": [
+    "Oyun Kurucu",
+    "Box to Box",
+    "Mezzala",
+    "Gölge Forvet",
+    "Enganche"
+  ],
+  "RW/LW (Kanat)": [
+    "İç Forvet",
+    "Kanat Oyuncusu",
+    "Gizli Forvet",
+    "Kanat Bek",
+    "Hücum Bek"
+  ],
+  "ST (Forvet)": ["Avcı Forvet", "Hedef Forvet", "Yanlış 9"]
 };
 
 // Dil Değişimi İçin Notifier
