@@ -58,6 +58,7 @@ flutter:
   
   # 'assets' kelimesi 'uses' ile aynı hizada olmalı (2 boşluk içeride)
   assets:
+    - assets/seed_db/      # Hive hazır veritabanı (isteğe bağlı, yoksa boş başlar)
     - assets/music/
     - assets/cards/
     - assets/cards/s/

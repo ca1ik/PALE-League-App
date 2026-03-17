@@ -1,7 +1,8 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -41,8 +42,40 @@ import 'modules/palehax_games.dart';
 import 'modules/custom_browser_module.dart';
 import 'modules/extras_module.dart';
 
+// ─── Hive Seed: hazır DB yoksa assets'ten kopyala ──────────────────────────
+// Kullanım:
+//   1) Mevcut datayı oluşturduktan sonra appdata/Documents/natroff_aio/ altındaki
+//      .hive dosyalarını 'assets/seed_db/' klasörüne koy.
+//   2) pubspec.yaml'a 'assets/seed_db/' satırını ekle.
+//   3) Rebuild al → artık her yeni kullanıcı hazır DB ile başlar.
+Future<void> _seedHiveIfNeeded() async {
+  try {
+    final dir = await getApplicationDocumentsDirectory();
+    const seedBoxes = [
+      'palehax_players_v9',
+      'palehax_players',
+      'palehax_manager_db',
+      'palehax_strategies',
+    ];
+    for (final name in seedBoxes) {
+      final target = File('${dir.path}/$name.hive');
+      if (target.existsSync()) continue; // zaten var, atla
+      try {
+        final data = await rootBundle.load('assets/seed_db/$name.hive');
+        await target.writeAsBytes(data.buffer.asUint8List(), flush: true);
+        debugPrint('[Seed] $name.hive kopyalandı');
+      } catch (_) {
+        // Asset yoksa sorun değil, boş box açılacak
+      }
+    }
+  } catch (e) {
+    debugPrint('[Seed] Hata: $e');
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _seedHiveIfNeeded(); // ← hazır DB kopyalama
   try {
     await Hive.initFlutter();
     if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(PlayerAdapter());
