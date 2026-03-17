@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import '../providers/music_provider.dart';
 
 class SettingsDialog extends StatelessWidget {
   const SettingsDialog({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final musicProv = Provider.of<MusicProvider>(context);
-
     return AlertDialog(
       backgroundColor: const Color(0xFF1E1E24),
       title: Row(children: [
@@ -20,31 +16,11 @@ class SettingsDialog extends StatelessWidget {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SwitchListTile(
-            title:
-                Text("Müzik", style: GoogleFonts.poppins(color: Colors.white)),
-            value: musicProv.isPlaying,
-            onChanged: (v) => musicProv.togglePlay(),
-            activeColor: Colors.purpleAccent,
+          ListTile(
+            leading: const Icon(Icons.music_off, color: Colors.grey),
+            title: Text("Müzik kaldırıldı",
+                style: GoogleFonts.poppins(color: Colors.grey)),
           ),
-          Slider(
-              value: musicProv.volume,
-              onChanged: (v) => musicProv.setVolume(v),
-              activeColor: Colors.purpleAccent),
-          DropdownButton<String>(
-            value: musicProv.currentTrack,
-            dropdownColor: const Color(0xFF25252D),
-            isExpanded: true,
-            items: musicProv.tracks
-                .map((t) => DropdownMenuItem(
-                    value: t,
-                    child:
-                        Text(t, style: const TextStyle(color: Colors.white))))
-                .toList(),
-            onChanged: (v) {
-              if (v != null) musicProv.changeTrack(v);
-            },
-          )
         ],
       ),
     );

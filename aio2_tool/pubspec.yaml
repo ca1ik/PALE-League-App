@@ -41,8 +41,7 @@ dependencies:
   google_generative_ai: ^0.4.7  # AI Hatası için (Flash modelini tanır)
   webview_windows: ^0.4.0
   
-  # Audio
-  audioplayers: ^6.0.0
+  # Audio (kaldırıldı)
   get: ^4.7.3
   fl_chart: ^0.66.0
   url_launcher: ^6.3.2
@@ -59,7 +58,6 @@ flutter:
   # 'assets' kelimesi 'uses' ile aynı hizada olmalı (2 boşluk içeride)
   assets:
     - assets/seed_db/      # Hive hazır veritabanı (isteğe bağlı, yoksa boş başlar)
-    - assets/music/
     - assets/cards/
     - assets/cards/s/
     - assets/X.mp4
