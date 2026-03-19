@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="assets/pale2.jpg" alt="Natroff AIO Banner" width="280"/>
-</p>
+
 
 <h1 align="center">Natroff AIO</h1>
 
@@ -8,6 +6,9 @@
   <b>All-in-One Desktop Companion for PALE League</b><br/>
   <sub>Player management, match simulation, mini-games, AI chatbot, system utilities — all in one app.</sub>
 </p>
+
+<img width="1280" height="770" alt="n3" src="https://github.com/user-attachments/assets/afa34504-391c-4d2b-9ab4-9b5b51e04eeb" />
+
 
 <p align="center">
   <img src="https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white" alt="Flutter"/>
@@ -237,6 +238,17 @@ This is a community-driven project for the PALE League. Contributions are welcom
 **ca1ik** — [github.com/ca1ik](https://github.com/ca1ik)
 
 ---
+
+## IN APP: 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/b4ae57c8-8881-48c5-b705-954e531b8db4" width="40%" />
+  <img src="https://github.com/user-attachments/assets/75177b4b-513e-42da-bcc0-a0f23df5c28f" width="40%" />
+  <img src="https://github.com/user-attachments/assets/d5c67775-6bb4-47bf-b985-edf0b6fc04f3" width="40%" />
+  <img src="https://github.com/user-attachments/assets/38a4a223-97fa-4bde-8fb8-0e7f81858784" width="40%" />
+  <img src="https://github.com/user-attachments/assets/76d79c6e-1e43-412f-96cd-37ce7864b142" width="40%" />
+  <img src="https://github.com/user-attachments/assets/44887b77-f446-46ee-a60d-e523f8cf8aa2" width="40%" />
+  <img src="https://github.com/user-attachments/assets/98f1fe4d-1da9-4c01-89d3-f50a8f026643" width="40%" />
+</p>
 
 <p align="center">
   Built with Flutter & passion for the PALE League community.
